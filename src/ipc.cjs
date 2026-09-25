@@ -55,6 +55,7 @@ function register(ctx) {
   on(ctx, 'tabs:move', (id, to) => T().move(num(id), num(to)));
   on(ctx, 'tabs:duplicate', (id) => T().duplicate(num(id)));
   on(ctx, 'tabs:mute', (id) => T().mute(num(id)));
+  on(ctx, 'tabs:pin', (id, pinned) => T().pin(num(id), !!pinned));
   on(ctx, 'tabs:reopen', () => T().reopen());
   on(ctx, 'tabs:close-others', (id) => T().closeOthers(num(id)));
   on(ctx, 'tabs:close-right', (id) => T().closeRight(num(id)));

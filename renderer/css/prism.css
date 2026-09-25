@@ -104,7 +104,8 @@
   border-radius: var(--op-r-md);
   color: var(--op-text-3);
   font-size: var(--op-fs-12);
-  transition: var(--tr-color), transform var(--op-t-2) var(--op-ease);
+  transition: var(--tr-color), transform var(--op-t-2) var(--op-ease),
+    padding var(--op-t-3) var(--op-ease), gap var(--op-t-3) var(--op-ease);
   animation: pr-tab-in var(--op-t-3) var(--op-ease) both;
 }
 .pr-tab:hover .pr-tab__body { background: var(--op-wash-1); color: var(--op-text-2); }
@@ -136,6 +137,7 @@
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
+  transition: opacity var(--op-t-3) var(--op-ease-soft);
 }
 .pr-tab__icon > * { grid-area: 1 / 1; }
 .pr-tab__icon img {
@@ -160,6 +162,7 @@
   /* Un título largo se esfuma, no se corta con puntos: se lee hasta el final
      del espacio que tiene. */
   mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
 }
 
 .pr-tab__btn {
@@ -172,7 +175,8 @@
 .pr-tab__close {
   opacity: 0;
   transform: scale(.85);
-  transition: var(--tr-color), opacity var(--op-t-1) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease);
+  transition: var(--tr-color), opacity var(--op-t-1) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease),
+    width var(--op-t-3) var(--op-ease);
 }
 .pr-tab:hover .pr-tab__close,
 .pr-tab.is-active .pr-tab__close { opacity: 1; transform: none; }
@@ -184,6 +188,17 @@
 .pr-tab.is-tiny .pr-tab__title,
 .pr-tab.is-tiny:not(.is-active) .pr-tab__close { display: none; }
 .pr-tab.is-tiny.is-active .pr-tab__icon { display: none; }
+
+/* Fijada: solo el ícono, centrado en sus 36 px de cuerpo. El título y la
+   cruz no se cortan: se desvanecen mientras la pestaña se angosta, y vuelven
+   igual al desfijarla. */
+.pr-tab.is-pinned .pr-tab__body { padding: 0 0 0 10px; gap: 0; }
+.pr-tab.is-pinned .pr-tab__title { opacity: 0; }
+.pr-tab.is-pinned .pr-tab__close { opacity: 0; width: 0; pointer-events: none; }
+
+/* Dormida: su proceso está cerrado hasta que la mires. El ícono se apaga un
+   poco; la pestaña sigue en su lugar y con su título. */
+.pr-tab.is-dormant .pr-tab__icon { opacity: .45; }
 
 /* El "+" viaja detrás de la última pestaña. */
 .pr-newtab {

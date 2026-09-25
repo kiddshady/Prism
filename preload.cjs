@@ -59,6 +59,7 @@ contextBridge.exposeInMainWorld('prism', {
     move: (id, to) => send('tabs:move', id, to),
     duplicate: (id) => send('tabs:duplicate', id),
     mute: (id) => send('tabs:mute', id),
+    pin: (id, pinned) => send('tabs:pin', id, !!pinned),
     reopen: () => send('tabs:reopen'),
     closeOthers: (id) => send('tabs:close-others', id),
     closeRight: (id) => send('tabs:close-right', id),

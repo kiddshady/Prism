@@ -12,6 +12,9 @@
      se puede cerrar una fila de pestañas sin mover la mano.
    · Una pestaña abierta desde otra se encola a su derecha (eso lo decide el
      proceso principal).
+
+   Las fijadas van primero, angostas (solo el ícono), y se arrastran solo
+   entre ellas; el resto reparte el ancho que queda.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { api, S, on } from './state.js';
@@ -22,6 +25,7 @@ import { tabMenu } from './menus.js';
 const MAX_W = 236;
 const MIN_W = 40;
 const NEWTAB_SPACE = 40;
+const PIN_W = 40;
 
 const INTERNAL_ICON = {
   nueva: 'prism',
@@ -33,6 +37,7 @@ const INTERNAL_ICON = {
 
 const els = new Map();
 let order = [];
+let pinned = 0;            // las primeras `pinned` de `order` son las fijadas
 let frozenW = null;
 let drag = null;
 let scroll = 0;
@@ -42,26 +47,33 @@ let newBtn;
 
 /* ── Geometría ─────────────────────────────────────────────────────────── */
 
+/** El ancho de las que no están fijadas: reparten lo que dejan las fijadas. */
 function tabWidth() {
-  const avail = strip.clientWidth - NEWTAB_SPACE;
-  const n = Math.max(1, order.length);
+  const avail = strip.clientWidth - NEWTAB_SPACE - pinned * PIN_W;
+  const n = Math.max(1, order.length - pinned);
   return frozenW ?? Math.max(MIN_W, Math.min(MAX_W, Math.floor(avail / n)));
+}
+
+/** Dónde empieza la pestaña i (sin el desplazamiento de la tira). */
+function xAt(i, w = tabWidth()) {
+  return i <= pinned ? i * PIN_W : pinned * PIN_W + (i - pinned) * w;
 }
 
 function layout() {
   if (!strip) return;
   const w = tabWidth();
   const avail = strip.clientWidth - NEWTAB_SPACE;
-  const total = order.length * w;
+  const total = xAt(order.length, w);
   // Si no entran ni al mínimo, la tira se desplaza (rueda del mouse).
   scroll = Math.max(0, Math.min(scroll, total - avail));
   order.forEach((id, i) => {
     const el = els.get(id);
     if (!el) return;
-    el.style.setProperty('--w', `${w}px`);
-    if (!(drag && drag.id === id && drag.moved)) el.style.setProperty('--x', `${i * w - scroll}px`);
-    el.classList.toggle('is-narrow', w < 100);
-    el.classList.toggle('is-tiny', w < 58);
+    const pin = i < pinned;
+    el.style.setProperty('--w', `${pin ? PIN_W : w}px`);
+    if (!(drag && drag.id === id && drag.moved)) el.style.setProperty('--x', `${xAt(i, w) - scroll}px`);
+    el.classList.toggle('is-narrow', !pin && w < 100);
+    el.classList.toggle('is-tiny', !pin && w < 58);
   });
   newBtn.style.setProperty('--x', `${Math.min(total - scroll, avail) + 4}px`);
 }
@@ -71,8 +83,10 @@ function revealActive() {
   if (i < 0) return;
   const w = tabWidth();
   const avail = strip.clientWidth - NEWTAB_SPACE;
-  if (i * w < scroll) scroll = i * w;
-  else if ((i + 1) * w > scroll + avail) scroll = (i + 1) * w - avail;
+  const x0 = xAt(i, w);
+  const x1 = x0 + (i < pinned ? PIN_W : w);
+  if (x0 < scroll) scroll = x0;
+  else if (x1 > scroll + avail) scroll = x1 - avail;
 }
 
 /* ── Contenido de una pestaña ──────────────────────────────────────────── */
@@ -117,14 +131,16 @@ function create(t) {
     </div>`;
   // Nace en su lugar, no deslizándose desde el borde izquierdo.
   const i = S.tabs.findIndex((x) => x.id === t.id);
-  el.style.setProperty('--x', `${Math.max(0, i) * tabWidth() - scroll}px`);
-  el.style.setProperty('--w', `${tabWidth()}px`);
+  el.style.setProperty('--x', `${xAt(Math.max(0, i)) - scroll}px`);
+  el.style.setProperty('--w', `${t.pinned ? PIN_W : tabWidth()}px`);
   return el;
 }
 
 function update(el, t) {
   el.classList.toggle('is-active', t.id === S.activeId);
   el.classList.toggle('is-error', !!(t.error || t.crashed));
+  el.classList.toggle('is-pinned', !!t.pinned);
+  el.classList.toggle('is-dormant', !!t.dormant);
   el.setAttribute('aria-selected', String(t.id === S.activeId));
 
   const title = t.title || (t.internal ? '' : t.url) || 'Nueva pestaña';
@@ -156,6 +172,7 @@ export function render() {
     update(el, t);
   }
   if (!drag) order = ids;
+  pinned = S.tabs.filter((t) => t.pinned).length;
   revealActive();
   layout();
 }
@@ -172,7 +189,7 @@ function onPointerDown(e) {
   if (e.button !== 0 || e.target.closest('button')) return;
   const id = idOf(el);
   if (id !== S.activeId) api.tabs.activate(id);         // como Chrome: activa al apretar, no al soltar
-  drag = { id, el, startX: e.clientX, originX: order.indexOf(id) * tabWidth() - scroll, moved: false };
+  drag = { id, el, startX: e.clientX, originX: xAt(order.indexOf(id)), moved: false };
   el.setPointerCapture(e.pointerId);
 }
 
@@ -184,12 +201,15 @@ function onPointerMove(e) {
     drag.moved = true;
     drag.el.classList.add('is-dragging');
   }
+  // Una fijada se mueve entre las fijadas; las demás, entre las demás.
   const w = tabWidth();
-  const maxX = (order.length - 1) * w - scroll;
-  const x = Math.max(-scroll, Math.min(maxX, drag.originX + dx));
-  drag.el.style.setProperty('--x', `${x}px`);
-  const target = Math.max(0, Math.min(order.length - 1, Math.round((x + scroll) / w)));
   const cur = order.indexOf(drag.id);
+  const isPin = cur < pinned;
+  const lo = isPin ? 0 : pinned;
+  const hi = isPin ? pinned - 1 : order.length - 1;
+  const x = Math.max(xAt(lo, w), Math.min(xAt(hi, w), drag.originX + dx));
+  drag.el.style.setProperty('--x', `${x - scroll}px`);
+  const target = Math.max(lo, Math.min(hi, lo + Math.round((x - xAt(lo, w)) / (isPin ? PIN_W : w))));
   if (target !== cur) {
     order.splice(cur, 1);
     order.splice(target, 0, drag.id);
@@ -250,8 +270,7 @@ export function init() {
   });
 
   strip.addEventListener('wheel', (e) => {
-    const w = tabWidth();
-    if (order.length * w <= strip.clientWidth - NEWTAB_SPACE) return;
+    if (xAt(order.length) <= strip.clientWidth - NEWTAB_SPACE) return;
     scroll += (e.deltaY || e.deltaX);
     layout();
   }, { passive: true });

@@ -68,6 +68,8 @@ const DEFAULT_SETTINGS = {
   adblockAllow: [],
   /** Oscurecer a la fuerza las páginas que no tienen modo oscuro. Pide reiniciar. */
   forceDark: false,
+  /** Minutos sin mirarla para que una pestaña se duerma. 0 = nunca. */
+  sleepTabs: 30,
   /** Scrollbars finas y propias también adentro de las páginas. */
   pageScrollbars: true,
   /** null = la carpeta de Descargas del sistema. */

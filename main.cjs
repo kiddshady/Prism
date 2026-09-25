@@ -127,7 +127,8 @@ const ctx = {
     const ui = (cmd, focus = true) => { if (focus) ctx.focusChrome(); ctx.send('cmd', cmd); };
 
     if (name === 'tab:new') { T.create({}); return ui('omni:focus'); }
-    if (name === 'tab:close') return T.active && T.close(T.active.id);
+    // Una fijada no se va con Ctrl+W: se cierra desde su menú, a propósito.
+    if (name === 'tab:close') return T.active && !T.active.pinned && T.close(T.active.id);
     if (name === 'tab:reopen') return T.reopen();
     if (name === 'tab:next') return list.length > 1 && T.activate(list[(i + 1) % list.length].id);
     if (name === 'tab:prev') return list.length > 1 && T.activate(list[(i - 1 + list.length) % list.length].id);
@@ -267,6 +268,7 @@ function createWindow(state) {
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+
 
   win.webContents.on('before-input-event', (e, input) => {
     const cmd = shortcuts.match(input);

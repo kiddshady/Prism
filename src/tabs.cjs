@@ -20,6 +20,14 @@
    renderer la pinta en su lugar, y recién ahí se esconde la vista. El overlay
    aparece sobre la foto — y como la foto está en el DOM, el vidrio del
    overlay la esmerila de verdad.
+
+   ── Fijadas y dormidas ─────────────────────────────────────────────────────
+   Las fijadas van siempre juntas a la izquierda (el arreglo `tabs` lo
+   garantiza: primero todas las fijadas, después el resto), no se cierran con
+   Ctrl+W y nunca se duermen: son lo que tiene que estar vivo siempre.
+   Dormir una pestaña es cerrar su proceso y quedarse con su historial de
+   Chromium (direcciones, scroll y lo escrito en los formularios). Al mirarla
+   se restaura desde ahí: vuelve donde estaba, con atrás y adelante.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { WebContentsView, clipboard, nativeImage, shell } = require('electron');
@@ -29,6 +37,9 @@ const BG = '#0a0a0a';
 const RADIUS = 10;
 const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const MAX_CLOSED = 25;
+const SLEEP_CHECK = 60 * 1000;
+/** Mundo aislado propio: lo que Prism corre en una página, fuera del alcance de sus scripts. */
+const PRISM_WORLD = 1001;
 
 function createTabs(ctx) {
   const tabs = [];
@@ -44,6 +55,12 @@ function createTabs(ctx) {
   const get = (id) => tabs.find((t) => t.id === Number(id)) || null;
   const active = () => get(activeId);
   const indexOf = (id) => tabs.findIndex((t) => t.id === Number(id));
+  const pinnedCount = () => tabs.filter((t) => t.pinned).length;
+  /** Dónde puede caer una pestaña: las fijadas, entre las fijadas; el resto, después. */
+  const clampIndex = (i, pinned) => {
+    const pc = pinnedCount();
+    return pinned ? Math.max(0, Math.min(pc, i)) : Math.max(pc, Math.min(tabs.length, i));
+  };
 
   /* ── Estado → renderer ─────────────────────────────────────────────────── */
 
@@ -60,6 +77,7 @@ function createTabs(ctx) {
       crashed: t.crashed,
       audible: t.audible,
       muted: t.muted,
+      pinned: t.pinned,
       zoom: t.zoom,
       blocked: t.blocked,
       dormant: !t.view && !t.internal,
@@ -100,7 +118,7 @@ function createTabs(ctx) {
   function sessionData() {
     return {
       active: Math.max(0, indexOf(activeId)),
-      tabs: tabs.map((t) => ({ url: t.url, title: t.title, favicon: t.favicon })),
+      tabs: tabs.map((t) => ({ url: t.url, title: t.title, favicon: t.favicon, ...(t.pinned ? { pinned: true } : {}) })),
     };
   }
   function writeSession() {
@@ -179,6 +197,10 @@ function createTabs(ctx) {
        quedara oscuro, esas páginas saldrían con texto negro sobre negro. */
     view.setBackgroundColor(BG);
     view.setBorderRadius(RADIUS);
+    /* Nace con el tamaño de la página aunque todavía no esté en la ventana:
+       así maqueta una sola vez, y una pestaña que despierta puede volver a su
+       scroll (en 0×0 no hay adónde scrollear). */
+    if (ctx.win && !ctx.win.isDestroyed()) view.setBounds(pageBounds());
     t.view = view;
     t.shown = false;
     const wc = view.webContents;
@@ -227,7 +249,9 @@ function createTabs(ctx) {
       t.favicon = ctx.library.faviconFor(url);
       t.everCommitted = true;
       if (!t.shown) { t.shown = true; syncAttached(); }
-      ctx.library.visit(url, wc.getTitle() === url ? '' : wc.getTitle());
+      // Despertar no es visitar: la página ya estaba abierta.
+      if (t.waking) t.waking = false;
+      else ctx.library.visit(url, wc.getTitle() === url ? '' : wc.getTitle());
       t.zoom = wc.getZoomFactor();
       touch();
     });
@@ -392,6 +416,7 @@ function createTabs(ctx) {
       crashed: false,
       audible: false,
       muted: false,
+      pinned: false,
       zoom: 1,
       blocked: 0,
       pendingBlocked: 0,
@@ -401,6 +426,9 @@ function createTabs(ctx) {
       backTo: null,
       openerId: null,
       everCommitted: false,
+      lastSeen: Date.now(),
+      slept: null,
+      waking: false,
     };
   }
 
@@ -409,10 +437,11 @@ function createTabs(ctx) {
    * con su dirección pero sin cargar: así restaurar diez pestañas no levanta
    * diez procesos de golpe — cada una carga recién cuando la mirás.
    */
-  function create({ url = '', active: activate = true, index, openerId = null, dormant = false, title = '', favicon = null } = {}) {
+  function create({ url = '', active: activate = true, index, openerId = null, dormant = false, title = '', favicon = null, pinned = false } = {}) {
     const t = blank(url);
     t.openerId = openerId;
-    const at = Number.isInteger(index) ? Math.max(0, Math.min(tabs.length, index)) : tabs.length;
+    t.pinned = !!pinned;
+    const at = clampIndex(Number.isInteger(index) ? index : tabs.length, t.pinned);
     tabs.splice(at, 0, t);
 
     const page = omni.internalPage(t.url);
@@ -475,8 +504,9 @@ function createTabs(ctx) {
     const t = get(id);
     if (!t) return;
     const changed = activeId !== t.id;
+    if (changed) { const prev = active(); if (prev) prev.lastSeen = Date.now(); }
     activeId = t.id;
-    if (!t.internal && !t.view) load(t, t.url);       // una dormida se despierta al mirarla
+    if (!t.internal && !t.view) wake(t);              // una dormida se despierta al mirarla
     syncAttached();
     if (changed) ctx.send('page:hover', '');
     if (focusPage && t.view && t.shown) t.view.webContents.focus();
@@ -488,7 +518,7 @@ function createTabs(ctx) {
     if (i < 0) return;
     const t = tabs[i];
     if (!t.internal || t.internal !== 'nueva') {
-      closed.push({ url: t.url, title: t.title, favicon: t.favicon, index: i });
+      closed.push({ url: t.url, title: t.title, favicon: t.favicon, index: i, pinned: t.pinned });
       if (closed.length > MAX_CLOSED) closed.shift();
     }
     tabs.splice(i, 1);
@@ -509,24 +539,37 @@ function createTabs(ctx) {
   function reopen() {
     const c = closed.pop();
     if (!c) return;
-    create({ url: c.url, index: c.index, active: true });
+    create({ url: c.url, index: c.index, active: true, pinned: c.pinned });
   }
 
+  // Como en Chrome, "cerrar las otras" y "las de la derecha" respetan las fijadas.
   function closeOthers(id) {
-    for (const t of [...tabs]) if (t.id !== Number(id)) close(t.id);
+    for (const t of [...tabs]) if (t.id !== Number(id) && !t.pinned) close(t.id);
   }
 
   function closeRight(id) {
     const i = indexOf(id);
-    for (const t of tabs.slice(i + 1)) close(t.id);
+    for (const t of tabs.slice(i + 1)) if (!t.pinned) close(t.id);
   }
 
   function move(id, toIndex) {
     const i = indexOf(id);
     if (i < 0) return;
     const [t] = tabs.splice(i, 1);
-    tabs.splice(Math.max(0, Math.min(tabs.length, toIndex)), 0, t);
+    tabs.splice(clampIndex(Number(toIndex) || 0, t.pinned), 0, t);
     t.openerId = null;
+    emit();
+  }
+
+  /** Fijar la lleva al final de las fijadas; desfijar, a la primera después de ellas. */
+  function pin(id, on) {
+    const i = indexOf(id);
+    if (i < 0 || tabs[i].pinned === !!on) return;
+    const [t] = tabs.splice(i, 1);
+    t.pinned = !!on;
+    t.openerId = null;
+    tabs.splice(pinnedCount(), 0, t);
+    if (t.pinned && !t.internal && !t.view) wake(t);   // una fijada está viva
     emit();
   }
 
@@ -548,6 +591,75 @@ function createTabs(ctx) {
   function closeIfDownloadOnly(wcId) {
     const t = byWc.get(wcId);
     if (t && !t.everCommitted && !t.backTo && tabs.length > 1) setTimeout(() => close(t.id), 0);
+  }
+
+  /* ── Dormir y despertar ────────────────────────────────────────────────── */
+
+  /** Si esta pestaña se puede dormir ahora sin que la persona pierda nada. */
+  function canSleep(t, now = Date.now()) {
+    const min = Number(ctx.settings.sleepTabs) || 0;
+    if (!min || !t.view || t.internal || t.pinned || t.id === activeId) return false;
+    if (t.sleeping || t.loading || !t.shown || t.error || t.crashed || t.audible) return false;
+    const wc = t.view.webContents;
+    if (wc.isCurrentlyAudible() || wc.isDevToolsOpened() || wc.isBeingCaptured()) return false;
+    return now - t.lastSeen >= min * 60 * 1000;
+  }
+
+  /* Chromium anota el scroll y lo escrito en los formularios en su historial
+     recién al navegar, no mientras la página está quieta (medido: ni visible
+     ni oculta lo anota solo). Un replaceState que no cambia nada es una
+     navegación mínima que lo obliga a anotarlo ya. Corre en un mundo aislado:
+     las páginas que parchean `history` (routers de Next y compañía) no se
+     enteran. Si la página no contesta, se duerme igual, sin el scroll. */
+  function noteState(wc) {
+    return new Promise((resolve) => {
+      const done = () => { clearTimeout(timer); wc.off('did-navigate-in-page', done); resolve(); };
+      const timer = setTimeout(done, 1500);
+      wc.once('did-navigate-in-page', done);
+      wc.executeJavaScriptInIsolatedWorld(PRISM_WORLD, [{ code: "history.replaceState(history.state, '')" }]).catch(done);
+    });
+  }
+
+  async function sleep(id) {
+    const t = get(id);
+    if (!t?.view || t.internal || t.id === activeId || t.sleeping) return false;
+    const view = t.view;
+    t.sleeping = true;
+    await noteState(view.webContents);
+    t.sleeping = false;
+    // Mientras tanto la pudieron mirar, cerrar o navegar a una página propia.
+    if (t.view !== view || t.id === activeId || !get(t.id)) return false;
+    const nav = view.webContents.navigationHistory;
+    const entries = nav.getAllEntries();
+    t.slept = entries.length ? { entries, index: nav.getActiveIndex() } : null;
+    destroyView(t);
+    t.loading = false;
+    t.audible = false;
+    emit();
+    return true;
+  }
+
+  async function sweep(now = Date.now()) {
+    let n = 0;
+    for (const t of [...tabs]) if (canSleep(t, now) && await sleep(t.id)) n++;
+    return n;
+  }
+  setInterval(() => { sweep().catch((err) => console.error('[dormir]', err.message)); }, SLEEP_CHECK);
+
+  function wake(t) {
+    const h = t.slept;
+    t.slept = null;
+    if (!h) { load(t, t.url); return; }
+    t.error = null;
+    t.crashed = false;
+    t.loading = true;
+    t.waking = true;
+    ensureView(t);
+    if (t.muted) t.view.webContents.setAudioMuted(true);
+    // Si falla, did-fail-load lo cuenta (y restore ya trae su propio catch).
+    t.view.webContents.navigationHistory.restore({ entries: h.entries, index: h.index });
+    syncAttached();
+    emit();
   }
 
   /* ── Navegación ────────────────────────────────────────────────────────── */
@@ -713,13 +825,14 @@ function createTabs(ctx) {
     const list = Array.isArray(data?.tabs) ? data.tabs.filter((x) => x && typeof x.url === 'string') : [];
     if (!list.length) return false;
     const act = Math.max(0, Math.min(list.length - 1, Number(data.active) || 0));
-    list.forEach((x, i) => create({ url: x.url, title: x.title, favicon: x.favicon, active: false, dormant: i !== act }));
+    // Las fijadas cargan de entrada: son las que tienen que estar vivas (avisos, música).
+    list.forEach((x, i) => create({ url: x.url, title: x.title, favicon: x.favicon, pinned: !!x.pinned, active: false, dormant: i !== act && !x.pinned }));
     activateTab(tabs[act].id);
     return true;
   }
 
   return {
-    create, close, reopen, closeOthers, closeRight, move, duplicate, mute, navigate,
+    create, close, reopen, closeOthers, closeRight, move, duplicate, mute, pin, sleep, sweep, navigate,
     activate: activateTab, back, forward, reload, stop, zoom, find, stopFind, devtools,
     contextAction, snapshotPage, hold, focusPage, setInsets, layout, restore, writeSession,
     closeIfDownloadOnly, countBlocked,

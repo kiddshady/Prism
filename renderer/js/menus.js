@@ -18,15 +18,19 @@ export function tabMenu(anchor, id) {
   const t = S.tabs.find((x) => x.id === id);
   if (!t) return;
   const i = S.tabs.indexOf(t);
-  const right = S.tabs.length - i - 1;
+  // Las fijadas no cuentan: "cerrar las otras" y "las de la derecha" las respetan.
+  const right = S.tabs.slice(i + 1).filter((x) => !x.pinned).length;
+  const others = S.tabs.filter((x) => x.id !== id && !x.pinned).length;
   menu(anchor, [
     { label: 'Nueva pestaña a la derecha', icon: 'plus', onSelect: () => { S.focusOmniOnNext = true; api.tabs.create('', { index: i + 1 }); } },
     { label: 'Recargar', icon: 'reload', key: 'F5', disabled: !!t.internal, onSelect: () => { api.tabs.activate(id); api.nav.reload(); } },
     { label: 'Duplicar', icon: 'duplicate', onSelect: () => api.tabs.duplicate(id) },
+    { label: t.pinned ? 'Desfijar' : 'Fijar', icon: 'pin', onSelect: () => api.tabs.pin(id, !t.pinned) },
     { label: t.muted ? 'Activar el sonido' : 'Silenciar la pestaña', icon: t.muted ? 'speaker' : 'speakerOff', onSelect: () => api.tabs.mute(id) },
     { sep: true },
-    { label: 'Cerrar', icon: 'close', key: 'Ctrl+W', onSelect: () => api.tabs.close(id) },
-    { label: 'Cerrar las otras', disabled: S.tabs.length < 2, onSelect: () => api.tabs.closeOthers(id) },
+    // Ctrl+W no cierra una fijada: el atajo solo se muestra donde anda.
+    { label: 'Cerrar', icon: 'close', key: t.pinned ? undefined : 'Ctrl+W', onSelect: () => api.tabs.close(id) },
+    { label: 'Cerrar las otras', disabled: !others, onSelect: () => api.tabs.closeOthers(id) },
     { label: right === 1 ? 'Cerrar la de la derecha' : 'Cerrar las de la derecha', disabled: !right, onSelect: () => api.tabs.closeRight(id) },
     { sep: true },
     { label: 'Reabrir la última cerrada', icon: 'reopen', key: 'Ctrl+Mayús+T', disabled: !S.canReopen, onSelect: () => api.tabs.reopen() },

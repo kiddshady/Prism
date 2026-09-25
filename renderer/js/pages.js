@@ -593,12 +593,15 @@ function settingsPage() {
       </section>
 
       <section class="pr-set" style="--i:1">
-        <div class="pr-set__head">${Icons.svg('tabs')}<span class="pr-set__title">Al abrir Prism</span></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Empezar con</div>
+        <div class="pr-set__head">${Icons.svg('tabs')}<span class="pr-set__title">Pestañas</span></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Al abrir Prism, empezar con</div>
           <div class="pr-opt__hint">Las pestañas de la última vez cargan recién cuando las mirás: abrir veinte no levanta veinte páginas.</div></div>
           <div class="pr-opt__ctl"><div class="op-segmented" id="s-startup">
             <button class="op-segmented__opt${s.startup === 'restore' ? ' is-active' : ''}" data-value="restore">Las pestañas de antes</button>
             <button class="op-segmented__opt${s.startup === 'newtab' ? ' is-active' : ''}" data-value="newtab">Una pestaña nueva</button></div></div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Dormir las pestañas que no mirás</div>
+          <div class="pr-opt__hint">Liberan memoria y, al volver, siguen donde estaban. Nunca se duermen las fijadas ni las que suenan.</div></div>
+          <div class="pr-opt__ctl"><div class="op-segmented" id="s-sleep">${[[0, 'Nunca'], [15, '15 min'], [30, '30 min'], [60, '1 h']].map(([v, l]) => `<button class="op-segmented__opt${Number(s.sleepTabs) === v ? ' is-active' : ''}" data-value="${v}">${l}</button>`).join('')}</div></div></div>
       </section>
 
       <section class="pr-set" style="--i:2">
@@ -667,6 +670,7 @@ function settingsPage() {
 
     bindSwitcher(col.querySelector('#s-engine'), (v) => save({ searchEngine: v }, false));
     bindSwitcher(col.querySelector('#s-startup'), (v) => save({ startup: v }, false));
+    bindSwitcher(col.querySelector('#s-sleep'), (v) => save({ sleepTabs: Number(v) }, false));
   }
 
   let first = true;

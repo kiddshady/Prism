@@ -22,6 +22,12 @@ npm run release # publica en GitHub (ver abajo)
   medio cierra, al cerrar con el mouse el ancho se congela (la cruz de la
   siguiente queda debajo del cursor), un parlante para silenciar, y las que
   abre una página se encolan a su derecha.
+- **Fijadas**: angostas, solo el ícono, siempre a la izquierda. Ctrl+W no las
+  cierra, cargan al abrir Prism y nunca se duermen.
+- **Dormidas**: la pestaña que no mirás hace un rato (30 min por defecto, se
+  cambia en Ajustes) cierra su proceso y libera memoria. Al mirarla vuelve
+  donde estaba: misma página, atrás y adelante, scroll y formularios. Nunca se
+  duermen las fijadas ni las que suenan.
 - **Omnibox**: dirección o búsqueda en un solo campo, autocompleta en línea los
   sitios que ya visitaste, sugiere de tu historial, tus favoritos y el buscador.
   Sin foco muestra la dirección partida — el host claro, el resto atenuado.
