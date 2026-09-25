@@ -1,0 +1,234 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   OPAL — overlays
+   Tooltip, menú, modal y toast. Todos portaleados a #op-layer,
+   todos con entrada Y salida (nada se corta al cerrarse), todos propios: ni un
+   title= nativo, ni un confirm() del sistema.
+
+   Acá vive el vidrio en su mejor momento: un overlay flota sobre CONTENIDO —
+   texto, listas, color— y el blur convierte todo eso en profundidad. Por eso
+   los overlays sí llevan backdrop-filter, y lo que vive adentro de ellos, no.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+#op-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+}
+#op-layer > * { pointer-events: auto; }
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────────
+   Reemplaza al title= nativo (amarillo, lento, inestilable). Se declara con
+   data-tip / data-tip-side y lo maneja tooltip.js. */
+.op-tooltip {
+  position: absolute;
+  max-width: 260px;
+  padding: 5px var(--op-2);
+  border-radius: var(--op-r-md);
+  background: var(--op-s3);
+  backdrop-filter: var(--op-glass);
+  color: var(--op-text);
+  font-size: var(--op-fs-11);
+  line-height: 1.45;
+  /* Centrado y a prueba de rutas: la caja ya se centra sobre su ancla
+     (tooltip.js), el texto acompaña. Y una cadena sin espacios —
+     C:\...\Roaming\App\data — no tiene dónde partirse: sin `anywhere`
+     desborda la burbuja en vez de envolver, y el tooltip sale con el
+     texto colgando afuera del vidrio. */
+  text-align: center;
+  overflow-wrap: anywhere;
+  box-shadow: var(--op-sheet), var(--op-e3);
+  animation: op-pop-in var(--op-t-2) var(--op-ease) both;
+  will-change: transform, opacity;
+}
+.op-tooltip[data-state='closing'] { animation: op-pop-out 100ms var(--op-ease-in) both; }
+.op-tooltip__key { margin-left: var(--op-2); color: var(--op-text-4); }
+
+/* ── Menú contextual / dropdown ──────────────────────────────────────────── */
+/* Los overlays que scrollean también se esfuman: la regla del corte-nunca no
+   se suspende porque la superficie sea chica. Cada uno lleva un fade a su
+   escala, y su padding vertical lo iguala para que en reposo no coma ítems.
+
+   Pero estos dos están casi todos cerrados por una línea, y el fade solo va
+   donde el corte es al aire. El único lado al aire acá es el de arriba del
+   modal, contra su cabecera. Cada --op-fade se queda igual aunque el lado esté
+   apagado: es la escala del esfumado de esa superficie, y si mañana desaparece
+   la pieza que la cierra, el fade tiene que volver con el tamaño correcto. */
+.op-menu.op-scroll,
+.op-modal__body.op-scroll { overflow-x: hidden; }
+.op-menu.op-scroll        { --op-fade: 10px; padding-top: 10px; padding-bottom: 10px; }
+.op-modal__body.op-scroll { --op-fade: 20px; padding-top: 20px; padding-bottom: 20px; }
+
+/* El menú es su propio marco: el hairline lo cierra por los cuatro lados. Acá
+   el fade no solo sobraba — como la máscara y el borde viven en el MISMO
+   elemento, se comía el hairline justo arriba y abajo y dejaba el marco abierto. */
+.op-menu.op-scroll {
+  --op-fade-top: 0px;
+  --op-fade-bottom: 0px;
+  mask-image: none;
+}
+/* El modal corta al aire arriba (la cabecera no lleva línea) y contra el pie abajo. */
+.op-modal__body:has(~ .op-modal__foot)     { --op-fade-bottom: 0px; }
+
+.op-menu {
+  position: absolute;
+  min-width: 180px;
+  max-height: 60vh;
+  padding: var(--op-1);
+  border-radius: var(--op-r-lg);
+  background: var(--op-s3);
+  backdrop-filter: var(--op-glass-heavy);
+  box-shadow: var(--op-sheet), var(--op-e4);
+  overflow-y: auto;
+  animation: op-pop-in var(--op-t-2) var(--op-ease) both;
+  transform-origin: var(--origin, top left);
+}
+.op-menu[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+.op-menuitem {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  width: 100%;
+  height: 28px;
+  padding: 0 var(--op-2);
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: transparent;
+  color: var(--op-text-2);
+  font-size: var(--op-fs-12);
+  text-align: left;
+  cursor: default;
+  transition: var(--tr-color);
+}
+.op-menuitem .op-icon { width: 14px; height: 14px; color: var(--op-text-4); transition: color var(--op-t-1) var(--op-ease-soft); }
+.op-menuitem:hover, .op-menuitem.is-active { background: var(--op-wash-2); color: var(--op-text); }
+.op-menuitem:hover .op-icon, .op-menuitem.is-active .op-icon { color: var(--op-text-2); }
+.op-menuitem.is-selected .op-icon:last-child { color: var(--op-accent); }
+.op-menuitem--danger { color: var(--op-danger); }
+.op-menuitem--danger .op-icon { color: var(--op-danger); }
+.op-menuitem--danger:hover { background: var(--op-danger-wash); color: var(--op-danger); }
+/* Con :hover, la regla genérica de arriba (`.op-menuitem:hover .op-icon`)
+   pesa 0-3-0 y le gana al 0-2-0 del danger: el tacho volvía a gris justo
+   cuando el mouse se paraba encima. Misma especificidad, declarada después. */
+.op-menuitem--danger:hover .op-icon,
+.op-menuitem--danger.is-active .op-icon { color: var(--op-danger); }
+.op-menuitem__key { margin-left: auto; font-size: var(--op-fs-10); color: var(--op-text-4); }
+.op-menu__sep { height: 1px; margin: var(--op-1) var(--op-2); background: var(--op-line); }
+.op-menu__label {
+  padding: var(--op-2) var(--op-2) var(--op-1);
+  font-size: var(--op-fs-10);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-caps);
+  text-transform: uppercase;
+  color: var(--op-text-4);
+}
+
+/* ── Modal ───────────────────────────────────────────────────────────────── */
+/* El scrim ES vidrio: esmerila la app entera detrás del diálogo. Es el momento
+   más glassmorphism del sistema, y también el más caro — por eso solo existe
+   mientras hay un modal abierto, y el blur en sí no se anima nunca (entra y
+   sale por opacity). */
+.op-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgb(3 3 4 / .48);
+  backdrop-filter: blur(10px) saturate(120%);
+  animation: op-fade-in var(--op-t-3) var(--op-ease) both;
+}
+.op-scrim[data-state='closing'] { animation: op-fade-out var(--op-t-2) var(--op-ease-in) both; }
+
+/* El wrapper de la animación es TAMBIÉN el que centra, y esto no es un capricho
+   de estilo: es la única forma de que no se rompa.
+
+   Antes el modal se centraba solo con `position:fixed` + `top:50%` +
+   `translate(-50%,-50%)`, y el wrapper era un div suelto solo para animar. Pero
+   ese wrapper tiene alto 0 (su único hijo estaba fuera de flujo) y —por
+   `animation-fill-mode: both`— conserva un transform computado para siempre,
+   aunque sea la identidad. Un elemento con transform es bloque contenedor de
+   sus descendientes `fixed`, así que ese `top:50%` se resolvía contra 0 px de
+   alto y el modal terminaba medio cuerpo arriba del borde de la ventana.
+
+   Centrando con grid no hay porcentajes que resolver contra nada. */
+.op-modal__anim {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  animation: op-lift-in var(--op-t-3) var(--op-ease) both;
+}
+/* El wrapper cubre toda la ventana, así que tiene que dejar pasar el click al
+   scrim de abajo; solo el modal en sí lo intercepta. */
+#op-layer > .op-modal__anim { pointer-events: none; }
+
+.op-modal {
+  position: relative;
+  pointer-events: auto;
+  width: min(520px, calc(100vw - 96px));
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-radius: var(--op-r-xl);
+  background: var(--op-s3);
+  backdrop-filter: var(--op-glass-heavy);
+  box-shadow: var(--op-sheet), var(--op-e4);
+  overflow: hidden;
+}
+.op-modal__anim[data-state='closing'] { animation: op-lift-out var(--op-t-2) var(--op-ease-in) both; }
+.op-modal__head { padding: var(--op-5) var(--op-5) var(--op-3); display: flex; align-items: flex-start; gap: var(--op-3); }
+.op-modal__title { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); }
+.op-modal__sub { font-size: var(--op-fs-12); color: var(--op-text-3); margin-top: 4px; line-height: var(--op-lh-loose); }
+.op-modal__body { padding: 0 var(--op-5) var(--op-5); overflow-y: auto; min-height: 0; }
+/* El pie es la base de la hoja: se hunde apenas, no sube. */
+.op-modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--op-2);
+  padding: var(--op-3) var(--op-5);
+  background: rgb(0 0 0 / .16);
+  box-shadow: inset 0 1px 0 var(--op-line);
+}
+
+/* ── Toasts ──────────────────────────────────────────────────────────────── */
+.op-toasts {
+  position: absolute;
+  right: var(--op-5);
+  bottom: calc(var(--op-statusbar) + var(--op-4));
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--op-2);
+  width: 320px;
+}
+.op-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--op-3);
+  padding: var(--op-3);
+  border-radius: var(--op-r-lg);
+  background: var(--op-s3);
+  backdrop-filter: var(--op-glass);
+  box-shadow: var(--op-sheet), var(--op-e4);
+  animation: op-slide-in-r var(--op-t-3) var(--op-ease) both;
+  overflow: hidden;
+  position: relative;
+}
+.op-toast[data-state='closing'] { animation: op-slide-out-r var(--op-t-2) var(--op-ease-in) both; }
+.op-toast > .op-icon { color: var(--op-text-3); margin-top: 1px; }
+.op-toast__main { flex: 1 1 auto; min-width: 0; }
+.op-toast__title { font-size: var(--op-fs-12); font-weight: var(--op-w-medium); color: var(--op-text); }
+.op-toast__text { font-size: var(--op-fs-11); color: var(--op-text-3); margin-top: 2px; line-height: var(--op-lh); user-select: text; }
+.op-toast--error > .op-icon { color: var(--op-danger); }
+.op-toast--error { box-shadow: inset 0 1px 0 var(--op-edge-lit), inset 0 0 0 1px var(--op-danger-ring), var(--op-e4); }
+/* La barra de vida: se consume sola y muestra cuánto le queda. */
+.op-toast__life {
+  position: absolute;
+  left: 0; bottom: 0;
+  height: 1.5px;
+  width: 100%;
+  background: var(--op-line-3);
+  transform-origin: left;
+  animation: op-toast-life var(--life, 4000ms) linear forwards;
+}
+.op-toast--error .op-toast__life { background: var(--op-danger-ring); }
+@keyframes op-toast-life { from { transform: scaleX(1) } to { transform: scaleX(0) } }

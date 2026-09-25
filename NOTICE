@@ -1,0 +1,30 @@
+Componentes de terceros incluidos en este repositorio
+=====================================================
+
+El código de Prism está bajo la licencia MIT (ver LICENSE). Su interfaz sale de
+la plantilla Opal (S:\tools\Opal), también MIT y del mismo autor. Lo que sigue
+viaja empaquetado con él y tiene su propia licencia, independiente de la del
+proyecto.
+
+
+Ghostery Adblocker
+------------------
+Paquetes:  @ghostery/adblocker-electron, @ghostery/adblocker y sus dependencias
+Licencia:  Mozilla Public License 2.0
+Copyright: Copyright (c) 2017-present Ghostery GmbH
+
+Se usa tal cual, desde node_modules, sin modificar sus archivos. Las listas de
+filtros (EasyList, EasyPrivacy, uBlock Origin) se bajan en el primer uso y
+tienen sus propias licencias; no viajan con la app.
+
+
+Roboto Mono
+-----------
+Archivos:  renderer/fonts/roboto-mono-*.woff2
+Licencia:  SIL Open Font License 1.1
+Texto:     renderer/fonts/Roboto-Mono-LICENSE.txt
+Copyright: Copyright 2015 The Roboto Mono Project Authors
+
+La OFL exige que este aviso y el texto de la licencia acompañen a la fuente en
+cualquier redistribución, incluida la de una app compilada: la licencia viaja
+adentro del instalador.

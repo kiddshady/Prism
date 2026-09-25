@@ -1,0 +1,252 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   OPAL — base
+   Reset, tipografía y el reemplazo de TODO lo nativo de Chromium:
+   scrollbar, selección, focus ring. Nada acá delata que adentro hay un browser.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--op-bg);
+}
+
+body {
+  font-family: var(--op-font);
+  font-size: var(--op-fs-13);
+  line-height: var(--op-lh);
+  font-weight: var(--op-w-regular);
+  color: var(--op-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv05' 1, 'ss03' 1;   /* Inter: l con cola, a de un piso */
+  /* El chrome no se selecciona (sensación nativa); el CONTENIDO sí — ver abajo. */
+  user-select: none;
+  cursor: default;
+}
+
+h1, h2, h3, h4, p, figure, blockquote { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+button, input, textarea, select { font: inherit; color: inherit; }
+
+/* ── El padding de fábrica del <button> ──────────────────────────────────────
+   Chromium le da `padding: 1px 6px` a todo botón, y con `box-sizing: border-box`
+   eso se come el INTERIOR de los controles chicos. En `.op-check` —15px de
+   caja— dejaba una caja de contenido de 3px para un ícono de 11: el ícono
+   desbordaba, y cuando un ítem de grid desborda su área el centrado cae a
+   `start`. Resultado: el tilde arrancaba 4px a la derecha y se salía del cuadro.
+   El `.op-iconbtn` tenía el mismo defecto, más chico (1,5px) y por eso invisible
+   de a uno, pero repetido en la titlebar, el rail y cada fila.
+
+   Se resetea acá y no control por control porque el sistema no puede heredar
+   métricas del navegador: cada componente declara las suyas —`.op-btn`,
+   `.op-select`, `.op-tab`, `.op-navitem` ya lo hacían— y el que no declara nada
+   tiene que quedar en cero, no en lo que opine el UA. */
+button { padding: 0; }
+img, svg { display: block; }
+a { color: inherit; text-decoration: none; }
+
+/* ── Copiabilidad ────────────────────────────────────────────────────────────
+   Todo lo que Fran podría querer llevarse al portapapeles se selecciona.
+   Bloquearlo es hostil, y `user-select:none` global es el anti-patrón clásico
+   de Electron. La regla: chrome no, contenido sí. */
+.op-copyable,
+.op-mono,
+.op-log,
+p, code, pre,
+[data-copyable] {
+  user-select: text;
+  cursor: text;
+}
+
+::selection {
+  background: var(--op-select);
+  color: var(--op-text);
+}
+
+/* ── Scrollbar propia ────────────────────────────────────────────────────────
+   Fina, sin flechas, y el thumb se materializa con el hover del contenedor.
+   Nunca la gris de Windows. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 3px solid transparent;
+  border-radius: var(--op-r-pill);
+  background-clip: padding-box;
+  transition: background-color var(--op-t-3) var(--op-ease-soft);
+}
+*:hover::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, .10); }
+::-webkit-scrollbar-thumb:hover  { background-color: rgba(255, 255, 255, .20); }
+::-webkit-scrollbar-thumb:active { background-color: rgba(255, 255, 255, .28); }
+
+/* ── Focus ring propio ───────────────────────────────────────────────────────
+   Solo con teclado (:focus-visible), nunca el outline azul del sistema.
+   Doble anillo: uno del color del fondo que despega, otro de luz. */
+:focus { outline: none; }
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--op-bg), 0 0 0 3.5px var(--op-ring);
+  border-radius: var(--op-r-sm);
+  transition: box-shadow var(--op-t-1) var(--op-ease-soft);
+}
+
+/* ── Tipografía utilitaria ─────────────────────────────────────────────────── */
+.op-display {
+  font-size: var(--op-fs-26);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-tight);
+  line-height: var(--op-lh-tight);
+}
+.op-title {
+  font-size: var(--op-fs-19);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-tight);
+  line-height: var(--op-lh-tight);
+}
+.op-subtitle {
+  font-size: var(--op-fs-15);
+  font-weight: var(--op-w-medium);
+  letter-spacing: var(--op-track-tight);
+}
+.op-label {
+  font-size: var(--op-fs-12);
+  font-weight: var(--op-w-medium);
+  color: var(--op-text-2);
+}
+.op-meta {
+  font-size: var(--op-fs-11);
+  color: var(--op-text-3);
+}
+/* La versalita espaciada: el gesto editorial del sistema. */
+.op-eyebrow {
+  font-size: var(--op-fs-10);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-caps);
+  text-transform: uppercase;
+  color: var(--op-text-3);
+}
+.op-mono {
+  font-family: var(--op-mono);
+  font-size: 12px;
+  font-variant-ligatures: none;
+  letter-spacing: -.01em;
+}
+/* Números que no bailan al actualizarse en vivo. */
+.op-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+.op-dim  { color: var(--op-text-3); }
+.op-dim2 { color: var(--op-text-4); }
+.op-danger { color: var(--op-danger); }
+.op-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Layout utilitario ───────────────────────────────────────────────────── */
+.op-row  { display: flex; align-items: center; gap: var(--op-2); }
+.op-col  { display: flex; flex-direction: column; }
+.op-grow { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.op-spacer { flex: 1 1 auto; }
+
+/* Divisor: hairline, no un borde marcado. */
+.op-hr {
+  height: 1px;
+  background: var(--op-line);
+  border: 0;
+  margin: var(--op-3) 0;
+}
+.op-vr { width: 1px; align-self: stretch; background: var(--op-line); }
+
+/* ── Íconos ──────────────────────────────────────────────────────────────────
+   Todo símbolo es un SVG propio que se tiñe con currentColor. Cero emojis,
+   cero glifos unicode: se renderizan distinto en cada máquina y no se controlan. */
+.op-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.op-icon--sm { width: 14px; height: 14px; }
+.op-icon--lg { width: 20px; height: 20px; }
+.op-icon--xl { width: 28px; height: 28px; stroke-width: 1.25; }
+.op-icon--fill { fill: currentColor; stroke: none; }
+
+/* ── Esfumado del scroll ─────────────────────────────────────────────────────
+   Donde el scroll recorta AL AIRE, el contenido se DESVANECE: un corte al aire
+   se lee como un bug, el fade dice "hay más, seguí".
+
+   Pero el fade no va en todo corte. Va donde nada más explica el límite. Si de
+   ese lado hay una línea — la statusbar, el pie de un panel, el hairline del
+   propio bloque — el límite YA está dicho: el esfumado encima la ensucia, y
+   además miente, porque el contenido no se pierde en la nada sino que muere
+   contra un borde. Ese lado lleva --line-top / --line-bottom y corta limpio.
+
+   El padding ≥ --op-fade evita que en reposo la banda coma el primer/último item.
+   Las clases .is-top / .is-bottom las maneja scrollFade() en motion.js. */
+
+/* Registradas para que el fade ANIME por lado: una custom property sin @property
+   no interpola, y el esfumado entraría de golpe al empezar a scrollear. */
+@property --op-fade-top    { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --op-fade-bottom { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+.op-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: var(--op-fade);
+  padding-bottom: var(--op-fade);
+  --op-fade-top: var(--op-fade);
+  --op-fade-bottom: var(--op-fade);
+  transition: --op-fade-top var(--op-t-3) var(--op-ease-soft),
+              --op-fade-bottom var(--op-t-3) var(--op-ease-soft);
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--op-fade-top),
+    #000 calc(100% - var(--op-fade-bottom)),
+    transparent 100%
+  );
+}
+/* Pegado arriba: no esfumamos arriba. Pegado abajo: no esfumamos abajo. */
+.op-scroll.is-top    { --op-fade-top: 0px; }
+.op-scroll.is-bottom { --op-fade-bottom: 0px; }
+
+/* De ese lado hay una línea, y la línea es el límite: el fade sobra. */
+.op-scroll.op-scroll--line-top    { --op-fade-top: 0px; }
+.op-scroll.op-scroll--line-bottom { --op-fade-bottom: 0px; }
+
+/* Sin nada que esfumar de ningún lado, la máscara solo cuesta una capa de más. */
+.op-scroll.is-top.is-bottom,
+.op-scroll.op-scroll--line-top.op-scroll--line-bottom { mask-image: none; }
+
+@property --op-fade-left  { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --op-fade-right { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+.op-scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-left: var(--op-fade);
+  padding-right: var(--op-fade);
+  --op-fade-left: var(--op-fade);
+  --op-fade-right: var(--op-fade);
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--op-fade-left),
+    #000 calc(100% - var(--op-fade-right)),
+    transparent 100%
+  );
+}
+.op-scroll-x.op-scroll-x--line-left  { --op-fade-left: 0px; }
+.op-scroll-x.op-scroll-x--line-right { --op-fade-right: 0px; }

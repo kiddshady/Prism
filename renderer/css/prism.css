@@ -1,0 +1,706 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRISM — el cromo del navegador
+   Las piezas propias de Prism, con prefijo `pr-`, conviviendo con las `op-`
+   de Opal (que son del framework y no se tocan).
+
+   La composición: toda la ventana es UN marco de niebla, sin hojas de vidrio
+   en la titlebar ni en la barra de herramientas. La única hoja es la página —
+   un rectángulo redondeado que flota adentro del marco. Así la jerarquía se
+   lee sola: lo que importa (el sitio) es lo que está elevado; el cromo es
+   el aire alrededor.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.pr-app {
+  --op-titlebar: 42px;
+  --pr-toolbar: 46px;
+  --pr-gutter: 8px;
+  --pr-page-r: 10px;
+  --pr-tab-h: 32px;
+  grid-template-rows: var(--op-titlebar) var(--pr-toolbar) 1fr var(--op-statusbar);
+}
+
+/* El marco no lleva hojas: niebla directa. */
+.pr-app > .op-titlebar,
+.pr-app > .op-statusbar {
+  background: transparent;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+/* En pantalla completa de un video la página ocupa todo: el cromo se va. */
+.pr-app.is-fullscreen { grid-template-rows: 0 0 1fr 0; }
+.pr-app.is-fullscreen > :is(.op-titlebar, .pr-toolbar, .op-statusbar) { visibility: hidden; }
+.pr-app.is-fullscreen .pr-page { margin: 0; border-radius: 0; }
+
+/* ══ Titlebar: la marca y la tira de pestañas ═════════════════════════════ */
+
+.pr-titlebar {
+  padding-left: var(--op-3);
+  gap: var(--op-2);
+}
+
+.pr-brand {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  color: var(--op-text-2);
+}
+.pr-brand .op-icon { width: 18px; height: 18px; }
+
+/* Las facetas de la marca son rellenos, no trazos: la misma tinta con tres
+   luces. Donde aparezca el ícono `prism` (marca, pestaña, omnibox) se lee
+   igual, en el color del texto que lo rodea. */
+.pr-mark__f { fill: currentColor; stroke: none; }
+.pr-mark__f--a { opacity: .95; }
+.pr-mark__f--b { opacity: .6; }
+.pr-mark__f--c { opacity: .32; }
+
+.pr-strip {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  /* El hueco que queda a la derecha de las pestañas sigue siendo para arrastrar
+     la ventana: la tira es drag, cada pestaña es no-drag. */
+  -webkit-app-region: drag;
+  overflow: hidden;
+}
+
+.pr-strip__tabs {
+  position: absolute;
+  inset: 0;
+}
+
+/* ── La pestaña ──────────────────────────────────────────────────────────────
+   Posicionada por JS (tabstrip.js): --x y --w. Así el reordenar y el cerrar
+   se animan con transform, sin que el navegador remaquete la tira entera.
+   El cuerpo va en un hijo aparte porque el transform del padre es la
+   POSICIÓN; si la entrada animara el mismo transform, lo pisaría. */
+.pr-tab {
+  position: absolute;
+  top: calc((var(--op-titlebar) - var(--pr-tab-h)) / 2 + 1px);
+  left: 0;
+  height: var(--pr-tab-h);
+  width: var(--w, 200px);
+  transform: translateX(var(--x, 0px));
+  transition: transform var(--op-t-3) var(--op-ease), width var(--op-t-3) var(--op-ease);
+  -webkit-app-region: no-drag;
+  z-index: 1;
+}
+.pr-tab.is-dragging { transition: width var(--op-t-3) var(--op-ease); z-index: 3; }
+.pr-tab.is-active { z-index: 2; }
+
+.pr-tab__body {
+  position: absolute;
+  inset: 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 5px 0 9px;
+  border-radius: var(--op-r-md);
+  color: var(--op-text-3);
+  font-size: var(--op-fs-12);
+  transition: var(--tr-color), transform var(--op-t-2) var(--op-ease);
+  animation: pr-tab-in var(--op-t-3) var(--op-ease) both;
+}
+.pr-tab:hover .pr-tab__body { background: var(--op-wash-1); color: var(--op-text-2); }
+
+/* La activa es una hoja chica que asoma: relleno de luz, canto iluminado y
+   una sombra corta. No lleva acento — en Opal la luz no rellena. */
+.pr-tab.is-active .pr-tab__body {
+  background: rgb(255 255 255 / .078);
+  color: var(--op-text);
+  box-shadow: var(--op-sheet), var(--op-e1);
+}
+.pr-tab.is-dragging .pr-tab__body {
+  background: rgb(255 255 255 / .1);
+  box-shadow: var(--op-sheet), var(--op-e3);
+  transform: translateY(-1px);
+}
+.pr-tab[data-state='closing'] .pr-tab__body { animation: pr-tab-out 150ms var(--op-ease-in) both; }
+
+@keyframes pr-tab-in  { from { opacity: 0; transform: translateY(7px) scale(.97) } to { opacity: 1; transform: none } }
+@keyframes pr-tab-out { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(4px) scale(.96) } }
+
+.pr-tab__icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+.pr-tab__icon > * { grid-area: 1 / 1; }
+.pr-tab__icon img {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: contain;
+  animation: op-fade-in var(--op-t-2) var(--op-ease) both;
+}
+.pr-tab__icon .op-icon { width: 14px; height: 14px; }
+.pr-tab.is-error .pr-tab__icon .op-icon { color: var(--op-danger); }
+
+.pr-tab__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  /* Un título largo se esfuma, no se corta con puntos: se lee hasta el final
+     del espacio que tiene. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+
+.pr-tab__btn {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--op-r-xs);
+  flex: 0 0 auto;
+}
+.pr-tab__btn .op-icon { width: 12px; height: 12px; }
+.pr-tab__close {
+  opacity: 0;
+  transform: scale(.85);
+  transition: var(--tr-color), opacity var(--op-t-1) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease);
+}
+.pr-tab:hover .pr-tab__close,
+.pr-tab.is-active .pr-tab__close { opacity: 1; transform: none; }
+.pr-tab__audio { color: var(--op-text-3); }
+.pr-tab__audio.is-muted { color: var(--op-text-4); }
+
+/* Angosta: el título se va antes que el ícono, y la cruz solo en la activa. */
+.pr-tab.is-narrow .pr-tab__body { padding: 0 4px 0 7px; gap: 4px; }
+.pr-tab.is-narrow:not(.is-active) .pr-tab__close { display: none; }
+.pr-tab.is-tiny .pr-tab__body { justify-content: center; padding: 0; }
+.pr-tab.is-tiny .pr-tab__title,
+.pr-tab.is-tiny .pr-tab__audio,
+.pr-tab.is-tiny:not(.is-active) .pr-tab__close { display: none; }
+.pr-tab.is-tiny.is-active .pr-tab__icon { display: none; }
+
+/* El "+" viaja detrás de la última pestaña. */
+.pr-newtab {
+  position: absolute;
+  top: calc((var(--op-titlebar) - 28px) / 2 + 1px);
+  left: 0;
+  transform: translateX(var(--x, 0px));
+  transition: var(--tr-color), transform var(--op-t-3) var(--op-ease);
+  -webkit-app-region: no-drag;
+}
+.pr-newtab:active { transform: translateX(var(--x, 0px)) scale(.92); }
+
+/* ══ Barra de herramientas ════════════════════════════════════════════════ */
+
+.pr-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: 0 var(--op-3) 4px;
+  min-width: 0;
+}
+.pr-toolbar__nav,
+.pr-toolbar__end { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+
+.pr-tool { width: 32px; height: 32px; }
+.pr-tool:disabled { color: var(--op-text-4); opacity: .55; pointer-events: none; }
+.pr-tool.is-open { background: var(--op-wash-2); color: var(--op-text); }
+
+/* Recargar ↔ detener: los dos íconos viven encimados y se cruzan girando. */
+.pr-reload > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
+.pr-reload .pr-reload__b { opacity: 0; transform: rotate(-90deg) scale(.7); }
+.pr-reload.is-loading .pr-reload__a { opacity: 0; transform: rotate(90deg) scale(.7); }
+.pr-reload.is-loading .pr-reload__b { opacity: 1; transform: none; }
+
+/* ── La omnibox ──────────────────────────────────────────────────────────────
+   Un pozo, como todo campo de Opal. Con foco se hunde más y el canto se
+   enciende apenas: la atención baja hacia donde se escribe. */
+.pr-omni {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 0 4px 0 4px;
+  border-radius: var(--op-r-lg);
+  background: var(--op-sunken);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+  transition: background-color var(--op-t-2) var(--op-ease-soft),
+              box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+.pr-omni:hover { box-shadow: inset 0 0 0 1px var(--op-line-2); }
+.pr-omni.is-focused {
+  background: var(--op-sunken-2);
+  box-shadow: inset 0 0 0 1px var(--op-line-3), 0 0 0 3px var(--op-wash-1);
+}
+
+.pr-omni__site {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--op-r-md);
+  background: transparent;
+  color: var(--op-text-3);
+  transition: var(--tr-color);
+}
+.pr-omni__site:hover { background: var(--op-wash-1); color: var(--op-text-2); }
+.pr-omni__site > * { grid-area: 1 / 1; }
+.pr-omni__site .op-icon { width: 14px; height: 14px; animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
+.pr-omni__site.is-insecure { color: var(--op-text-2); }
+.pr-omni__site img { width: 14px; height: 14px; border-radius: 2px; }
+
+.pr-omni__field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+.pr-omni__input,
+.pr-omni__display {
+  position: absolute;
+  inset: 0;
+  padding: 0 6px;
+  font-size: var(--op-fs-13);
+  line-height: 34px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pr-omni__input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--op-text);
+  user-select: text;
+  cursor: text;
+  caret-color: var(--op-accent);
+}
+.pr-omni__input::placeholder { color: var(--op-text-4); }
+.pr-omni__input::selection { background: rgb(var(--op-accent-rgb) / .24); }
+/* Sin foco se ve la dirección partida (host claro, resto atenuado) y el input
+   queda transparente debajo: sigue siendo él el que recibe el click. */
+.pr-omni:not(.is-focused) .pr-omni__input:not(:placeholder-shown) { color: transparent; }
+.pr-omni.is-focused .pr-omni__display { opacity: 0; }
+.pr-omni__display {
+  pointer-events: none;
+  color: var(--op-text-3);
+  transition: opacity var(--op-t-1) var(--op-ease-soft);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+.pr-omni__display b { font-weight: var(--op-w-regular); color: var(--op-text); }
+.pr-omni__display .is-scheme { color: var(--op-text-4); }
+
+/* El zoom solo aparece si no es 100 %. */
+.pr-omni__chip {
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: var(--op-wash-1);
+  color: var(--op-text-2);
+  font-size: var(--op-fs-11);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  transition: var(--tr-color), opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease);
+}
+.pr-omni__chip:hover { background: var(--op-wash-2); color: var(--op-text); }
+.pr-omni__chip[hidden] { display: none; }
+
+.pr-omni__star > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
+.pr-omni__star .pr-star__b { opacity: 0; transform: scale(.4) rotate(-40deg); color: var(--op-text); }
+.pr-omni__star.is-on .pr-star__a { opacity: 0; }
+.pr-omni__star.is-on .pr-star__b { opacity: 1; transform: none; }
+.pr-omni__star[hidden] { display: none; }
+
+/* ── Buscar en la página ─────────────────────────────────────────────────────
+   Entra por el grid 0fr → 1fr sobre el ancho: sin conocer el ancho de
+   antemano y sin animar `width`. Mientras está cerrado no ocupa nada. */
+.pr-find {
+  display: grid;
+  grid-template-columns: 0fr;
+  flex: 0 0 auto;
+  transition: grid-template-columns var(--op-t-3) var(--op-ease);
+}
+.pr-find.is-open { grid-template-columns: 1fr; }
+.pr-find__inner {
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 0 4px 0 10px;
+  border-radius: var(--op-r-lg);
+  background: var(--op-sunken);
+  box-shadow: inset 0 0 0 1px var(--op-line-2);
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
+}
+.pr-find.is-open .pr-find__inner { opacity: 1; }
+.pr-find__inner > .op-icon { width: 13px; height: 13px; color: var(--op-text-4); flex: 0 0 auto; }
+.pr-find__input {
+  width: 180px;
+  height: 100%;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--op-text);
+  font-size: var(--op-fs-12);
+  user-select: text;
+  cursor: text;
+  caret-color: var(--op-accent);
+}
+.pr-find__input::placeholder { color: var(--op-text-4); }
+.pr-find__count {
+  min-width: 42px;
+  font-size: var(--op-fs-11);
+  color: var(--op-text-3);
+  text-align: right;
+  padding-right: 4px;
+  white-space: nowrap;
+}
+.pr-find.is-miss .pr-find__count { color: var(--op-danger); }
+.pr-find.is-miss .pr-find__inner { box-shadow: inset 0 0 0 1px var(--op-danger-ring); }
+
+/* El punto de "hay actualización" en el botón del menú: un punto de luz, no
+   una insignia de color (el acento vive en puntos). */
+#btn-menu { overflow: visible; }
+#btn-menu::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--op-accent);
+  box-shadow: 0 0 0 2px var(--op-bg), 0 0 8px rgb(var(--op-accent-rgb) / .6);
+  opacity: 0;
+  transform: scale(.4);
+  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease);
+}
+#btn-menu.has-update::after { opacity: 1; transform: none; }
+
+/* ── Escudo y descargas ──────────────────────────────────────────────────── */
+.pr-shield,
+.pr-dl { position: relative; overflow: visible; }
+.pr-shield.is-off { color: var(--op-text-4); }
+.pr-badge {
+  position: absolute;
+  right: 1px;
+  bottom: 2px;
+  min-width: 14px;
+  height: 13px;
+  padding: 0 3px;
+  border-radius: var(--op-r-pill);
+  background: rgb(18 18 20 / .92);
+  box-shadow: inset 0 0 0 1px var(--op-line-3);
+  color: var(--op-text-2);
+  font-size: 9px;
+  font-weight: var(--op-w-semi);
+  line-height: 13px;
+  text-align: center;
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease);
+  pointer-events: none;
+}
+.pr-badge.is-on { opacity: 1; transform: none; }
+
+/* El anillo de la descarga: pista apagada + arco de acento. Solo existe
+   mientras hay algo bajando; cuando termina, el arco se completa y se va. */
+.pr-dl__ring {
+  position: absolute;
+  inset: 2px;
+  width: 28px;
+  height: 28px;
+  fill: none;
+  stroke-width: 1.5;
+  transform: rotate(-90deg);
+  opacity: 0;
+  transition: opacity var(--op-t-3) var(--op-ease-soft);
+  pointer-events: none;
+}
+.pr-dl__ring circle:first-child { stroke: var(--op-line-2); }
+.pr-dl__arc {
+  stroke: var(--op-accent);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: calc(100 - var(--p, 0));
+  transition: stroke-dashoffset var(--op-t-4) var(--op-ease);
+}
+.pr-dl.is-active .pr-dl__ring { opacity: 1; }
+.pr-dl.is-indeterminate .pr-dl__arc { stroke-dashoffset: 72; animation: op-spin 1.2s linear infinite; transform-origin: center; }
+.pr-dl.is-done > .op-icon { animation: pr-drop 520ms var(--op-ease) both; }
+@keyframes pr-drop {
+  0%   { transform: translateY(-5px); opacity: .3 }
+  60%  { transform: translateY(1.5px); opacity: 1 }
+  100% { transform: none }
+}
+
+/* ── La barra de carga ───────────────────────────────────────────────────────
+   Una línea de luz en el borde de abajo de la barra. Indeterminada: Chromium
+   no dice cuánto falta, y una barra que "avanza" inventando un porcentaje
+   miente. El tramo recorre la pista de borde a borde y en lineal (ver la
+   nota del medidor indeterminado de Opal: con curva, se queda quieto justo
+   afuera, donde no se ve). */
+.pr-loadbar {
+  position: absolute;
+  left: calc(var(--pr-gutter) + var(--pr-page-r));
+  right: calc(var(--pr-gutter) + var(--pr-page-r));
+  bottom: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: var(--op-r-pill);
+  opacity: 0;
+  transition: opacity var(--op-t-3) var(--op-ease-soft);
+  pointer-events: none;
+}
+.pr-loadbar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 28%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(to right, transparent, rgb(var(--op-accent-rgb) / .9) 45%, rgb(var(--op-accent-rgb) / .9) 55%, transparent);
+  transform: translateX(-100%);
+}
+.pr-loadbar.is-on { opacity: 1; }
+.pr-loadbar.is-on::before { animation: pr-sweep 1.25s linear infinite; }
+@keyframes pr-sweep { from { transform: translateX(-100%) } to { transform: translateX(358%) } }
+
+/* ══ La página ════════════════════════════════════════════════════════════ */
+
+/* La hoja. Una pestaña web apoya su vista nativa EXACTAMENTE acá (mismo
+   rectángulo, mismo radio: la vista lleva setBorderRadius(10)). Una pestaña
+   propia se dibuja adentro, sobre vidrio. */
+.pr-page {
+  position: relative;
+  margin: 0 var(--pr-gutter);
+  min-height: 0;
+  border-radius: var(--pr-page-r);
+  background: rgb(255 255 255 / .03);
+  backdrop-filter: var(--op-glass);
+  box-shadow: var(--op-sheet), var(--op-e3);
+  overflow: hidden;
+  transition: margin var(--op-t-3) var(--op-ease), border-radius var(--op-t-3) var(--op-ease);
+}
+
+.pr-internal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* La foto del congelado. Está siempre montada y se muestra por opacidad:
+   crear el <img> recién al abrir un menú sumaría un frame de demora. */
+.pr-freeze {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+  z-index: 5;
+}
+.pr-freeze.is-on { opacity: 1; visibility: visible; }
+
+/* ══ Statusbar ════════════════════════════════════════════════════════════ */
+
+.pr-status {
+  padding: 0 calc(var(--pr-gutter) + 6px);
+  gap: var(--op-3);
+}
+.pr-status__left,
+.pr-status__right {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  min-width: 0;
+  height: 100%;
+}
+.pr-status__left { flex: 1 1 auto; }
+.pr-status__msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  animation: op-fade-in var(--op-t-2) var(--op-ease) both;
+}
+.pr-status__msg[data-state='closing'] { animation: op-fade-out 120ms var(--op-ease-in) both; }
+.pr-status__msg .op-icon { width: 12px; height: 12px; flex: 0 0 auto; }
+.pr-status__msg--error { color: var(--op-danger); }
+.pr-status__url { font-family: var(--op-mono); font-size: 10.5px; color: var(--op-text-2); }
+.pr-status__item { display: flex; align-items: center; gap: 5px; white-space: nowrap; animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
+.pr-status__item .op-icon { width: 12px; height: 12px; }
+
+/* ══ Overlays propios ═════════════════════════════════════════════════════ */
+
+/* Las sugerencias de la omnibox: una hoja que cuelga de la barra. */
+.pr-suggest {
+  position: absolute;
+  padding: var(--op-1);
+  border-radius: var(--op-r-lg);
+  background: var(--op-s3);
+  backdrop-filter: var(--op-glass-heavy);
+  box-shadow: var(--op-sheet), var(--op-e4);
+  animation: op-pop-in var(--op-t-2) var(--op-ease) both;
+  transform-origin: top center;
+  overflow: hidden;
+}
+.pr-suggest[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+.pr-sugg {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  width: 100%;
+  height: 34px;
+  padding: 0 var(--op-3);
+  border: 0;
+  border-radius: var(--op-r-md);
+  background: transparent;
+  color: var(--op-text-2);
+  font-size: var(--op-fs-13);
+  text-align: left;
+  transition: var(--tr-color);
+}
+.pr-sugg:hover { background: var(--op-wash-1); }
+.pr-sugg.is-active { background: var(--op-wash-2); color: var(--op-text); }
+.pr-sugg__icon { display: grid; place-items: center; width: 16px; height: 16px; flex: 0 0 auto; color: var(--op-text-3); }
+.pr-sugg__icon img { width: 16px; height: 16px; border-radius: 3px; }
+.pr-sugg__icon .op-icon { width: 14px; height: 14px; }
+.pr-sugg.is-active .pr-sugg__icon { color: var(--op-text-2); }
+.pr-sugg__main { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-sugg mark { background: none; color: var(--op-text); font-weight: var(--op-w-semi); }
+.pr-sugg__sub mark { color: var(--op-text-2); font-weight: var(--op-w-medium); }
+.pr-sugg__sub {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--op-fs-12);
+  color: var(--op-text-3);
+}
+.pr-sugg__sub::before { content: ''; display: inline-block; width: 3px; height: 3px; margin: 0 8px 3px 0; border-radius: 50%; background: currentColor; opacity: .7; }
+.pr-sugg__key { margin-left: auto; font-size: var(--op-fs-10); color: var(--op-text-4); flex: 0 0 auto; opacity: 0; transition: opacity var(--op-t-1) var(--op-ease-soft); }
+.pr-sugg.is-active .pr-sugg__key { opacity: 1; }
+.pr-suggest__sep { height: 1px; margin: var(--op-1) var(--op-3); background: var(--op-line); }
+
+/* Popover: panel de vidrio anclado a un botón (escudo, descargas). */
+.pr-pop {
+  position: absolute;
+  width: 340px;
+  max-height: min(520px, 70vh);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--op-r-xl);
+  background: var(--op-s3);
+  backdrop-filter: var(--op-glass-heavy);
+  box-shadow: var(--op-sheet), var(--op-e4);
+  animation: op-pop-in var(--op-t-2) var(--op-ease) both;
+  transform-origin: top right;
+  overflow: hidden;
+}
+.pr-pop[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+.pr-pop__head { display: flex; align-items: center; gap: var(--op-2); padding: var(--op-4) var(--op-4) var(--op-2); }
+.pr-pop__title { font-size: var(--op-fs-13); font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); }
+.pr-pop__sub { font-size: var(--op-fs-11); color: var(--op-text-3); }
+.pr-pop__body { padding: 0 var(--op-2) var(--op-2); min-height: 0; }
+.pr-pop__body.op-scroll { --op-fade: 14px; padding-top: 6px; padding-bottom: 6px; }
+.pr-pop__body:has(~ .pr-pop__foot) { --op-fade-bottom: 0px; }
+.pr-pop__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: var(--op-2) var(--op-3);
+  background: rgb(0 0 0 / .14);
+  box-shadow: inset 0 1px 0 var(--op-line);
+}
+.pr-pop__empty { padding: var(--op-6) var(--op-4) var(--op-7); text-align: center; color: var(--op-text-4); font-size: var(--op-fs-12); }
+
+/* El escudo por dentro: la cifra grande y el interruptor del sitio. */
+.pr-shieldpop__stat { display: flex; align-items: baseline; gap: var(--op-2); padding: var(--op-1) var(--op-4) var(--op-3); }
+.pr-shieldpop__num { font-size: 30px; font-weight: var(--op-w-semi); letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1; }
+.pr-shieldpop__label { font-size: var(--op-fs-12); color: var(--op-text-3); }
+.pr-shieldpop__row { display: flex; align-items: center; gap: var(--op-3); padding: var(--op-3) var(--op-4); box-shadow: inset 0 1px 0 var(--op-line); }
+.pr-shieldpop__row .op-grow { font-size: var(--op-fs-12); color: var(--op-text-2); }
+.pr-shieldpop__host { font-family: var(--op-mono); font-size: 11px; color: var(--op-text-3); }
+
+/* Una descarga, en el panel y en la página. */
+.pr-dlrow {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  padding: var(--op-2) var(--op-2);
+  border-radius: var(--op-r-md);
+  transition: var(--tr-color);
+  animation: op-rise-in var(--op-t-3) var(--op-ease) both;
+}
+.pr-dlrow:hover { background: var(--op-wash-1); }
+.pr-dlrow__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: var(--op-r-md);
+  background: var(--op-sunken);
+  box-shadow: var(--op-hairline);
+  color: var(--op-text-2);
+}
+.pr-dlrow__icon .op-icon { width: 15px; height: 15px; }
+.pr-dlrow.is-failed .pr-dlrow__icon { color: var(--op-danger); }
+.pr-dlrow__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pr-dlrow__name { font-size: var(--op-fs-12); color: var(--op-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-dlrow.is-muted .pr-dlrow__name { color: var(--op-text-3); text-decoration: line-through; text-decoration-color: var(--op-text-4); }
+.pr-dlrow__meta { font-size: var(--op-fs-11); color: var(--op-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pr-dlrow.is-failed .pr-dlrow__meta { color: var(--op-danger); }
+.pr-dlrow .op-meter { margin-top: 2px; }
+.pr-dlrow__actions { display: flex; gap: 2px; flex: 0 0 auto; }
+
+/* Un ancla invisible para el menú contextual de la página: Menu.show() se
+   posiciona contra un elemento, y el click derecho es un punto. */
+.pr-anchor { position: fixed; width: 1px; height: 1px; pointer-events: none; }
+
+/* Los campos del cromo marcan el foco con su propio pozo: el anillo genérico
+   de :focus-visible (base.css) encima se leería como un doble borde. */
+.pr-omni__input:focus-visible,
+.pr-find__input:focus-visible { box-shadow: none; }
+.pr-sugg.is-active .pr-sugg__sub { color: var(--op-text-3); }
+
+/* ── Vidrio sobre páginas claras ─────────────────────────────────────────────
+   Opal está pensado para vidrio sobre niebla oscura. En un navegador los
+   overlays caen sobre CUALQUIER página, y la mayoría son blancas: la hoja de
+   luz esmerilando blanco da un gris claro donde el texto gris no se lee.
+   Debajo de la hoja va una base oscura; el vidrio sigue dejando pasar el
+   color de la página, pero el contraste ya no depende de ella. */
+:root { --pr-float-base: rgb(13 13 15 / .8); }
+.op-menu,
+.op-modal,
+.op-tooltip,
+.pr-pop,
+.pr-suggest {
+  background: linear-gradient(var(--op-s3), var(--op-s3)), var(--pr-float-base);
+}
+.op-scrim { background: rgb(3 3 4 / .58); }
+
+/* Los grises terciarios de los menús suben un escalón: sobre fondo casi negro
+   el text-4 queda bajo el mínimo legible para texto chico (y el vidrio sobre
+   una página clara lo empeora). */
+.op-menuitem .op-icon,
+.op-menuitem__key,
+.op-menu__label { color: var(--op-text-3); }

@@ -1,0 +1,148 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- CSP del CROMO (no de las páginas, que viven en su propia vista): sin eval
+     ni scripts ajenos. Las imágenes sí pueden venir de afuera: son los
+     favicons de los sitios. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:;">
+<title>Prism</title>
+
+<link rel="stylesheet" href="./css/fonts.css">
+<link rel="stylesheet" href="./css/tokens.css">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/motion.css">
+<link rel="stylesheet" href="./css/shell.css">
+<link rel="stylesheet" href="./css/controls.css">
+<link rel="stylesheet" href="./css/surfaces.css">
+<link rel="stylesheet" href="./css/overlays.css">
+<link rel="stylesheet" href="./css/prism.css">
+<link rel="stylesheet" href="./css/pages.css">
+
+<style>
+  /* Boot splash: réplica del primer frame. Pinta ANTES de que cargue ningún
+     módulo. El color es el backgroundColor de la BrowserWindow, literal: los
+     tokens todavía podrían no haber cargado. */
+  #boot-splash {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    background: #0a0a0a;
+    transition: opacity .34s cubic-bezier(.16, 1, .3, 1);
+  }
+  #boot-splash svg { width: 50px; height: 50px; }
+  /* La marca se ARMA: las tres caras del prisma llegan una por una. Colores
+     literales (los tokens todavía podrían no haber cargado). */
+  #boot-splash path { opacity: 0; transform-origin: 8px 9px;
+                      animation: boot-facet .6s cubic-bezier(.16,1,.3,1) forwards; }
+  #boot-splash path:nth-child(2) { animation-delay: .08s; }
+  #boot-splash path:nth-child(3) { animation-delay: .16s; }
+  @keyframes boot-facet { from { opacity: 0; transform: translateY(3px) scale(.95) } to { opacity: 1; transform: none } }
+</style>
+
+<div id="boot-splash">
+  <svg viewBox="0 0 16 16">
+    <path fill="#fbbf24" d="M7.55 3.78 2.73 12.12 7.55 9.34Z"/>
+    <path fill="#22d3ee" d="M8.45 3.78 13.27 12.12 8.45 9.34Z"/>
+    <path fill="#a78bfa" d="M3.18 12.90 12.82 12.90 8.00 10.12Z"/>
+  </svg>
+</div>
+
+<div class="op-app pr-app" id="app">
+
+  <!-- El sustrato: la niebla que el vidrio difumina. Una capa, estática. -->
+  <div class="op-fog" aria-hidden="true"></div>
+
+  <!-- ── La tira de pestañas ES la titlebar ─────────────────────────────── -->
+  <header class="op-titlebar pr-titlebar">
+    <div class="pr-brand" aria-hidden="true"><i data-icon="prism"></i></div>
+
+    <div class="pr-strip" id="strip" role="tablist">
+      <div class="pr-strip__tabs" id="tabs"></div>
+      <button class="op-iconbtn pr-newtab" id="btn-newtab" aria-label="Nueva pestaña"
+              data-tip="Nueva pestaña" data-tip-key="Ctrl+T" data-tip-side="bottom"><i data-icon="plus"></i></button>
+    </div>
+
+    <div class="op-wincontrols">
+      <button class="op-wincontrol" id="win-min"   aria-label="Minimizar"><i data-icon="winMin"></i></button>
+      <button class="op-wincontrol" id="win-max"   aria-label="Maximizar"><i data-icon="winMax"></i></button>
+      <button class="op-wincontrol op-wincontrol--close" id="win-close" aria-label="Cerrar"><i data-icon="winClose"></i></button>
+    </div>
+  </header>
+
+  <!-- ── Barra de herramientas ──────────────────────────────────────────── -->
+  <div class="pr-toolbar" id="toolbar">
+    <div class="pr-toolbar__nav">
+      <button class="op-iconbtn pr-tool" id="btn-back" aria-label="Atrás" disabled
+              data-tip="Atrás" data-tip-key="Alt+Izq"><i data-icon="arrowLeft"></i></button>
+      <button class="op-iconbtn pr-tool" id="btn-forward" aria-label="Adelante" disabled
+              data-tip="Adelante" data-tip-key="Alt+Der"><i data-icon="arrowRight"></i></button>
+      <button class="op-iconbtn pr-tool pr-reload" id="btn-reload" aria-label="Recargar"
+              data-tip="Recargar" data-tip-key="F5">
+        <i data-icon="reload" data-icon-class="pr-reload__a"></i><i data-icon="close" data-icon-class="pr-reload__b"></i>
+      </button>
+    </div>
+
+    <div class="pr-omni" id="omni">
+      <button class="pr-omni__site" id="omni-site" tabindex="-1" aria-label="Información del sitio"></button>
+      <div class="pr-omni__field">
+        <div class="pr-omni__display" id="omni-display" aria-hidden="true"></div>
+        <input class="pr-omni__input" id="omni-input" type="text" spellcheck="false" autocomplete="off"
+               placeholder="Buscá o escribí una dirección" aria-label="Barra de direcciones">
+      </div>
+      <button class="pr-omni__chip" id="omni-zoom" data-tip="Restablecer el zoom" data-tip-key="Ctrl+0"></button>
+      <button class="op-iconbtn op-iconbtn--sm pr-omni__star" id="omni-star" aria-label="Favorito"
+              data-tip="Agregar a favoritos" data-tip-key="Ctrl+D">
+        <i data-icon="star" data-icon-class="pr-star__a"></i><i data-icon="starFill" data-icon-class="pr-star__b"></i>
+      </button>
+    </div>
+
+    <!-- Buscar en la página: entra a la barra y achica la omnibox, en vez de
+         flotar sobre la página (ahí taparía justo lo que se está buscando). -->
+    <div class="pr-find" id="find" aria-hidden="true">
+      <div class="pr-find__inner">
+        <i data-icon="search"></i>
+        <input class="pr-find__input" id="find-input" type="text" spellcheck="false" placeholder="Buscar en la página">
+        <span class="pr-find__count op-num" id="find-count"></span>
+        <button class="op-iconbtn op-iconbtn--sm" id="find-prev" aria-label="Anterior" data-tip="Anterior" data-tip-key="Mayús+Enter"><i data-icon="chevronUp"></i></button>
+        <button class="op-iconbtn op-iconbtn--sm" id="find-next" aria-label="Siguiente" data-tip="Siguiente" data-tip-key="Enter"><i data-icon="chevronDown"></i></button>
+        <button class="op-iconbtn op-iconbtn--sm" id="find-close" aria-label="Cerrar" data-tip="Cerrar" data-tip-key="Esc"><i data-icon="close"></i></button>
+      </div>
+    </div>
+
+    <div class="pr-toolbar__end">
+      <button class="op-iconbtn pr-tool pr-shield" id="btn-shield" aria-label="Bloqueador" data-tip="Bloqueador">
+        <i data-icon="shield"></i><span class="pr-badge op-num" id="shield-count"></span>
+      </button>
+      <button class="op-iconbtn pr-tool pr-dl" id="btn-downloads" aria-label="Descargas" data-tip="Descargas" data-tip-key="Ctrl+J">
+        <i data-icon="download"></i>
+        <svg class="pr-dl__ring" viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="12"/><circle class="pr-dl__arc" cx="14" cy="14" r="12" pathLength="100"/></svg>
+      </button>
+      <button class="op-iconbtn pr-tool" id="btn-menu" aria-label="Menú" data-tip="Menú"><i data-icon="more"></i></button>
+    </div>
+
+    <div class="pr-loadbar" id="loadbar" aria-hidden="true"></div>
+  </div>
+
+  <!-- ── La página ──────────────────────────────────────────────────────────
+       Una pestaña web apoya su vista nativa exactamente sobre este
+       rectángulo. Una pestaña propia se dibuja ADENTRO. La foto es la del
+       congelado: la página, quieta, mientras un overlay le pasa por encima. -->
+  <main class="pr-page" id="page">
+    <div class="pr-internal" id="internal"></div>
+    <img class="pr-freeze" id="freeze" alt="" draggable="false">
+  </main>
+
+  <!-- ── Statusbar ───────────────────────────────────────────────────────── -->
+  <footer class="op-statusbar pr-status">
+    <div class="pr-status__left" id="status-left"></div>
+    <div class="op-spacer"></div>
+    <div class="pr-status__right" id="status-right"></div>
+  </footer>
+</div>
+
+<!-- Todos los overlays se portalean acá: fuera del flujo, por encima de todo. -->
+<div id="op-layer"></div>
+
+<script type="module" src="./js/app.js"></script>

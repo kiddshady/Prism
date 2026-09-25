@@ -1,0 +1,406 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   OPAL — controles
+   Botones, campos, switches, segmentados. Ninguno es un control nativo de
+   Chromium: cada uno está dibujado, y cada cambio de estado tiene transición.
+
+   La ley del énfasis en Opal: LA LUZ NO RELLENA, TALLA. Lo primario no es un
+   plano de luz (eso es Onyx): es el objeto más profundo de la pantalla con el
+   canto más vivo — obsidiana. El acento vive en cantos, líneas y puntos, y
+   nunca inunda una superficie. Sigue habiendo UN primario por pantalla.
+
+   Los campos son POZOS: alfa de negro que hunde sobre cualquier hoja. Los
+   botones con superficie son HOJAS chicas: relleno de luz + canto iluminado.
+   Así el mismo control funciona sobre la niebla, sobre una card o sobre un
+   modal sin declarar variantes por contexto.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.op-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--op-2);
+  height: 30px;
+  padding: 0 var(--op-3);
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: transparent;
+  color: var(--op-text-2);
+  font-size: var(--op-fs-12);
+  font-weight: var(--op-w-medium);
+  letter-spacing: -.005em;
+  white-space: nowrap;
+  cursor: default;
+  overflow: hidden;
+  transition: var(--tr-color), transform var(--op-t-1) var(--op-ease-soft);
+}
+.op-btn .op-icon { width: 14px; height: 14px; }
+.op-btn:active { transform: scale(.975); }
+.op-btn:disabled,
+.op-btn[aria-disabled='true'] {
+  color: var(--op-text-4);
+  pointer-events: none;
+}
+
+/* Primario: obsidiana. No es el plano más claro de la pantalla — es el más
+   PROFUNDO, con el canto más vivo. La luz no rellena: talla. Sigue habiendo
+   uno solo por pantalla: dos pozos compitiendo confunden igual que dos
+   blancos. */
+.op-btn--primary {
+  background: var(--op-deep);
+  color: var(--op-text);
+  font-weight: var(--op-w-semi);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .16), inset 0 0 0 1px var(--op-rim), var(--op-e2);
+}
+.op-btn--primary:hover {
+  background: var(--op-deep-2);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .22), inset 0 0 0 1px var(--op-rim-2),
+              0 0 16px rgb(var(--op-accent-rgb) / .08), var(--op-e2);
+}
+.op-btn--primary:disabled { background: var(--op-s3); color: var(--op-text-4); box-shadow: none; }
+
+/* Secundario: una hoja chica — relleno de luz con canto iluminado (inset, no
+   border: un border real deja hilacha de 1px en las esquinas con overflow:hidden). */
+.op-btn--secondary {
+  background: var(--op-s2);
+  color: var(--op-text);
+  box-shadow: var(--op-sheet), var(--op-e1);
+}
+.op-btn--secondary:hover {
+  background: var(--op-s3);
+  box-shadow: inset 0 1px 0 var(--op-edge-lit), inset 0 0 0 1px var(--op-line-2), var(--op-e2);
+}
+
+/* Ghost: sin superficie hasta que lo tocás. */
+.op-btn--ghost:hover { background: var(--op-wash-1); color: var(--op-text); }
+.op-btn--ghost:active { background: var(--op-wash-2); }
+
+/* Danger: el rojo solo para lo destructivo. */
+.op-btn--danger { color: var(--op-danger); }
+.op-btn--danger:hover { background: var(--op-danger-wash); }
+.op-btn--danger-solid {
+  background: var(--op-danger-dim);
+  color: #fff;
+  box-shadow: var(--op-e1);
+}
+.op-btn--danger-solid:hover { background: #a04a50; }
+
+/* Tamaños */
+.op-btn--sm { height: 24px; padding: 0 var(--op-2); font-size: var(--op-fs-11); }
+.op-btn--sm .op-icon { width: 12px; height: 12px; }
+.op-btn--lg { height: 36px; padding: 0 var(--op-4); font-size: var(--op-fs-13); }
+
+/* Icon button: cuadrado. */
+.op-iconbtn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: transparent;
+  color: var(--op-text-3);
+  cursor: default;
+  overflow: hidden;
+  position: relative;
+  transition: var(--tr-color), transform var(--op-t-1) var(--op-ease-soft);
+}
+.op-iconbtn:hover { background: var(--op-wash-1); color: var(--op-text); }
+.op-iconbtn:active { transform: scale(.92); background: var(--op-wash-2); }
+.op-iconbtn.is-active { background: var(--op-wash-2); color: var(--op-text); }
+.op-iconbtn--sm { width: 22px; height: 22px; }
+.op-iconbtn--sm .op-icon { width: 13px; height: 13px; }
+
+/* ── Campos ───────────────────────────────────────────────────────────────── */
+.op-field { display: flex; flex-direction: column; gap: var(--op-2); }
+.op-field__label {
+  font-size: var(--op-fs-11);
+  font-weight: var(--op-w-medium);
+  color: var(--op-text-3);
+  letter-spacing: .01em;
+}
+.op-field__hint { font-size: var(--op-fs-11); color: var(--op-text-4); }
+.op-field__hint--error { color: var(--op-danger); }
+
+.op-input,
+.op-textarea {
+  width: 100%;
+  min-height: 30px;
+  padding: 6px var(--op-3);
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: var(--op-sunken);
+  color: var(--op-text);
+  font-size: var(--op-fs-13);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+  user-select: text;
+  cursor: text;
+  transition: box-shadow var(--op-t-2) var(--op-ease-soft),
+              background-color var(--op-t-2) var(--op-ease-soft);
+}
+.op-input::placeholder,
+.op-textarea::placeholder { color: var(--op-text-4); }
+.op-input:hover,
+.op-textarea:hover { box-shadow: inset 0 0 0 1px var(--op-line-2); }
+/* Con foco el pozo se hunde más: la atención baja hacia donde se escribe. */
+.op-input:focus,
+.op-textarea:focus {
+  background: var(--op-sunken-2);
+  box-shadow: inset 0 0 0 1px var(--op-line-3), 0 0 0 3px var(--op-wash-1);
+}
+.op-input.is-invalid,
+.op-textarea.is-invalid { box-shadow: inset 0 0 0 1px var(--op-danger-ring); }
+.op-textarea { min-height: 88px; resize: vertical; line-height: var(--op-lh); }
+.op-input--mono, .op-textarea--mono { font-family: var(--op-mono); font-size: 12px; }
+
+/* Campo con ícono adelante (búsqueda). */
+.op-inputwrap { position: relative; display: flex; align-items: center; }
+.op-inputwrap > .op-icon:first-child {
+  position: absolute;
+  left: var(--op-3);
+  width: 14px; height: 14px;
+  color: var(--op-text-4);
+  pointer-events: none;
+  transition: color var(--op-t-2) var(--op-ease-soft);
+}
+.op-inputwrap:focus-within > .op-icon:first-child { color: var(--op-text-2); }
+.op-inputwrap > .op-icon:first-child ~ .op-input { padding-left: 30px; }
+
+/* ── Campo numérico ───────────────────────────────────────────────────────────
+   El spinner de `<input type=number>` es de Chromium: no se puede estilar, no
+   respeta la paleta, y aparece y desaparece según el hover. Se tapa SIEMPRE y
+   no solo dentro de `.op-stepper` — así, olvidarse el envoltorio degrada a un
+   campo limpio en vez de dejar asomar un control del navegador. */
+input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* El envoltorio le devuelve las flechas, ya dibujadas por nosotros. El input
+   sigue siendo un input: escribir a mano, las flechas del teclado y el clamp de
+   min/max los sigue haciendo él. Cablealo con bindStepper(). */
+.op-stepper { position: relative; display: flex; align-items: center; }
+.op-stepper > .op-input { padding-right: 26px; }
+
+.op-stepper__btns {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  display: flex;
+  flex-direction: column;
+  width: 22px;
+  overflow: hidden;
+  border-radius: 0 var(--op-r-sm) var(--op-r-sm) 0;
+}
+
+.op-stepper__btn {
+  flex: 1 1 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--op-text-4);
+  cursor: pointer;
+  transition: var(--tr-color);
+}
+
+.op-stepper__btn:hover:not(:disabled) { color: var(--op-text); background: var(--op-s3); }
+.op-stepper__btn:active:not(:disabled) { color: var(--op-accent); }
+/* Apagado en el tope: el botón sigue ahí para que el campo no cambie de forma. */
+.op-stepper__btn:disabled { opacity: .25; cursor: default; }
+.op-stepper__btn .op-icon { width: 10px; height: 10px; }
+
+/* ── Select propio ────────────────────────────────────────────────────────────
+   El <select> nativo abre un popup del sistema imposible de estilar: acá el
+   trigger es un botón y la lista es un menú nuestro (menu.js). */
+.op-select {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  width: 100%;
+  height: 30px;
+  padding: 0 var(--op-2) 0 var(--op-3);
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: var(--op-sunken);
+  color: var(--op-text);
+  font-size: var(--op-fs-13);
+  text-align: left;
+  cursor: default;
+  box-shadow: inset 0 0 0 1px var(--op-line);
+  transition: box-shadow var(--op-t-2) var(--op-ease-soft), background-color var(--op-t-2) var(--op-ease-soft);
+}
+.op-select:hover { box-shadow: inset 0 0 0 1px var(--op-line-2); }
+.op-select.is-open { background: var(--op-sunken-2); box-shadow: inset 0 0 0 1px var(--op-line-3); }
+.op-select__value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.op-select__value:empty::before { content: attr(data-placeholder); color: var(--op-text-4); }
+.op-select .op-icon { color: var(--op-text-4); transition: transform var(--op-t-2) var(--op-ease), color var(--op-t-1) var(--op-ease-soft); }
+.op-select:hover .op-icon { color: var(--op-text-2); }
+.op-select.is-open .op-icon { transform: rotate(180deg); color: var(--op-text-2); }
+
+/* ── Switch ───────────────────────────────────────────────────────────────── */
+.op-switch {
+  position: relative;
+  width: 30px;
+  height: 17px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--op-r-pill);
+  background: var(--op-s3);
+  cursor: default;
+  box-shadow: var(--op-hairline);
+  transition: background-color var(--op-t-2) var(--op-ease-soft), box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+.op-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--op-text-3);
+  transition: transform var(--op-t-2) var(--op-ease), background-color var(--op-t-2) var(--op-ease-soft);
+}
+.op-switch:hover::after { background: var(--op-text-2); }
+/* Encendido = tallado: el track se hunde y enciende el canto; el punto de luz
+   es el knob, no el plano. */
+.op-switch.is-on {
+  background: var(--op-deep);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .10), inset 0 0 0 1px var(--op-rim);
+}
+.op-switch.is-on::after { transform: translateX(13px); background: var(--op-text); }
+
+/* ── Checkbox ─────────────────────────────────────────────────────────────────
+   El tilde es un SVG que se DIBUJA (stroke-dashoffset), no un ✓ que aparece. */
+.op-check {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--op-r-xs);
+  background: var(--op-sunken);
+  color: var(--op-accent-ink);
+  cursor: default;
+  box-shadow: inset 0 0 0 1px var(--op-line-2);
+  transition: background-color var(--op-t-2) var(--op-ease-soft), box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+.op-check:hover { box-shadow: inset 0 0 0 1px var(--op-line-3); }
+.op-check .op-icon {
+  width: 11px; height: 11px;
+  stroke-width: 2.2;
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+  transition: stroke-dashoffset var(--op-t-3) var(--op-ease);
+}
+/* Marcado = tallado: pozo con el canto vivo, y el tilde se dibuja EN LUZ —
+   la luz queda en el trazo, nunca en el plano. */
+.op-check.is-on {
+  background: var(--op-deep);
+  box-shadow: inset 0 0 0 1px var(--op-rim);
+  color: var(--op-text);
+}
+.op-check.is-on .op-icon { stroke-dashoffset: 0; }
+
+/* ── Segmentado ───────────────────────────────────────────────────────────────
+   La cápsula seleccionada se DESLIZA entre opciones (--seg = índice activo).
+   Que viaje en vez de saltar es lo que lo hace sentir físico. La cápsula es
+   una hoja chica: junta luz en el canto, como todo lo que flota. */
+.op-segmented {
+  position: relative;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 2px;
+  border-radius: var(--op-r-sm);
+  background: var(--op-sunken);
+  box-shadow: var(--op-hairline);
+}
+.op-segmented::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: var(--seg-w, 0px);
+  height: calc(100% - 4px);
+  border-radius: var(--op-r-xs);
+  background: var(--op-s3);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .07), var(--op-e1);
+  transform: translateX(calc(var(--seg, 0) * var(--seg-w, 0px)));
+  transition: transform var(--op-t-3) var(--op-ease), width var(--op-t-3) var(--op-ease);
+}
+.op-segmented__opt {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--op-1);
+  height: 24px;
+  padding: 0 var(--op-3);
+  border: 0;
+  background: transparent;
+  color: var(--op-text-3);
+  font-size: var(--op-fs-11);
+  font-weight: var(--op-w-medium);
+  white-space: nowrap;
+  cursor: default;
+  transition: color var(--op-t-2) var(--op-ease-soft);
+}
+.op-segmented__opt:hover { color: var(--op-text-2); }
+.op-segmented__opt.is-active { color: var(--op-text); }
+.op-segmented__opt .op-icon { width: 12px; height: 12px; }
+
+/* ── Slider ───────────────────────────────────────────────────────────────── */
+.op-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  cursor: default;
+}
+.op-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: var(--op-r-pill);
+  background: linear-gradient(
+    to right,
+    var(--op-accent) 0 var(--op-pct, 50%),
+    var(--op-s3) var(--op-pct, 50%) 100%
+  );
+}
+.op-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--op-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .6);
+  transition: transform var(--op-t-1) var(--op-ease-soft), box-shadow var(--op-t-1) var(--op-ease-soft);
+}
+.op-slider:hover::-webkit-slider-thumb { transform: scale(1.25); }
+.op-slider:active::-webkit-slider-thumb { transform: scale(1.1); box-shadow: 0 0 0 5px var(--op-wash-1); }
+
+/* ── Tecla ────────────────────────────────────────────────────────────────── */
+.op-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--op-r-xs);
+  background: var(--op-s3);
+  box-shadow: var(--op-sheet), 0 1px 0 rgba(0, 0, 0, .35);
+  font-family: var(--op-font);
+  font-size: var(--op-fs-10);
+  font-weight: var(--op-w-medium);
+  color: var(--op-text-3);
+  letter-spacing: .02em;
+}
+.op-kbd .op-icon { width: 10px; height: 10px; stroke-width: 1.8; }

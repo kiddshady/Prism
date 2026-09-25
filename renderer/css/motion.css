@@ -1,0 +1,154 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   OPAL — motion
+   Nada aparece ni desaparece de golpe. El movimiento es lo que comunica causa
+   y efecto; sin él la app se siente barata y sobresalta.
+
+   La firma de Opal es AFLORAR: lo que aparece sube hacia la superficie del
+   vidrio (eje Y, apenas) y se materializa. Donde Onyx avanza sobre el eje del
+   flujo, Opal emerge — como algo que se acerca desde detrás de la hoja. El
+   glide sobre X queda disponible para lo que sí es secuencia.
+
+   Regla de oro de las salidas: un nodo que se va del DOM tiene que TERMINAR su
+   animación antes de irse. Eso lo maneja exit() en motion.js, que le pone
+   [data-state="closing"] y espera al animationend.
+
+   Y una regla propia del vidrio: el BLUR no se anima nunca. Es la propiedad
+   más cara del sistema; lo que entra y sale lo hace por opacity y transform,
+   que son GPU-composited, con el blur ya puesto.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Keyframes ───────────────────────────────────────────────────────────── */
+
+@keyframes op-fade-in    { from { opacity: 0 } to { opacity: 1 } }
+@keyframes op-fade-out   { from { opacity: 1 } to { opacity: 0 } }
+
+/* La firma: sube y se materializa. */
+@keyframes op-rise-in    { from { opacity: 0; transform: translateY(8px)  } to { opacity: 1; transform: none } }
+@keyframes op-rise-out   { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(4px) } }
+
+/* Entrada sobre el eje del flujo, para lo que sí es secuencia. */
+@keyframes op-glide-in   { from { opacity: 0; transform: translateX(-10px) } to { opacity: 1; transform: none } }
+@keyframes op-glide-out  { from { opacity: 1; transform: none } to { opacity: 0; transform: translateX(6px) } }
+
+/* Overlays: crecen desde su origen, apenas. */
+@keyframes op-pop-in     { from { opacity: 0; transform: scale(.965) translateY(-4px) } to { opacity: 1; transform: none } }
+@keyframes op-pop-out    { from { opacity: 1; transform: none } to { opacity: 0; transform: scale(.98) translateY(-2px) } }
+
+/* Modal: entra desde abajo con peso. */
+@keyframes op-lift-in    { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
+@keyframes op-lift-out   { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(6px) scale(.99) } }
+
+/* Toast: entra desde el borde derecho. */
+@keyframes op-slide-in-r { from { opacity: 0; transform: translateX(24px) } to { opacity: 1; transform: none } }
+@keyframes op-slide-out-r{ from { opacity: 1; transform: none } to { opacity: 0; transform: translateX(16px) } }
+
+/* "Corriendo": lo único que respira en toda la pantalla. */
+@keyframes op-breathe {
+  0%, 100% { opacity: .35; transform: scale(1) }
+  50%      { opacity: 1;   transform: scale(1.06) }
+}
+@keyframes op-spin { to { transform: rotate(360deg) } }
+
+/* El arco del spinner recorre el círculo en vez de girar rígido. */
+@keyframes op-arc {
+  0%   { stroke-dasharray: 1 62;  stroke-dashoffset: 0 }
+  50%  { stroke-dasharray: 40 62; stroke-dashoffset: -12 }
+  100% { stroke-dasharray: 1 62;  stroke-dashoffset: -62 }
+}
+
+/* Aristas vivas de un grafo: el guion viaja en el sentido del flujo. */
+@keyframes op-flow { to { stroke-dashoffset: -24 } }
+
+/* Skeleton: una luz que barre, no un parpadeo. */
+@keyframes op-shimmer { from { background-position: -180% 0 } to { background-position: 180% 0 } }
+
+/* Click-flash: el destello de confirmación del press — un velo de luz sobre
+   el vidrio, no un ripple de Material. */
+@keyframes op-flash {
+  from { opacity: .5 }
+  to   { opacity: 0 }
+}
+
+/* Un valor que se actualizó en vivo: parpadeo de luz, sin mover el layout. */
+@keyframes op-tick {
+  0%   { color: var(--op-accent) }
+  100% { color: inherit }
+}
+
+/* Fallo: un temblor corto y seco. Se usa UNA vez, cuando algo se rompe. */
+@keyframes op-shake {
+  0%, 100% { transform: translateX(0) }
+  20%      { transform: translateX(-4px) }
+  40%      { transform: translateX(3px) }
+  60%      { transform: translateX(-2px) }
+  80%      { transform: translateX(1px) }
+}
+
+/* ── Clases de entrada ───────────────────────────────────────────────────────
+   Se aplican al montar. `--i` escalona (stagger) los hijos de una lista:
+   style="--i:3" → arranca 3 × 26 ms después. */
+.op-in-fade  { animation: op-fade-in  var(--op-t-3) var(--op-ease) both; }
+.op-in-rise  { animation: op-rise-in  var(--op-t-3) var(--op-ease) both; }
+.op-in-glide { animation: op-glide-in var(--op-t-3) var(--op-ease) both; }
+.op-in-pop   { animation: op-pop-in   var(--op-t-2) var(--op-ease) both; }
+
+.op-in-fade, .op-in-rise, .op-in-glide, .op-in-pop {
+  animation-delay: calc(var(--i, 0) * 26ms);
+}
+
+/* ── Salidas ─────────────────────────────────────────────────────────────────
+   exit() pone data-state="closing" y espera. Las salidas van más rápido
+   que las entradas: irse debe sentirse decidido, llegar debe sentirse suave. */
+[data-state='closing'].op-in-fade  { animation: op-fade-out  var(--op-t-1) var(--op-ease-in) both; }
+[data-state='closing'].op-in-rise  { animation: op-rise-out  var(--op-t-1) var(--op-ease-in) both; }
+[data-state='closing'].op-in-glide { animation: op-glide-out var(--op-t-1) var(--op-ease-in) both; }
+[data-state='closing'].op-in-pop   { animation: op-pop-out   var(--op-t-1) var(--op-ease-in) both; }
+
+/* ── Click-flash ─────────────────────────────────────────────────────────────
+   Un velo de luz que nace en el press y decae. No es un ripple de Material:
+   no viaja, no tiene centro, solo confirma que el click llegó. */
+.op-flashable { position: relative; overflow: hidden; }
+.op-flashable > .op-flash {
+  position: absolute;
+  inset: 0;
+  background: var(--op-accent);
+  opacity: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  animation: op-flash 420ms var(--op-ease) forwards;
+}
+
+/* ── Revelado de alto ────────────────────────────────────────────────────────
+   El truco grid 0fr→1fr en vez de animar height (que genera jank y exige
+   conocer el alto de antemano). El hijo necesita min-height:0 + overflow. */
+.op-reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--op-t-3) var(--op-ease);
+}
+.op-reveal > * { min-height: 0; overflow: hidden; }
+.op-reveal.is-open { grid-template-rows: 1fr; }
+
+/* ── Estados vivos ───────────────────────────────────────────────────────── */
+.op-breathing { animation: op-breathe 2.2s var(--op-ease-both) infinite; }
+.op-spinning  { animation: op-spin 900ms linear infinite; }
+.op-ticked    { animation: op-tick 700ms var(--op-ease-soft); }
+.op-shaking   { animation: op-shake 380ms var(--op-ease-both); }
+
+/* ── Skeleton ────────────────────────────────────────────────────────────── */
+.op-skeleton {
+  border-radius: var(--op-r-sm);
+  background: linear-gradient(
+    100deg,
+    var(--op-s2) 38%,
+    rgba(255, 255, 255, .045) 50%,
+    var(--op-s2) 62%
+  );
+  background-size: 220% 100%;
+  animation: op-shimmer 1.7s var(--op-ease-both) infinite;
+}
+
+/* ── Transición de vista ─────────────────────────────────────────────────────
+   Al cambiar de sección la vista AFLORA: sube apenas y se materializa. Es la
+   firma de Opal — lo nuevo emerge hacia la superficie del vidrio. */
+.op-view { animation: op-rise-in var(--op-t-4) var(--op-ease) both; }

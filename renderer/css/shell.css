@@ -1,0 +1,374 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   OPAL — shell
+   El chasis de la ventana: el sustrato de niebla, la titlebar propia, el rail
+   de navegación, el área de vista, el inspector y la statusbar. Todo dibujado
+   por nosotros — nada de frame nativo.
+
+   El shell es donde vive el vidrio de base: titlebar, rail, inspector y
+   statusbar son HOJAS con backdrop-filter apoyadas directo sobre la niebla.
+   Su fondo es estático, así que ese blur se composita una vez y queda barato.
+   El área de vista es transparente: el contenido flota sobre la niebla misma.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.op-app {
+  display: grid;
+  grid-template-rows: var(--op-titlebar) 1fr var(--op-statusbar);
+  height: 100vh;
+  background: var(--op-bg);
+  /* Contexto de apilado propio: el sustrato vive en z-index:-1 y sin esto se
+     escaparía hacia atrás del body en vez de quedar entre el fondo y la UI. */
+  position: relative;
+  z-index: 0;
+}
+
+/* ── El sustrato ─────────────────────────────────────────────────────────────
+   Lo que el vidrio difumina. En una app acromática este es el problema
+   central: sin color, un backdrop-filter no tiene nada que hacer y la
+   superficie se lee como una capa gris cualquiera. Lo resuelven dos cosas:
+
+     · NIEBLA — manchas de pura luz, sin un grado de tinte. Dan la variación
+       de luminancia que en Onyx ponía la croma. `--op-fog` las regula.
+     · GRANO — sin él el desenfoque queda plástico; con él parece vidrio.
+
+   Y un VELO oscuro que hunde el conjunto para que el texto gane siempre,
+   caiga donde caiga una mancha: el contraste no puede depender de la niebla.
+
+   Es absolute, no participa del grid, y es UNA capa estática: animarla
+   obligaría a recomponer cada hoja de vidrio en cada frame. */
+.op-fog {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    /* El grano, arriba de todo el sustrato. */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.038'/%3E%3C/svg%3E"),
+    /* El velo. Parejo a propósito: con un degradé vertical, sobre un fondo
+       tan oscuro cada nivel de 8 bits ocupa cientos de px y los saltos se
+       leen como líneas horizontales que parten la ventana en franjas. */
+    linear-gradient(rgb(8 8 9 / .3), rgb(8 8 9 / .3)),
+    /* La niebla. */
+    radial-gradient(46vw 46vw at 10% 0%, rgb(255 255 255 / calc(.062 * var(--op-fog))), transparent 70%),
+    radial-gradient(42vw 42vw at 94% 16%, rgb(255 255 255 / calc(.05 * var(--op-fog))), transparent 70%),
+    radial-gradient(40vw 40vw at 42% 110%, rgb(255 255 255 / calc(.042 * var(--op-fog))), transparent 70%);
+}
+
+/* ── Titlebar ──────────────────────────────────────────────────────────────── */
+.op-titlebar {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  padding-left: var(--op-4);
+  /* Hoja de vidrio: relleno de luz + blur pesado. El filo de arriba es el
+     canto de la ventana y junta luz; el de abajo es un hairline normal. */
+  background: var(--op-s1);
+  backdrop-filter: var(--op-glass-heavy);
+  box-shadow: inset 0 1px 0 var(--op-edge-lit), inset 0 -1px 0 var(--op-line);
+  -webkit-app-region: drag;
+  position: relative;
+  z-index: 20;
+}
+.op-titlebar button,
+.op-titlebar .op-no-drag { -webkit-app-region: no-drag; }
+
+/* Wordmark: el cabujón + OPAL en versalitas. */
+.op-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  color: var(--op-text-2);
+  transition: var(--tr-color);
+}
+.op-brand:hover { color: var(--op-text); }
+.op-brand__mark { width: 18px; height: 18px; color: var(--op-accent); }
+.op-brand__mark .op-brand__trail { opacity: .34; }
+.op-brand__name {
+  font-size: var(--op-fs-11);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-caps);
+  text-transform: uppercase;
+}
+
+/* El contexto de la ventana vive en el centro del titlebar, no en el título. */
+.op-titlebar__context {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  font-size: var(--op-fs-11);
+  color: var(--op-text-3);
+  pointer-events: none;
+}
+
+/* Controles de ventana: propios, no los de Windows. */
+.op-wincontrols { display: flex; margin-left: auto; height: 100%; }
+.op-wincontrol {
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--op-text-3);
+  cursor: default;
+  transition: var(--tr-color);
+}
+.op-wincontrol:hover { background: var(--op-wash-1); color: var(--op-text); }
+.op-wincontrol:active { background: var(--op-wash-2); }
+.op-wincontrol--close:hover { background: var(--op-danger-dim); color: #fff; }
+.op-wincontrol .op-icon { width: 11px; height: 11px; stroke-width: 1.2; }
+
+/* ── Cuerpo ───────────────────────────────────────────────────────────────── */
+.op-body {
+  display: grid;
+  grid-template-columns: var(--op-rail) 1fr;
+  min-height: 0;
+}
+
+/* ── Rail de navegación ───────────────────────────────────────────────────── */
+.op-rail {
+  display: flex;
+  flex-direction: column;
+  background: var(--op-s1);
+  backdrop-filter: var(--op-glass);
+  box-shadow: inset -1px 0 0 var(--op-line);
+  min-height: 0;
+}
+.op-rail__top { padding: var(--op-3) var(--op-3) var(--op-2); }
+.op-rail__nav { flex: 1 1 auto; min-height: 0; padding: 0 var(--op-3); }
+/* Abajo el nav muere contra la línea del pie, no al aire: ahí no va esfumado.
+   Con :has(), si una app se queda sin pie el fade vuelve solo. */
+.op-rail__nav:has(~ .op-rail__foot) { --op-fade-bottom: 0px; }
+.op-rail__group { margin-bottom: var(--op-1); }
+.op-rail__group-label {
+  padding: var(--op-3) var(--op-2) var(--op-1);
+  font-size: var(--op-fs-10);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-caps);
+  text-transform: uppercase;
+  color: var(--op-text-4);
+}
+
+.op-navitem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  width: 100%;
+  padding: 0 var(--op-2);
+  height: 32px;
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: transparent;
+  color: var(--op-text-2);
+  font-size: var(--op-fs-13);
+  text-align: left;
+  cursor: default;
+  transition: var(--tr-color);
+}
+.op-navitem .op-icon { color: var(--op-text-3); transition: color var(--op-t-1) var(--op-ease-soft); }
+.op-navitem:hover { background: var(--op-wash-1); color: var(--op-text); }
+.op-navitem:hover .op-icon { color: var(--op-text-2); }
+.op-navitem.is-active {
+  background: var(--op-wash-2);
+  color: var(--op-text);
+  font-weight: var(--op-w-medium);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / .06);
+}
+.op-navitem.is-active .op-icon { color: var(--op-accent); }
+
+/* El indicador de activo es un vector corto sobre el borde izquierdo: crece
+   desde el centro en vez de aparecer. */
+.op-navitem::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  border-radius: var(--op-r-pill);
+  background: var(--op-accent);
+  transform: translateY(-50%) scaleY(0);
+  transition: transform var(--op-t-3) var(--op-ease);
+}
+.op-navitem.is-active::before { transform: translateY(-50%) scaleY(1); }
+
+/* Contador a la derecha del item (corridas activas, borradores…) */
+.op-navitem__count {
+  margin-left: auto;
+  font-size: var(--op-fs-11);
+  font-variant-numeric: tabular-nums;
+  color: var(--op-text-4);
+  transition: color var(--op-t-1) var(--op-ease-soft);
+}
+.op-navitem:hover .op-navitem__count,
+.op-navitem.is-active .op-navitem__count { color: var(--op-text-2); }
+
+/* Pie del rail: salud de proveedores, la ruta de datos, lo chiquito. */
+.op-rail__foot {
+  padding: var(--op-3);
+  box-shadow: inset 0 1px 0 var(--op-line);
+  /* Flex, y no por estética: blockifica a los hijos. Un span inline con
+     .op-truncate no trunca NUNCA — text-overflow pide caja de bloque — y el
+     síntoma recién aparece cuando algo largo llega acá: la ruta de userData
+     de la app instalada lo destapó, desbordando el rail sin puntos
+     suspensivos. El min-width:0 es la otra mitad: sin él, el hijo flex se
+     niega a achicarse por debajo de su contenido. */
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+}
+.op-rail__foot > * { min-width: 0; }
+
+/* ── Área principal ───────────────────────────────────────────────────────────
+   Transparente: la vista flota directo sobre la niebla. Por eso una card acá
+   adentro puede permitirse ser vidrio de verdad (--glass): es hermana de las
+   hojas del shell, no está adentro de una. */
+.op-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+}
+
+.op-viewhead {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  padding: var(--op-5) var(--op-6) var(--op-4);
+  flex: 0 0 auto;
+}
+.op-viewhead__text { min-width: 0; }
+.op-viewhead__title {
+  font-size: var(--op-fs-19);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-tight);
+  line-height: 1.2;
+}
+.op-viewhead__sub {
+  font-size: var(--op-fs-12);
+  color: var(--op-text-3);
+  margin-top: 2px;
+}
+.op-viewhead__actions { margin-left: auto; display: flex; align-items: center; gap: var(--op-2); }
+
+/* Breadcrumb: el separador es un chevron SVG, nunca un "/" ni un "›". */
+.op-crumbs { display: flex; align-items: center; gap: var(--op-1); font-size: var(--op-fs-12); }
+.op-crumbs__item {
+  color: var(--op-text-3);
+  padding: 2px var(--op-1);
+  border-radius: var(--op-r-xs);
+  transition: var(--tr-color);
+}
+.op-crumbs__item:hover { color: var(--op-text); background: var(--op-wash-1); }
+.op-crumbs__item:last-child { color: var(--op-text-2); }
+.op-crumbs .op-icon { width: 12px; height: 12px; color: var(--op-text-4); }
+
+/* ── La sangría lateral del contenido ────────────────────────────────────────
+   El contenido de una vista tiene que arrancar EN LA MISMA columna que su
+   propio título. El `viewhead` ya trae su `--op-6`; esta regla se lo da a todo
+   lo demás, en los dos layouts de vista que existen:
+
+     .op-main > .op-scroll                    (vista simple)
+     .op-main > .op-viewbody > __main         (vista con inspector)
+
+   Antes no estaba en ningún lado y cada vista lo compensaba con un
+   `style="padding-left:24px;padding-right:24px"` inline — el mismo número
+   mágico repetido cinco veces en la plantilla. Lo que hacía era peor que feo:
+   una vista nueva, escrita sin copiar una vieja, nacía con todo pegado al riel
+   y corrida respecto de su encabezado, y el síntoma no señalaba la causa.
+
+   `.op-viewbody` queda AFUERA a propósito: el inspector tiene fondo y hairline
+   propios y tiene que llegar al borde de la ventana. La sangría se la pone su
+   `__main`, que es el que lleva contenido.
+
+   Es `padding-inline` y no el atajo `padding`: `.op-scroll` usa el
+   `padding-top`/`bottom` para su esfumado y pisárselos le rompe la máscara.
+
+   Para lo que va de borde a borde —un lienzo, un mapa— está `.op-bleed`. */
+.op-main > :not(.op-viewhead):not(.op-viewbody),
+.op-viewbody__main {
+  padding-inline: var(--op-6);
+}
+
+.op-bleed, .op-viewbody__main--bleed { padding-inline: 0; }
+
+.op-viewbody { flex: 1 1 auto; min-height: 0; display: flex; }
+/* position:relative para anclar los controles flotantes del lienzo: si viven
+   DENTRO del contenedor que scrollea, se van de pantalla con el contenido. */
+.op-viewbody__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Arriba la vista corta al aire — el viewhead no lleva línea — y ahí el fade es
+   lo único que avisa que hay más. Abajo cierra la statusbar con la suya, así que
+   el corte ya está explicado y el esfumado solo taparía la línea. */
+.op-app:has(> .op-statusbar) :is(.op-main, .op-viewbody__main) > .op-scroll {
+  --op-fade-bottom: 0px;
+}
+
+/* ── Inspector (panel derecho) ────────────────────────────────────────────── */
+.op-inspector {
+  width: var(--op-inspector);
+  flex: 0 0 auto;
+  background: var(--op-s1);
+  backdrop-filter: var(--op-glass);
+  box-shadow: inset 1px 0 0 var(--op-line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  transition: width var(--op-t-4) var(--op-ease);
+}
+/* El contenido conserva su ancho mientras el panel se cierra: sin esto el
+   texto se reacomoda durante la transición y el colapso se ve como un temblor. */
+.op-inspector > * { min-width: var(--op-inspector); }
+.op-inspector.is-collapsed { width: 0; }
+.op-inspector__head {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: var(--op-4) var(--op-4) var(--op-3);
+  flex: 0 0 auto;
+}
+.op-inspector__body { flex: 1 1 auto; min-height: 0; padding-left: var(--op-4); padding-right: var(--op-4); }
+/* Arriba corta al aire (el head no lleva línea) y abajo contra el pie, que sí. */
+.op-inspector__body:has(~ .op-inspector__foot) { --op-fade-bottom: 0px; }
+.op-inspector__foot {
+  padding: var(--op-3) var(--op-4);
+  box-shadow: inset 0 1px 0 var(--op-line);
+  display: flex;
+  gap: var(--op-2);
+}
+
+/* ── Statusbar ────────────────────────────────────────────────────────────── */
+.op-statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--op-4);
+  padding: 0 var(--op-4);
+  background: var(--op-s1);
+  backdrop-filter: var(--op-glass);
+  box-shadow: inset 0 1px 0 var(--op-line);
+  font-size: var(--op-fs-11);
+  color: var(--op-text-3);
+}
+.op-statusbar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: 0 var(--op-1);
+  height: 100%;
+  transition: var(--tr-color);
+}
+.op-statusbar__item:hover { color: var(--op-text-2); }
+.op-statusbar__item .op-icon { width: 12px; height: 12px; }
+.op-statusbar__value { color: var(--op-text-2); font-variant-numeric: tabular-nums; }

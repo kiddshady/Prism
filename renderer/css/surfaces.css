@@ -1,0 +1,493 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   OPAL — superficies y estado
+   Cards, listas, tablas, tabs, medidores… y el sistema de estado, que es la
+   pieza central del diseño.
+
+   CÓMO SE LEE EL ESTADO SIN COLOR
+   La FORMA dice qué es la cosa:   ● agente   ◆ decisión/compuerta
+                                    ⬢ fan-out  ■ entrada/salida
+   La LUMINANCIA dice si está viva: corriendo = lo más claro de la pantalla,
+                                    terminado = se apaga y retrocede.
+   El MOVIMIENTO es exclusivo de "corriendo": es lo único que respira.
+   El ROJO aparece una sola vez en toda la app: cuando algo falló.
+
+   Y LA REGLA DE LAS HOJAS: nada de lo que hay acá lleva backdrop-filter de
+   fábrica. Una card vive casi siempre ADENTRO de una vista o de un modal, y
+   desenfocar lo ya desenfocado cuesta GPU sin verse. La única excepción es
+   `.op-card--glass`, para hojas que flotan DIRECTO sobre la niebla.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Marca de estado ──────────────────────────────────────────────────────── */
+.op-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+.op-mark__core {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  transition: background-color var(--op-t-3) var(--op-ease-soft),
+              box-shadow var(--op-t-3) var(--op-ease-soft),
+              transform var(--op-t-3) var(--op-ease);
+}
+/* El anillo que respira. Solo existe cuando algo corre. */
+.op-mark__halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px currentColor;
+  opacity: 0;
+  transition: opacity var(--op-t-3) var(--op-ease-soft);
+}
+
+/* Formas — la identidad del nodo */
+.op-mark--diamond .op-mark__core { border-radius: 1.5px; transform: rotate(45deg) scale(.84); }
+.op-mark--diamond .op-mark__halo { border-radius: 2px; transform: rotate(45deg) scale(.8); }
+.op-mark--square  .op-mark__core { border-radius: 1.5px; }
+.op-mark--square  .op-mark__halo { border-radius: 3px; }
+.op-mark--hex     .op-mark__core {
+  border-radius: 0;
+  width: 9px; height: 10px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+.op-mark--hex .op-mark__halo { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); box-shadow: none; }
+
+/* Estados */
+.op-mark[data-state='idle']    { color: var(--op-text-4); }
+.op-mark[data-state='idle']    .op-mark__core { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+
+.op-mark[data-state='queued']  { color: var(--op-text-4); }
+.op-mark[data-state='queued']  .op-mark__core { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; transform: scale(.8); }
+.op-mark--diamond[data-state='queued'] .op-mark__core { transform: rotate(45deg) scale(.7); }
+
+.op-mark[data-state='running'] { color: var(--op-accent); }
+.op-mark[data-state='running'] .op-mark__halo { opacity: 1; animation: op-breathe 2.2s var(--op-ease-both) infinite; }
+
+.op-mark[data-state='waiting'] { color: var(--op-text-2); }
+.op-mark[data-state='waiting'] .op-mark__core { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+.op-mark[data-state='waiting'] .op-mark__halo { opacity: .3; }
+
+.op-mark[data-state='done']    { color: var(--op-text-3); }
+
+.op-mark[data-state='skipped'] { color: var(--op-text-4); opacity: .5; }
+.op-mark[data-state='skipped'] .op-mark__core { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; transform: scale(.6); }
+
+.op-mark[data-state='failed']  { color: var(--op-danger); }
+.op-mark[data-state='failed']  .op-mark__halo { opacity: .55; }
+
+/* Etiqueta de estado: la marca + su palabra. */
+.op-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--op-2);
+  font-size: var(--op-fs-11);
+  color: var(--op-text-3);
+  white-space: nowrap;
+  transition: color var(--op-t-2) var(--op-ease-soft);
+}
+.op-status[data-state='running'] { color: var(--op-text); }
+.op-status[data-state='failed']  { color: var(--op-danger); }
+.op-status[data-state='waiting'] { color: var(--op-text-2); }
+
+/* ── Chip / tag ───────────────────────────────────────────────────────────── */
+.op-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 var(--op-2);
+  border-radius: var(--op-r-xs);
+  background: var(--op-wash-1);
+  color: var(--op-text-2);
+  font-size: var(--op-fs-11);
+  font-weight: var(--op-w-medium);
+  white-space: nowrap;
+  transition: var(--tr-color);
+}
+.op-chip .op-icon { width: 11px; height: 11px; color: var(--op-text-3); }
+.op-chip--mono { font-family: var(--op-mono); font-size: 10.5px; letter-spacing: 0; }
+.op-chip--outline { background: transparent; box-shadow: var(--op-hairline); }
+.op-chip--danger { background: var(--op-danger-wash); color: var(--op-danger); }
+.op-chip--danger .op-icon { color: var(--op-danger); }
+
+/* ── Card / panel ─────────────────────────────────────────────────────────────
+   Una hoja: relleno de luz, canto iluminado arriba, hairline perimetral y
+   sombra larga. La jerarquía la construye la ELEVACIÓN, no un borde marcado.
+   Sin backdrop-filter de fábrica (la regla de las hojas, arriba). */
+.op-card {
+  background: var(--op-s2);
+  border-radius: var(--op-r-lg);
+  box-shadow: var(--op-sheet), var(--op-e2);
+  transition: var(--tr-surface);
+}
+.op-card--interactive:hover {
+  background: var(--op-s3);
+  box-shadow: inset 0 1px 0 var(--op-edge-lit), inset 0 0 0 1px var(--op-line-2), var(--op-e3);
+  transform: translateY(-1px);
+}
+.op-card--interactive:active { transform: translateY(0) scale(.995); }
+
+/* Vidrio de verdad, SOLO para hojas que flotan directo sobre la niebla (una
+   card suelta en la vista, un panel hero). Dos prohibiciones, las dos caras
+   de la misma regla:
+   · No lo anides adentro de otra hoja con blur — desenfocar lo desenfocado
+     cuesta GPU y no cambia un píxel.
+   · No lo metas ADENTRO de un .op-scroll con esfumado: la máscara del
+     scroller es frontera de backdrop y el vidrio queda CIEGO — computa el
+     blur pero no muestrea nada, y lo de abajo se lee nítido a través. Si
+     necesitás vidrio ahí, el truco del espejo (ver la vitrina) o afuera
+     del scroller. */
+.op-card--glass {
+  backdrop-filter: var(--op-glass);
+}
+
+.op-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  padding: var(--op-4) var(--op-4) var(--op-3);
+}
+/* EL CUERPO PONE SU PROPIO AIRE DE ARRIBA.
+
+   Antes era `padding: 0 var(--op-4) var(--op-4)`, y ese cero de arriba estaba
+   pensado para el caso de abajo: con un `__head` encima, el aire ya lo puso él
+   y repetirlo separaría el cuerpo de su propio título.
+
+   Pero una tarjeta SIN head —`<div class="op-card"><div class="op-card__body">`,
+   que es la forma más común— se quedaba sin nada arriba: 0 px contra 16 abajo,
+   con el contenido pegado al borde superior.
+
+   Lo que lo dejó pasar tanto tiempo: la vitrina mostraba `op-card` una sola vez
+   y con un `padding` inline, saltándose el componente. El único lugar que
+   existe para ver las piezas nunca dibujaba la que estaba rota. Ahora están las
+   dos formas en «Superficies». */
+.op-card__body { padding: var(--op-4); }
+.op-card__head + .op-card__body { padding-top: 0; }
+.op-card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: var(--op-3) var(--op-4);
+  box-shadow: inset 0 1px 0 var(--op-line);
+}
+
+/* Panel hundido: consola, código, canvas. Un pozo de sombra, no una hoja. */
+.op-sunken {
+  background: var(--op-sunken);
+  border-radius: var(--op-r-md);
+  box-shadow: var(--op-hairline);
+}
+
+/* ── Sección del inspector ────────────────────────────────────────────────── */
+.op-section { padding: var(--op-4) 0; box-shadow: inset 0 -1px 0 var(--op-line); }
+.op-section:last-child { box-shadow: none; }
+.op-section__head {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  margin-bottom: var(--op-3);
+}
+.op-section__title {
+  font-size: var(--op-fs-10);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-caps);
+  text-transform: uppercase;
+  color: var(--op-text-4);
+}
+
+/* Par clave/valor */
+.op-kv {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: var(--op-2) var(--op-3);
+  align-items: baseline;
+  font-size: var(--op-fs-12);
+}
+.op-kv__k { color: var(--op-text-4); }
+.op-kv__v { color: var(--op-text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+
+/* ── Lista ────────────────────────────────────────────────────────────────── */
+.op-list { display: flex; flex-direction: column; gap: 2px; }
+.op-listitem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  min-height: 40px;
+  padding: var(--op-2) var(--op-3);
+  border-radius: var(--op-r-md);
+  background: transparent;
+  text-align: left;
+  border: 0;
+  color: inherit;
+  cursor: default;
+  overflow: hidden;
+  transition: var(--tr-color), transform var(--op-t-1) var(--op-ease-soft);
+}
+.op-listitem:hover { background: var(--op-wash-1); }
+.op-listitem.is-selected { background: var(--op-wash-2); }
+.op-listitem.is-selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 50%;
+  width: 2px; height: 60%;
+  border-radius: var(--op-r-pill);
+  background: var(--op-accent);
+  transform: translateY(-50%);
+  animation: op-fade-in var(--op-t-2) var(--op-ease) both;
+}
+/* Flex column explícito: el título y el subtítulo son <span>, y sin esto
+   quedarían en línea uno al lado del otro. */
+.op-listitem__main { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; }
+.op-listitem__title {
+  font-size: var(--op-fs-13);
+  color: var(--op-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.op-listitem__sub {
+  font-size: var(--op-fs-11);
+  color: var(--op-text-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.op-listitem__aside { display: flex; align-items: center; gap: var(--op-3); flex: 0 0 auto; }
+
+/* Las acciones de fila se materializan con el hover, no ocupan sitio siempre. */
+.op-rowactions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease);
+}
+.op-listitem:hover .op-rowactions,
+.op-listitem:focus-within .op-rowactions,
+.op-tr:hover .op-rowactions { opacity: 1; transform: none; }
+
+/* ── Tabla ────────────────────────────────────────────────────────────────── */
+.op-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--op-fs-12); }
+.op-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: var(--op-2) var(--op-3);
+  text-align: left;
+  font-size: var(--op-fs-10);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-caps);
+  text-transform: uppercase;
+  color: var(--op-text-4);
+  /* Casi opaco y derivado del fondo: el header pegajoso tiene que TAPAR las
+     filas que pasan por debajo, y color-mix lo mantiene atado a las perillas. */
+  background: color-mix(in srgb, var(--op-bg) 97%, transparent);
+  box-shadow: inset 0 -1px 0 var(--op-line);
+  white-space: nowrap;
+  user-select: none;
+}
+.op-table th.is-sortable { transition: color var(--op-t-1) var(--op-ease-soft); }
+.op-table th.is-sortable:hover { color: var(--op-text-2); }
+.op-table td {
+  padding: var(--op-2) var(--op-3);
+  color: var(--op-text-2);
+  box-shadow: inset 0 -1px 0 var(--op-line);
+  user-select: text;
+}
+.op-tr { transition: background-color var(--op-t-1) var(--op-ease-soft); }
+.op-tr:hover td { background: var(--op-wash-1); }
+.op-tr.is-selected td { background: var(--op-wash-2); }
+.op-tr.is-failed td:first-child { box-shadow: inset 2px 0 0 var(--op-danger), inset 0 -1px 0 var(--op-line); }
+.op-td--num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Una tabla que es la hija directa de un .op-scroll. El `th` sticky se engancha
+   al borde del CONTENIDO del scroller, no al de su caja: con el padding-top que
+   el .op-scroll reserva para el esfumado, el encabezado quedaba --op-fade más
+   abajo del borde y las filas pasaban por ese hueco, por ENCIMA de sus propios
+   títulos. El respiro pasa a ser margen (afuera del scroll) y arriba no hay
+   fade: el encabezado casi opaco con su hairline ya es el límite.
+   (Portado de Onyx, 38a4787.) */
+.op-scroll:has(> .op-table) {
+  padding-top: 0;
+  margin-top: var(--op-fade);
+  --op-fade-top: 0px;
+}
+.op-td--tight { width: 1%; white-space: nowrap; }
+
+/* ── Tabs ─────────────────────────────────────────────────────────────────────
+   El subrayado viaja entre tabs (--tab-x / --tab-w los setea tabs() en app.js). */
+.op-tabs {
+  position: relative;
+  display: flex;
+  gap: var(--op-1);
+  box-shadow: inset 0 -1px 0 var(--op-line);
+}
+.op-tabs::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  width: var(--tab-w, 0px);
+  border-radius: var(--op-r-pill);
+  background: var(--op-accent);
+  transform: translateX(var(--tab-x, 0px));
+  transition: transform var(--op-t-3) var(--op-ease), width var(--op-t-3) var(--op-ease);
+}
+.op-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  height: 34px;
+  padding: 0 var(--op-3);
+  border: 0;
+  background: transparent;
+  color: var(--op-text-3);
+  font-size: var(--op-fs-12);
+  font-weight: var(--op-w-medium);
+  cursor: default;
+  transition: color var(--op-t-2) var(--op-ease-soft);
+}
+.op-tab:hover { color: var(--op-text-2); }
+.op-tab.is-active { color: var(--op-text); }
+.op-tab__count {
+  font-size: var(--op-fs-10);
+  font-variant-numeric: tabular-nums;
+  color: var(--op-text-4);
+  padding: 0 4px;
+  border-radius: var(--op-r-xs);
+  background: var(--op-wash-1);
+}
+
+/* ── Medidor / progreso ───────────────────────────────────────────────────── */
+.op-meter {
+  position: relative;
+  height: 3px;
+  border-radius: var(--op-r-pill);
+  background: var(--op-s3);
+  overflow: hidden;
+}
+.op-meter__fill {
+  height: 100%;
+  width: var(--op-pct, 0%);
+  border-radius: inherit;
+  background: var(--op-accent);
+  transition: width var(--op-t-4) var(--op-ease), background-color var(--op-t-3) var(--op-ease-soft);
+}
+.op-meter--danger .op-meter__fill { background: var(--op-danger); }
+/* Indeterminado: una barra que recorre la pista.
+   Dos detalles que no son cosméticos:
+   · El recorrido va de -100% a 294% de su PROPIO ancho (34% de la pista), que
+     es exactamente lo que hace falta para entrar por un borde y salir por el
+     otro. Pasarse deja la barra fuera de la pista, y la pista vacía se lee
+     como un componente roto, no como "esperando".
+   · Timing lineal, no `ease-both`. Un bucle infinito no tiene principio ni
+     final del que acelerar: la curva solo hace que la barra se quede quieta
+     justo en los extremos, donde no se ve. */
+.op-meter--indeterminate .op-meter__fill {
+  width: 34%;
+  animation: op-meter-sweep 1.5s linear infinite;
+}
+@keyframes op-meter-sweep {
+  0%   { transform: translateX(-100%) }
+  100% { transform: translateX(294%) }
+}
+
+/* Cifra grande con su rótulo: el bloque de métrica. */
+.op-stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.op-stat__value {
+  font-size: var(--op-fs-19);
+  font-weight: var(--op-w-semi);
+  letter-spacing: var(--op-track-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--op-text);
+  line-height: 1.1;
+}
+.op-stat__label {
+  font-size: var(--op-fs-10);
+  font-weight: var(--op-w-medium);
+  letter-spacing: var(--op-track-caps);
+  text-transform: uppercase;
+  color: var(--op-text-4);
+}
+.op-stat__unit { font-size: var(--op-fs-12); font-weight: var(--op-w-regular); color: var(--op-text-3); }
+
+/* ── Avatar ───────────────────────────────────────────────────────────────────
+   Sin fotos ni emojis: un monograma en mono sobre una hoja chica. */
+.op-avatar {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: var(--op-r-md);
+  background: var(--op-s3);
+  box-shadow: var(--op-sheet);
+  font-family: var(--op-mono);
+  font-size: 11px;
+  font-weight: var(--op-w-medium);
+  color: var(--op-text-2);
+  letter-spacing: -.02em;
+  transition: var(--tr-surface);
+}
+.op-avatar--lg { width: 36px; height: 36px; font-size: 13px; border-radius: var(--op-r-lg); }
+
+/* ── Estado vacío ─────────────────────────────────────────────────────────────
+   Nunca una pantalla en blanco: un ícono grande y apagado, una frase y la
+   acción que la resuelve. */
+.op-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--op-3);
+  padding: var(--op-10) var(--op-6);
+  text-align: center;
+  animation: op-rise-in var(--op-t-4) var(--op-ease) both;
+}
+.op-empty .op-icon { width: 34px; height: 34px; color: var(--op-text-4); stroke-width: 1; }
+.op-empty__title { font-size: var(--op-fs-15); font-weight: var(--op-w-medium); color: var(--op-text-2); }
+.op-empty__text { font-size: var(--op-fs-12); color: var(--op-text-4); max-width: 320px; line-height: var(--op-lh-loose); }
+
+/* ── Consola de log ───────────────────────────────────────────────────────── */
+.op-log {
+  font-family: var(--op-mono);
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--op-text-2);
+  user-select: text;
+}
+.op-log__line { display: flex; gap: var(--op-3); padding: 1px 0; animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
+.op-log__time { color: var(--op-text-4); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.op-log__src  { color: var(--op-text-3); flex: 0 0 auto; min-width: 74px; }
+.op-log__msg  { min-width: 0; word-break: break-word; }
+.op-log__line--error .op-log__msg { color: var(--op-danger); }
+.op-log__line--muted .op-log__msg { color: var(--op-text-4); }
+
+/* ── Celda de ícono ───────────────────────────────────────────────────────────
+   Para vitrinas y selectores de íconos. El ícono manda y la etiqueta es un
+   susurro que solo se enciende con el hover: una grilla de 80 celdas con el
+   texto siempre a full contraste se vuelve ilegible. */
+.op-iconcell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--op-2);
+  padding: var(--op-3) var(--op-2);
+  border: 0;
+  border-radius: var(--op-r-md);
+  background: transparent;
+  color: var(--op-text-3);
+  font: inherit;
+  font-size: 10px;
+  cursor: default;
+  min-width: 0;
+  transition: var(--tr-color);
+}
+.op-iconcell .op-icon { color: var(--op-text-2); transition: color var(--op-t-1) var(--op-ease-soft); }
+.op-iconcell > span { max-width: 100%; }
+.op-iconcell:hover { background: var(--op-wash-1); color: var(--op-text-2); }
+.op-iconcell:hover .op-icon { color: var(--op-accent); }
+.op-iconcell:active { background: var(--op-wash-2); }

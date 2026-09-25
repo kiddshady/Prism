@@ -1,0 +1,4 @@
+provider: github
+owner: kiddshady
+repo: Prism
+updaterCacheDirName: prism-updater

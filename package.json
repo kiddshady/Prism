@@ -1,0 +1,79 @@
+{
+  "name": "prism",
+  "productName": "Prism",
+  "version": "0.1.0",
+  "description": "Navegador de escritorio sobre Chromium, con el cromo de vidrio de Opal: pestañas, bloqueador, historial, favoritos y descargas.",
+  "main": "main.cjs",
+  "author": "Kidd Shady",
+  "copyright": "© 2026 Kidd Shady · Umbrovex Systems",
+  "license": "MIT",
+  "homepage": "https://github.com/kiddshady/Prism",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiddshady/Prism.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node test/tokens.test.mjs && node test/store.test.mjs && node test/format.test.mjs && node test/omni.test.mjs && node test/library.test.mjs && node test/shortcuts.test.mjs",
+    "smoke": "electron test/smoke.cjs",
+    "icons": "node tools/icons.mjs",
+    "build": "electron-builder --win --publish never",
+    "release": "node tools/release.mjs"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.18.2",
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "40.10.2",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.umbrovex.prism",
+    "productName": "Prism",
+    "copyright": "© 2026 Kidd Shady · Umbrovex Systems",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "src/**/*",
+      "renderer/**/*",
+      "build/icon.ico",
+      "build/icon.png",
+      "build/tray.ico",
+      "LICENSE",
+      "NOTICE",
+      "package.json",
+      "!data/**",
+      "!test/**",
+      "!docs/**",
+      "!tools/**"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "publisherName": "Kidd Shady"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "shortcutName": "Prism",
+      "uninstallDisplayName": "Prism",
+      "artifactName": "Prism-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "kiddshady",
+        "repo": "Prism",
+        "releaseType": "release"
+      }
+    ]
+  }
+}

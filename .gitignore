@@ -1,0 +1,15 @@
+node_modules/
+dist/
+out/
+
+# Config local de herramientas: de esta máquina, no del repo.
+.claude/
+
+# Los datos son del usuario, no del repo. Si querés versionar un set de
+# ejemplo, movelo a seed/ y copialo en el primer arranque.
+data/
+*.tmp
+*.corrupto-*
+
+# Capturas de verificación
+.shots/
