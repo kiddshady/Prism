@@ -225,6 +225,7 @@ function createTabs(ctx) {
   function wire(t, wc) {
     const touch = () => emit();
 
+    wc.on('focus', () => ctx.notePageFocus?.());
     wc.on('did-start-loading', () => { t.loading = true; touch(); });
     wc.on('did-stop-loading', () => { t.loading = false; touch(); });
 

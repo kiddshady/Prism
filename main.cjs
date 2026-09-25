@@ -269,6 +269,17 @@ function createWindow(state) {
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 
+  /* Volver a la ventana devuelve el teclado adonde estaba. Al reactivarse,
+     Chromium se lo da al cromo aunque antes lo tuviera la página: el cursor
+     seguía titilando en el campo, pero lo que se tipeaba (o lo que insertaba
+     Moji, que devuelve la ventana con SetForegroundWindow) caía en la nada.
+     El último que tuvo el foco se anota al perderlo la ventana. */
+  let focusWas = 'chrome';
+  let focusAtBlur = 'chrome';
+  ctx.notePageFocus = () => { focusWas = 'page'; };
+  win.webContents.on('focus', () => { focusWas = 'chrome'; });
+  win.on('blur', () => { focusAtBlur = focusWas; });
+  win.on('focus', () => { if (focusAtBlur === 'page') ctx.tabs?.focusPage(); });
 
   win.webContents.on('before-input-event', (e, input) => {
     const cmd = shortcuts.match(input);

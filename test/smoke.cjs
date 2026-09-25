@@ -130,6 +130,23 @@ app.whenReady().then(async () => {
   ok('vuelve', await until(() => ctx.tabs.active.title === 'Inicio de prueba'));
   ok('y adelante se habilita', await until(() => js(`!document.getElementById('btn-forward').disabled`)));
 
+  console.log('\n3b. Volver a la ventana devuelve el teclado a la página');
+  /* Lo que pasa cuando otra app (Moji, Alt+Tab) se lleva la ventana y la
+     devuelve: Chromium le da el foco al cromo. Se simula el ida y vuelta sin
+     robarle el foco real al escritorio. */
+  pwc.focus();
+  await until(() => pwc.isFocused());
+  win.emit('blur');
+  win.webContents.focus();
+  await until(() => win.webContents.isFocused());
+  win.emit('focus');
+  ok('la página recupera el foco', await until(() => pwc.isFocused()));
+  win.webContents.focus();
+  win.emit('blur');
+  win.emit('focus');
+  await sleep(150);
+  ok('y si lo tenía el cromo, queda en el cromo', win.webContents.isFocused() && !pwc.isFocused());
+
   console.log('\n4. El congelado: un menú sobre la página');
   await js(`document.getElementById('btn-menu').click()`);
   ok('el menú abre', await until(() => js(`!!document.querySelector('.op-menu')`)));
