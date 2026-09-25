@@ -53,7 +53,9 @@ function paintDisplay(t) {
 function paintSite(t) {
   let key = 'globe';
   let tip = '';
-  if (!t || t.internal) { key = 'prism'; tip = 'Página de Prism'; }
+  // La nueva pestaña es para buscar: lleva la misma lupa que su barra grande.
+  if (!t || t.internal === 'nueva') key = 'search';
+  else if (t.internal) { key = 'prism'; tip = 'Página de Prism'; }
   else if (t.error || t.crashed) { key = 'alert'; tip = 'No se pudo cargar'; }
   else {
     const kind = splitUrl(t.url).kind;

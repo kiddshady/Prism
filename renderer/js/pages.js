@@ -26,7 +26,6 @@ let cleanups = [];
 
 const host = () => document.getElementById('internal');
 const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
-const engineName = () => S.info?.engines?.[S.settings.searchEngine] || 'Google';
 
 function favIcon(url, favicon, fallback = 'globe') {
   return favicon
@@ -164,7 +163,7 @@ function ntpPage() {
       <div class="pr-ntp__mark">${Icons.svg('prism')}</div>
       <label class="pr-fakebox" id="fakebox">${Icons.svg('search')}
         <input class="pr-fakebox__input" id="ntp-input" type="text" spellcheck="false" autocomplete="off"
-               placeholder="Buscá en ${esc(engineName())} o escribí una dirección" aria-label="Buscar o ir a una dirección"></label>
+               placeholder="Buscá o escribí una dirección" aria-label="Buscar o ir a una dirección"></label>
       <div id="ntp-tiles" style="display:contents"></div>
     </div>`, 'nueva');
 

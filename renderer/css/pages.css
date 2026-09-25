@@ -220,6 +220,10 @@
 }
 .pr-set__head { display: flex; align-items: center; gap: var(--op-2); padding: 14px 18px 4px; }
 .pr-set__head .op-icon { width: 14px; height: 14px; color: var(--op-text-3); }
+/* El prisma de «Acerca de» es la firma de la sección: va a 22 px para lucirse.
+   Los márgenes negativos le devuelven la caja de 14 de los demás, así la fila
+   no crece y el título arranca donde arrancan los otros. */
+.pr-set__head .op-icon:has(.pr-mark__f) { width: 22px; height: 22px; margin: -4px; }
 .pr-set__title { font-size: var(--op-fs-12); font-weight: var(--op-w-semi); color: var(--op-text-2); letter-spacing: .01em; }
 .pr-opt {
   display: flex;
