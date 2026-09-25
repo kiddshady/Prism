@@ -56,8 +56,7 @@
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.ico",
-      "publisherName": "Kidd Shady"
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
