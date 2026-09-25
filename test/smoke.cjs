@@ -61,6 +61,13 @@ const PAGES = {
   '/': '<title>Inicio de prueba</title><body style="font:16px sans-serif"><h1>Hola Prism</h1><p>fiebre fiebre fiebre</p><a id="l" href="/dos">dos</a></body>',
   '/dos': '<title>Página dos</title><body><h1>Dos</h1></body>',
   '/geo': '<title>Geo</title><body><script>navigator.geolocation.getCurrentPosition(()=>{},()=>{})</script></body>',
+  /* Sonido de verdad para que Chromium marque la pestaña como audible, pero sin
+     que se escuche: 30 Hz (debajo de lo que reproduce un parlante común) con
+     ganancia 0,001 (-60 dB, arriba del umbral de silencio de Chromium). */
+  '/sonido': `<title>Sonido</title><body><script>
+    const c = new AudioContext(); const o = c.createOscillator(); const g = c.createGain();
+    o.frequency.value = 30; g.gain.value = 0.001; o.connect(g).connect(c.destination); o.start();
+  </script></body>`,
 };
 const server = http.createServer((req, res) => {
   if (req.url === '/archivo.bin') {
@@ -158,6 +165,52 @@ app.whenReady().then(async () => {
   ok('Ctrl+W la cierra', await until(() => ctx.tabs.list.length === 1));
   ctx.command('tab:reopen');
   ok('Ctrl+Mayús+T no reabre una nueva pestaña vacía', await until(() => ctx.tabs.list.length === 1, 800));
+
+  console.log('\n7b. La barra grande de la nueva pestaña');
+  ctx.command('tab:new');
+  /* Siempre la vista VIVA: la anterior puede seguir desvaneciéndose unos
+     160 ms con los mismos ids (el humo es más rápido que una mano). */
+  const NTP = '.pr-view[data-page="nueva"]:not([data-state="closing"])';
+  // Que el cromo ya tenga ESTA pestaña activa: el estado llega con 16 ms de
+  // demora, y antes de eso la vista a mano es la de la pestaña anterior.
+  await until(() => js(`__prism.S.activeId === ${ctx.tabs.active.id} && document.querySelectorAll('.pr-view[data-page="nueva"]').length === 1 && !!document.querySelector('${NTP} #ntp-input')`));
+  /* Un click de mouse de verdad sobre la barra, como una persona. Con
+     .focus() por script el foco de teclado seguía en la vista de la pestaña
+     web anterior, y cuando Electron se lo devolvía al cromo el campo lo perdía. */
+  const fb = await js(`(() => { const r = document.querySelector('${NTP} #fakebox').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  win.webContents.focus();
+  for (const type of ['mouseDown', 'mouseUp']) win.webContents.sendInputEvent({ type, x: Math.round(fb.x), y: Math.round(fb.y), button: 'left', clickCount: 1 });
+  ok('toma el foco ella (no la de arriba)', await until(() => js(`document.activeElement.id === 'ntp-input'`)));
+  await js(`(() => { const i = document.querySelector('${NTP} #ntp-input'); i.value = '127.0.0.1:${server.address().port}/dos'; i.dispatchEvent(new InputEvent('input', { inputType: 'insertText' })); })()`);
+  ok('sugiere, colgando debajo de ella', await until(() => js(`(() => {
+    const d = document.querySelector('.pr-suggest:not([data-state="closing"])'); const b = document.querySelector('${NTP} #fakebox');
+    if (!d || !b) return false;
+    const r = d.getBoundingClientRect(), a = b.getBoundingClientRect();
+    return r.top >= a.bottom && Math.abs(r.left - a.left) < 2 && Math.abs(r.width - a.width) < 2; })()`)));
+  ok('la de arriba queda como estaba', await js(`document.getElementById('omni-input').value === ''`));
+  await js(`document.querySelector('${NTP} #ntp-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+  ok('Enter navega esta misma pestaña', await until(() => ctx.tabs.active.title === 'Página dos'));
+  ctx.tabs.close(ctx.tabs.active.id);
+
+  console.log('\n7c. Silenciar desde el menú de la pestaña');
+  ctx.tabs.create({ url: `${BASE}/sonido` });
+  ok('la pestaña suena', await until(() => ctx.tabs.active.audible, 8000));
+  ok('la pestaña ya no tiene botón de sonido', !(await js(`!!document.querySelector('.pr-tab__audio')`)));
+  const clickMenuItem = async (text) => {
+    await js(`document.querySelector('.pr-tab.is-active').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))`);
+    await until(() => js(`!!document.querySelector('.op-menu:not([data-state="closing"])')`));
+    return js(`(() => { const b = [...document.querySelectorAll('.op-menu:not([data-state="closing"]) .op-menuitem')].find((x) => x.textContent.includes(${JSON.stringify(text)})); if (!b) return false; b.click(); return true; })()`);
+  };
+  ok('el menú ofrece silenciar', await clickMenuItem('Silenciar la pestaña'));
+  ok('queda silenciada de verdad', await until(() => ctx.tabs.active.muted && ctx.tabs.active.view.webContents.isAudioMuted()));
+  await sleep(300);
+  ok('el menú ahora ofrece activar el sonido', await clickMenuItem('Activar el sonido'));
+  ok('y el sonido vuelve de verdad', await until(() => !ctx.tabs.active.muted && !ctx.tabs.active.view.webContents.isAudioMuted()));
+  ok('la pestaña vuelve a sonar', await until(() => ctx.tabs.active.audible, 6000));
+  await sleep(300);
+  ok('y el menú vuelve a ofrecer silenciar', await clickMenuItem('Silenciar la pestaña'));
+  await until(() => ctx.tabs.active.muted);
+  ctx.tabs.close(ctx.tabs.active.id);
 
   console.log('\n8. Errores');
   ctx.tabs.create({ url: 'http://127.0.0.1:1/' });

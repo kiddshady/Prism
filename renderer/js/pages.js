@@ -18,7 +18,7 @@ import { esc, copy } from './ui.js';
 import { fmtBytes, fmtDur, relTime, plural, locale } from './format.js';
 import { menu, modal, confirm } from './layers.js';
 import { Toast } from './overlays.js';
-import * as Omnibox from './omnibox.js';
+import { attachSuggest } from './suggest.js';
 
 let key = null;
 let current = null;       // { name, el, refresh? }
@@ -162,11 +162,33 @@ function ntpPage() {
   const el = mount(`
     <div class="pr-ntp" id="ntp">
       <div class="pr-ntp__mark">${Icons.svg('prism')}</div>
-      <button class="pr-fakebox" id="fakebox">${Icons.svg('search')}<span>Buscá en ${esc(engineName())} o escribí una dirección</span></button>
+      <label class="pr-fakebox" id="fakebox">${Icons.svg('search')}
+        <input class="pr-fakebox__input" id="ntp-input" type="text" spellcheck="false" autocomplete="off"
+               placeholder="Buscá en ${esc(engineName())} o escribí una dirección" aria-label="Buscar o ir a una dirección"></label>
       <div id="ntp-tiles" style="display:contents"></div>
     </div>`, 'nueva');
 
-  el.querySelector('#fakebox').addEventListener('click', () => Omnibox.focus());
+  /* La barra grande es un campo de verdad, con sus propias sugerencias
+     colgando debajo (antes le pasaba la posta a la omnibox de arriba, y
+     Fran esperaba escribir acá). Ir desde acá navega esta misma pestaña. */
+  const ntpInput = el.querySelector('#ntp-input');
+  const sugg = attachSuggest(ntpInput, {
+    anchor: el.querySelector('#fakebox'),
+    onGo: async (value, { newTab }) => {
+      if (newTab) {
+        const res = await api.omni.suggest(value).catch(() => null);
+        if (res?.classified?.url) api.tabs.create(res.classified.url);
+        return;
+      }
+      ntpInput.blur();
+      await api.tabs.navigate(S.activeId, value).catch(() => null);
+    },
+    onEscape: () => {
+      if (ntpInput.value) { ntpInput.value = ''; return; }
+      ntpInput.blur();
+    },
+  });
+  cleanups.push(() => sugg.detach());
 
   async function fill() {
     const [bm, top] = await Promise.all([api.bookmarks.list().catch(() => []), api.history.top(12).catch(() => [])]);

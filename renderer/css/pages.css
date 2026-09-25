@@ -78,21 +78,38 @@
   width: min(600px, 100%);
   height: 50px;
   padding: 0 var(--op-5);
-  border: 0;
   border-radius: 16px;
   background: var(--op-sunken);
-  color: var(--op-text-4);
-  font-size: var(--op-fs-15);
-  text-align: left;
   cursor: text;
   box-shadow: inset 0 0 0 1px var(--op-line-2), var(--op-e2);
-  transition: box-shadow var(--op-t-2) var(--op-ease-soft), background-color var(--op-t-2) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease);
+  transition: box-shadow var(--op-t-2) var(--op-ease-soft), background-color var(--op-t-2) var(--op-ease-soft);
   animation: op-rise-in var(--op-t-4) var(--op-ease) both;
   animation-delay: 60ms;
 }
 .pr-fakebox:hover { background: var(--op-sunken-2); box-shadow: inset 0 0 0 1px var(--op-line-3), var(--op-e2); }
-.pr-fakebox:active { transform: scale(.995); }
-.pr-fakebox .op-icon { width: 17px; height: 17px; color: var(--op-text-3); }
+/* Con foco el pozo se hunde más y junta un halo apenas: como la omnibox. */
+.pr-fakebox:focus-within {
+  background: var(--op-sunken-2);
+  box-shadow: inset 0 0 0 1px var(--op-line-3), 0 0 0 4px var(--op-wash-1), var(--op-e2);
+}
+.pr-fakebox .op-icon { width: 17px; height: 17px; color: var(--op-text-3); flex: 0 0 auto; transition: color var(--op-t-2) var(--op-ease-soft); }
+.pr-fakebox:focus-within .op-icon { color: var(--op-text-2); }
+.pr-fakebox__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--op-text);
+  font-size: var(--op-fs-15);
+  user-select: text;
+  cursor: text;
+  caret-color: var(--op-accent);
+}
+.pr-fakebox__input::placeholder { color: var(--op-text-4); }
+.pr-fakebox__input:focus-visible { box-shadow: none; }
+.pr-fakebox__input::selection { background: rgb(var(--op-accent-rgb) / .24); }
 
 .pr-tiles {
   display: flex;
