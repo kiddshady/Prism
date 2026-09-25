@@ -181,15 +181,12 @@
 }
 .pr-tab:hover .pr-tab__close,
 .pr-tab.is-active .pr-tab__close { opacity: 1; transform: none; }
-.pr-tab__audio { color: var(--op-text-3); }
-.pr-tab__audio.is-muted { color: var(--op-text-4); }
 
 /* Angosta: el título se va antes que el ícono, y la cruz solo en la activa. */
 .pr-tab.is-narrow .pr-tab__body { padding: 0 4px 0 7px; gap: 4px; }
 .pr-tab.is-narrow:not(.is-active) .pr-tab__close { display: none; }
 .pr-tab.is-tiny .pr-tab__body { justify-content: center; padding: 0; }
 .pr-tab.is-tiny .pr-tab__title,
-.pr-tab.is-tiny .pr-tab__audio,
 .pr-tab.is-tiny:not(.is-active) .pr-tab__close { display: none; }
 .pr-tab.is-tiny.is-active .pr-tab__icon { display: none; }
 

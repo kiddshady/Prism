@@ -113,7 +113,6 @@ function create(t) {
     <div class="pr-tab__body">
       <span class="pr-tab__icon"></span>
       <span class="pr-tab__title"></span>
-      <button class="op-iconbtn pr-tab__btn pr-tab__audio" tabindex="-1" hidden></button>
       <button class="op-iconbtn pr-tab__btn pr-tab__close" tabindex="-1" aria-label="Cerrar pestaña">${Icons.svg('close')}</button>
     </div>`;
   // Nace en su lugar, no deslizándose desde el borde izquierdo.
@@ -136,16 +135,6 @@ function update(el, t) {
   const key = iconKey(t);
   const slot = el.querySelector('.pr-tab__icon');
   if (slot.dataset.key !== key) { slot.dataset.key = key; paintIcon(slot, t, key); }
-
-  const audio = el.querySelector('.pr-tab__audio');
-  const showAudio = t.audible || t.muted;
-  audio.hidden = !showAudio;
-  if (showAudio) {
-    const k = t.muted ? 'speakerOff' : 'speaker';
-    if (audio.dataset.k !== k) { audio.dataset.k = k; audio.innerHTML = Icons.svg(k); }
-    audio.classList.toggle('is-muted', t.muted);
-    audio.setAttribute('aria-label', t.muted ? 'Activar sonido' : 'Silenciar pestaña');
-  }
 }
 
 export function render() {
@@ -239,7 +228,6 @@ export function init() {
     const el = tabOf(e.target);
     if (!el) return;
     if (e.target.closest('.pr-tab__close')) { e.stopPropagation(); closeTab(idOf(el)); }
-    else if (e.target.closest('.pr-tab__audio')) { e.stopPropagation(); api.tabs.mute(idOf(el)); }
   });
 
   // Click del medio cierra.
