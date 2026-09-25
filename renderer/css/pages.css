@@ -63,9 +63,9 @@
 /* En la nueva pestaña la marca va con su color: es el único lugar de la
    interfaz donde el prisma abre la luz. Las caras llegan una por una. */
 .pr-ntp__mark .pr-mark__f { opacity: 1; animation: pr-facet .7s var(--op-ease) both; }
-.pr-ntp__mark .pr-mark__f--a { fill: rgb(251 191 36 / .92); }
-.pr-ntp__mark .pr-mark__f--b { fill: rgb(34 211 238 / .88); animation-delay: .08s; }
-.pr-ntp__mark .pr-mark__f--c { fill: rgb(167 139 250 / .9); animation-delay: .16s; }
+.pr-ntp__mark .pr-mark__f--a { fill: var(--pr-facet-a); }
+.pr-ntp__mark .pr-mark__f--b { fill: var(--pr-facet-b); animation-delay: .08s; }
+.pr-ntp__mark .pr-mark__f--c { fill: var(--pr-facet-c); animation-delay: .16s; }
 @keyframes pr-facet { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
 .pr-ntp__mark .pr-mark__f { transform-origin: 8px 9px; }
 
