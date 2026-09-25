@@ -128,8 +128,11 @@
   color: var(--op-text);
   box-shadow: var(--op-sheet), var(--op-e1);
 }
+/* La que se arrastra pasa por encima de las otras: va opaca (la misma luz
+   ya mezclada con el fondo) para que no se transparenten debajo. Es un color
+   sólido y no una capa, así la transición de color la lleva suave. */
 .pr-tab.is-dragging .pr-tab__body {
-  background: rgb(255 255 255 / .1);
+  background: color-mix(in srgb, #fff 10%, var(--op-bg));
   box-shadow: var(--op-sheet), var(--op-e3);
   transform: translateY(-1px);
 }
@@ -267,6 +270,9 @@
 .pr-omni__site:hover { background: var(--op-wash-1); color: var(--op-text-2); }
 .pr-omni__site > * { grid-area: 1 / 1; }
 .pr-omni__site .op-icon { width: 14px; height: 14px; animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
+/* El prisma de las páginas propias va a 22 px, como el de «Acerca de Prism»:
+   su dibujo tiene aire dentro del viewBox y a 14 quedaba chiquito. */
+.pr-omni__site .op-icon:has(.pr-mark__f) { width: 22px; height: 22px; }
 .pr-omni__site.is-insecure { color: var(--op-text-2); }
 .pr-omni__site img { width: 14px; height: 14px; border-radius: 2px; }
 
