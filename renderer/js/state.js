@@ -12,6 +12,8 @@ export const S = {
   activeId: null,
   canReopen: false,
   fullscreen: false,
+  /** El par que se ve: { a, b, ratio, gap } (a a la izquierda), o null. */
+  split: null,
   settings: {},
   info: null,
   downloads: [],

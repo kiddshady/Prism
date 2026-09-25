@@ -22,7 +22,8 @@ let count = 0;
 let frozen = false;
 let chain = Promise.resolve();
 
-const img = () => document.getElementById('freeze');
+// Una foto por hoja: con vista dividida se congelan las dos mitades.
+const imgs = () => [document.getElementById('freeze'), document.getElementById('freeze-2')].filter(Boolean);
 
 /**
  * Congela la página y devuelve la función que la libera.
@@ -34,12 +35,14 @@ export function hold() {
   count += 1;
   const ready = (chain = chain.then(async () => {
     if (!count || frozen) return;
-    const url = await api.page.snapshot().catch(() => null);
-    const el = img();
-    if (url && el) {
-      el.src = url;
-      try { await el.decode(); } catch { /* una foto rota no frena el overlay */ }
-      el.classList.add('is-on');
+    const shots = await api.page.snapshot().catch(() => []);
+    const put = (shots || []).map(({ slot, url }) => ({ el: imgs()[slot], url })).filter((x) => x.el && x.url);
+    if (put.length) {
+      await Promise.all(put.map(async ({ el, url }) => {
+        el.src = url;
+        try { await el.decode(); } catch { /* una foto rota no frena el overlay */ }
+      }));
+      put.forEach(({ el }) => el.classList.add('is-on'));
       /* La vista se corre recién cuando la foto YA está en pantalla. Sin esta
          espera, el proceso principal la retiraba antes de que el cromo pintara
          la foto, y quedaba un frame con la hoja vacía: el pestañeo al abrir
@@ -70,9 +73,10 @@ function thaw() {
     await new Promise((r) => raf2(r));
     await new Promise((r) => setTimeout(r, 30));
     if (!count) {
-      const el = img();
-      el?.classList.remove('is-on');
-      el?.removeAttribute('src');
+      for (const el of imgs()) {
+        el.classList.remove('is-on');
+        el.removeAttribute('src');
+      }
     }
   });
 }
@@ -89,8 +93,8 @@ export function reset() {
   count = 0;
   frozen = false;
   api.page.hold(false).catch(() => {});
-  img()?.classList.remove('is-on');
+  imgs().forEach((el) => el.classList.remove('is-on'));
 }
 
 /** Para depurar desde la consola (o por CDP): cuántos overlays lo sostienen. */
-export const debug = () => ({ count, frozen, img: !!img()?.classList.contains('is-on') });
+export const debug = () => ({ count, frozen, img: imgs().some((el) => el.classList.contains('is-on')) });

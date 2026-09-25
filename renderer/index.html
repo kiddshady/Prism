@@ -124,12 +124,20 @@
   </div>
 
   <!-- ── La página ──────────────────────────────────────────────────────────
-       Una pestaña web apoya su vista nativa exactamente sobre este
-       rectángulo. Una pestaña propia se dibuja ADENTRO. La foto es la del
+       Una hoja por mitad: sin vista dividida se ve solo la primera, que
+       ocupa todo. Una pestaña web apoya su vista nativa exactamente sobre su
+       hoja; una pestaña propia se dibuja ADENTRO. La foto es la del
        congelado: la página, quieta, mientras un overlay le pasa por encima. -->
   <main class="pr-page" id="page">
-    <div class="pr-internal" id="internal"></div>
-    <img class="pr-freeze" id="freeze" alt="" draggable="false">
+    <div class="pr-pane" data-slot="0">
+      <div class="pr-internal" id="internal"></div>
+      <img class="pr-freeze" id="freeze" alt="" draggable="false">
+    </div>
+    <div class="pr-pane" data-slot="1">
+      <div class="pr-internal" id="internal-2"></div>
+      <img class="pr-freeze" id="freeze-2" alt="" draggable="false">
+    </div>
+    <div class="pr-divider" id="divider" role="separator" aria-orientation="vertical" aria-label="Repartir el ancho"></div>
   </main>
 
   <!-- ── Statusbar ───────────────────────────────────────────────────────── -->

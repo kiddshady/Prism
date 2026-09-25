@@ -196,6 +196,22 @@
 .pr-tab.is-pinned .pr-tab__title { opacity: 0; }
 .pr-tab.is-pinned .pr-tab__close { opacity: 0; width: 0; pointer-events: none; }
 
+/* Vista dividida: las dos del par van unidas por un contorno fino que las
+   abarca a las dos (las dos miden lo mismo: --w). La que no es la activa,
+   mientras el par está a la vista, queda a medio encender. */
+.pr-tab.is-split-a::before {
+  content: '';
+  position: absolute;
+  inset: -1px auto -1px 0;
+  width: calc(var(--w) * 2);
+  border-radius: calc(var(--op-r-md) + 2px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / .13);
+  background: rgb(255 255 255 / .025);
+  pointer-events: none;
+  animation: op-fade-in var(--op-t-3) var(--op-ease) both;
+}
+.pr-tab.is-split-shown:not(.is-active) .pr-tab__body { background: rgb(255 255 255 / .045); color: var(--op-text-2); }
+
 /* Dormida: su proceso está cerrado hasta que la mires. El ícono se apaga un
    poco; la pestaña sigue en su lugar y con su título. */
 .pr-tab.is-dormant .pr-tab__icon { opacity: .45; }
@@ -502,20 +518,77 @@
 
 /* ══ La página ════════════════════════════════════════════════════════════ */
 
-/* La hoja. Una pestaña web apoya su vista nativa EXACTAMENTE acá (mismo
-   rectángulo, mismo radio: la vista lleva setBorderRadius(10)). Una pestaña
-   propia se dibuja adentro, sobre vidrio. */
+/* El lugar de la página: adentro van las hojas, una por mitad. */
 .pr-page {
   position: relative;
   margin: 0 var(--pr-gutter);
   min-height: 0;
+  transition: margin var(--op-t-3) var(--op-ease);
+}
+
+/* La hoja. Una pestaña web apoya su vista nativa EXACTAMENTE acá (mismo
+   rectángulo, mismo radio: la vista lleva setBorderRadius(10)). Una pestaña
+   propia se dibuja adentro, sobre vidrio. Con vista dividida, split.js las
+   pone en píxeles con la misma cuenta que hace el proceso principal. */
+.pr-pane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
   border-radius: var(--pr-page-r);
   background: rgb(255 255 255 / .03);
   backdrop-filter: var(--op-glass);
   box-shadow: var(--op-sheet), var(--op-e3);
   overflow: hidden;
-  transition: margin var(--op-t-3) var(--op-ease), border-radius var(--op-t-3) var(--op-ease);
+  transition: border-radius var(--op-t-3) var(--op-ease), box-shadow var(--op-t-2) var(--op-ease-soft);
 }
+/* La segunda solo existe en un par: aparece y se va por opacidad. */
+.pr-pane[data-slot='1'] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--op-t-3) var(--op-ease), visibility 0s linear var(--op-t-3),
+    box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+.pr-page.is-split .pr-pane[data-slot='1'] {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity var(--op-t-3) var(--op-ease), visibility 0s, box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+/* La mitad activa lleva un canto de luz afuera de su borde: la vista tapa
+   todo lo de adentro, así que el anillo vive en el aire que la rodea. */
+.pr-page.is-split .pr-pane.is-active { box-shadow: var(--op-sheet), var(--op-e3), 0 0 0 1.5px rgb(255 255 255 / .26); }
+.pr-app.is-fullscreen .pr-pane { border-radius: 0; box-shadow: none; }
+
+/* El divisor ocupa el aire entre las dos. La manija aparece al pasar. */
+.pr-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  cursor: col-resize;
+  visibility: hidden;
+  z-index: 3;
+}
+.pr-page.is-split .pr-divider { visibility: visible; }
+.pr-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 32px;
+  margin: -16px 0 0 -1.5px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / .34);
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft), height var(--op-t-2) var(--op-ease), margin var(--op-t-2) var(--op-ease);
+}
+.pr-divider:hover::after,
+.pr-divider.is-dragging::after { opacity: 1; height: 48px; margin-top: -24px; }
 
 .pr-internal {
   position: absolute;

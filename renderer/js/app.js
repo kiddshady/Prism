@@ -12,6 +12,7 @@ import { colorToken } from './ui.js';
 import { api, S, emit } from './state.js';
 import * as Freeze from './freeze.js';
 import * as Tabstrip from './tabstrip.js';
+import * as Split from './split.js';
 import * as Omnibox from './omnibox.js';
 import * as Toolbar from './toolbar.js';
 import * as Pages from './pages.js';
@@ -72,6 +73,7 @@ function applyTabs(snap) {
   S.activeId = snap.activeId;
   S.canReopen = !!snap.canReopen;
   S.fullscreen = !!snap.fullscreen;
+  S.split = snap.split || null;
   document.getElementById('app').classList.toggle('is-fullscreen', S.fullscreen);
   emit('tabs');
 }
@@ -130,6 +132,7 @@ async function boot() {
   S.downloadsDir = dir;
 
   Tabstrip.init();
+  Split.init();
   Omnibox.init();
   Toolbar.init();
   Pages.init();

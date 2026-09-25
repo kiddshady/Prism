@@ -56,6 +56,10 @@ function register(ctx) {
   on(ctx, 'tabs:duplicate', (id) => T().duplicate(num(id)));
   on(ctx, 'tabs:mute', (id) => T().mute(num(id)));
   on(ctx, 'tabs:pin', (id, pinned) => T().pin(num(id), !!pinned));
+  on(ctx, 'tabs:split', (id, other) => T().split(num(id), other == null ? null : num(other)));
+  on(ctx, 'tabs:unsplit', (id) => T().unsplit(num(id)));
+  on(ctx, 'tabs:swap-split', (id) => T().swapSplit(num(id)));
+  on(ctx, 'tabs:split-ratio', (id, ratio) => T().setSplitRatio(num(id), num(ratio)));
   on(ctx, 'tabs:reopen', () => T().reopen());
   on(ctx, 'tabs:close-others', (id) => T().closeOthers(num(id)));
   on(ctx, 'tabs:close-right', (id) => T().closeRight(num(id)));

@@ -60,6 +60,11 @@ contextBridge.exposeInMainWorld('prism', {
     duplicate: (id) => send('tabs:duplicate', id),
     mute: (id) => send('tabs:mute', id),
     pin: (id, pinned) => send('tabs:pin', id, !!pinned),
+    /** Vista dividida: `other` null arma el par con una pestaña nueva. */
+    split: (id, other = null) => send('tabs:split', id, other),
+    unsplit: (id) => send('tabs:unsplit', id),
+    swapSplit: (id) => send('tabs:swap-split', id),
+    splitRatio: (id, ratio) => send('tabs:split-ratio', id, ratio),
     reopen: () => send('tabs:reopen'),
     closeOthers: (id) => send('tabs:close-others', id),
     closeRight: (id) => send('tabs:close-right', id),

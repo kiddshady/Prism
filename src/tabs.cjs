@@ -28,6 +28,13 @@
    Dormir una pestaña es cerrar su proceso y quedarse con su historial de
    Chromium (direcciones, scroll y lo escrito en los formularios). Al mirarla
    se restaura desde ahí: vuelve donde estaba, con atrás y adelante.
+
+   ── Vista dividida ─────────────────────────────────────────────────────────
+   Un par de pestañas que se ven juntas, lado a lado: `a` a la izquierda y
+   `b` a la derecha, siempre contiguas en `tabs` (normalizeSplits lo
+   sostiene). Mirar una pestaña de un par muestra el par entero; la activa
+   es la mitad donde está la persona, y es la que manejan la omnibox, atrás,
+   recargar y el zoom. Hacer clic en la otra mitad la vuelve la activa.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { WebContentsView, clipboard, nativeImage, shell } = require('electron');
@@ -40,6 +47,9 @@ const MAX_CLOSED = 25;
 const SLEEP_CHECK = 60 * 1000;
 /** Mundo aislado propio: lo que Prism corre en una página, fuera del alcance de sus scripts. */
 const PRISM_WORLD = 1001;
+/** Aire entre las dos mitades de una vista dividida (ahí vive el divisor). */
+const GAP = 8;
+const clampRatio = (r) => Math.max(0.2, Math.min(0.8, Number(r) || 0.5));
 
 function createTabs(ctx) {
   const tabs = [];
@@ -50,7 +60,8 @@ function createTabs(ctx) {
   let insets = { top: 84, right: 8, bottom: 26, left: 8 };
   let fullscreen = false;
   let frozen = false;
-  let attached = null;
+  const attached = new Map();   // vista → lugar que ocupa (0: la hoja o su izquierda · 1: la derecha)
+  const splits = [];            // pares { a, b, ratio }
 
   const get = (id) => tabs.find((t) => t.id === Number(id)) || null;
   const active = () => get(activeId);
@@ -61,6 +72,44 @@ function createTabs(ctx) {
     const pc = pinnedCount();
     return pinned ? Math.max(0, Math.min(pc, i)) : Math.max(pc, Math.min(tabs.length, i));
   };
+
+  /* ── Vista dividida: quién está con quién ──────────────────────────────── */
+
+  const pairOf = (id) => splits.find((x) => x.a === Number(id) || x.b === Number(id)) || null;
+  const partnerOf = (id) => { const x = pairOf(id); return x ? get(x.a === Number(id) ? x.b : x.a) : null; };
+  /** El par que se ve: el de la pestaña activa, si tiene uno. */
+  const shownPair = () => (fullscreen ? null : pairOf(activeId));
+  /** Las pestañas que se ven ahora, por lugar: [izquierda, derecha] o [la activa]. */
+  function visible() {
+    const x = shownPair();
+    if (x) return [get(x.a), get(x.b)];
+    const t = active();
+    return t ? [t] : [];
+  }
+  const isVisible = (id) => visible().some((t) => t?.id === Number(id));
+  /** Una pestaña nueva no cae entre las dos de un par: va después. */
+  function notInsidePair(i) {
+    const l = tabs[i - 1];
+    const r = tabs[i];
+    const x = l && pairOf(l.id);
+    return x && x.a === l.id && r?.id === x.b ? i + 1 : i;
+  }
+
+  /* Los pares se sostienen solos: si una de las dos se cerró o se fijó, el
+     par se deshace; si quedaron separadas, la derecha vuelve junto a la
+     izquierda. */
+  function normalizeSplits() {
+    for (let i = splits.length - 1; i >= 0; i--) {
+      const x = splits[i];
+      const a = get(x.a);
+      const b = get(x.b);
+      if (!a || !b || a.pinned || b.pinned) { splits.splice(i, 1); continue; }
+      if (indexOf(x.b) !== indexOf(x.a) + 1) {
+        tabs.splice(indexOf(x.b), 1);
+        tabs.splice(indexOf(x.a) + 1, 0, b);
+      }
+    }
+  }
 
   /* ── Estado → renderer ─────────────────────────────────────────────────── */
 
@@ -78,6 +127,7 @@ function createTabs(ctx) {
       audible: t.audible,
       muted: t.muted,
       pinned: t.pinned,
+      split: pairOf(t.id) ? (pairOf(t.id).a === t.id ? 'a' : 'b') : null,
       zoom: t.zoom,
       blocked: t.blocked,
       dormant: !t.view && !t.internal,
@@ -94,6 +144,7 @@ function createTabs(ctx) {
       tabs: tabs.map(publicTab),
       canReopen: closed.length > 0,
       fullscreen,
+      split: shownPair() && { a: shownPair().a, b: shownPair().b, ratio: shownPair().ratio, gap: GAP },
     };
   }
 
@@ -119,6 +170,7 @@ function createTabs(ctx) {
     return {
       active: Math.max(0, indexOf(activeId)),
       tabs: tabs.map((t) => ({ url: t.url, title: t.title, favicon: t.favicon, ...(t.pinned ? { pinned: true } : {}) })),
+      splits: splits.map((x) => ({ a: indexOf(x.a), b: indexOf(x.b), ratio: x.ratio })),
     };
   }
   function writeSession() {
@@ -139,17 +191,34 @@ function createTabs(ctx) {
     };
   }
 
+  /** El rectángulo de cada lugar: la hoja entera, o sus dos mitades. El
+      renderer hace la misma cuenta para dibujar las hojas debajo. */
+  function slotRects() {
+    const b = pageBounds();
+    const x = shownPair();
+    if (!x) return [b];
+    const left = Math.round((b.width - GAP) * x.ratio);
+    return [
+      { x: b.x, y: b.y, width: left, height: b.height },
+      { x: b.x + left + GAP, y: b.y, width: Math.max(0, b.width - GAP - left), height: b.height },
+    ];
+  }
+  const rectOf = (t) => slotRects()[Math.max(0, visible().findIndex((x) => x?.id === t.id))] || pageBounds();
+
   /* Congelada, la vista NO se saca de la ventana: se corre afuera, con su
      mismo tamaño. Sacarla (removeChildView) la ocultaba para Chromium, que
      descartaba su frame; al volver mostraba el fondo blanco hasta repintar,
      y cerrar un menú pestañeaba. Corrida, sigue viva y pintada, no cambia de
      tamaño (la página no se remaqueta) y vuelve en el acto. */
   function layout() {
-    if (!attached) return;
-    const b = pageBounds();
-    if (frozen && !fullscreen) b.x = -(b.width + 20000);
-    attached.setBounds(b);
-    attached.setBorderRadius(fullscreen ? 0 : RADIUS);
+    if (!attached.size) return;
+    const rects = slotRects();
+    for (const [view, slot] of attached) {
+      const b = { ...(rects[slot] || rects[0]) };
+      if (frozen && !fullscreen) b.x = -(b.width + 20000);
+      view.setBounds(b);
+      view.setBorderRadius(fullscreen ? 0 : RADIUS);
+    }
   }
 
   function setInsets(next) {
@@ -159,20 +228,23 @@ function createTabs(ctx) {
     layout();
   }
 
-  /** Qué vista tiene que estar en la ventana ahora, y solo esa. */
+  /** Qué vistas tienen que estar en la ventana ahora (una, o las dos de un par), y solo esas. */
   function syncAttached() {
     if (!ctx.win || ctx.win.isDestroyed()) return;
-    const t = active();
-    const want = t && t.view && t.shown && !t.error && !t.crashed ? t.view : null;
-    if (attached === want) { layout(); return; }
-    if (attached) {
-      try { ctx.win.contentView.removeChildView(attached); } catch { /* ya no estaba */ }
+    const want = new Map();
+    visible().forEach((t, slot) => {
+      if (t && t.view && t.shown && !t.error && !t.crashed) want.set(t.view, slot);
+    });
+    for (const view of [...attached.keys()]) {
+      if (want.has(view)) continue;
+      try { ctx.win.contentView.removeChildView(view); } catch { /* ya no estaba */ }
+      attached.delete(view);
     }
-    attached = want;
-    if (want) {
-      ctx.win.contentView.addChildView(want);
-      layout();
+    for (const [view, slot] of want) {
+      if (!attached.has(view)) ctx.win.contentView.addChildView(view);
+      attached.set(view, slot);
     }
+    layout();
   }
 
   /* ── Vistas ────────────────────────────────────────────────────────────── */
@@ -200,7 +272,7 @@ function createTabs(ctx) {
     /* Nace con el tamaño de la página aunque todavía no esté en la ventana:
        así maqueta una sola vez, y una pestaña que despierta puede volver a su
        scroll (en 0×0 no hay adónde scrollear). */
-    if (ctx.win && !ctx.win.isDestroyed()) view.setBounds(pageBounds());
+    if (ctx.win && !ctx.win.isDestroyed()) view.setBounds(rectOf(t));
     t.view = view;
     t.shown = false;
     const wc = view.webContents;
@@ -212,9 +284,9 @@ function createTabs(ctx) {
   function destroyView(t) {
     const view = t.view;
     if (!view) return;
-    if (attached === view) {
+    if (attached.has(view)) {
       try { ctx.win.contentView.removeChildView(view); } catch { /* nada */ }
-      attached = null;
+      attached.delete(view);
     }
     byWc.delete(view.webContents.id);
     t.view = null;
@@ -225,7 +297,11 @@ function createTabs(ctx) {
   function wire(t, wc) {
     const touch = () => emit();
 
-    wc.on('focus', () => ctx.notePageFocus?.());
+    wc.on('focus', () => {
+      ctx.notePageFocus?.();
+      // Un clic en la otra mitad de una vista dividida la vuelve la activa.
+      if (t.id !== activeId && isVisible(t.id)) activateTab(t.id, { focusPage: false });
+    });
     wc.on('did-start-loading', () => { t.loading = true; touch(); });
     wc.on('did-stop-loading', () => { t.loading = false; touch(); });
 
@@ -319,8 +395,9 @@ function createTabs(ctx) {
     });
 
     wc.on('context-menu', (_e, p) => {
-      if (t.id !== activeId) return;
-      const b = pageBounds();
+      if (!isVisible(t.id)) return;
+      if (t.id !== activeId) activateTab(t.id, { focusPage: false });
+      const b = rectOf(t);
       ctx.send('page:context', {
         x: b.x + p.x,
         y: b.y + p.y,
@@ -443,7 +520,7 @@ function createTabs(ctx) {
     t.openerId = openerId;
     t.pinned = !!pinned;
     const at = clampIndex(Number.isInteger(index) ? index : tabs.length, t.pinned);
-    tabs.splice(at, 0, t);
+    tabs.splice(t.pinned ? at : notInsidePair(at), 0, t);
 
     const page = omni.internalPage(t.url);
     if (page) {
@@ -508,6 +585,8 @@ function createTabs(ctx) {
     if (changed) { const prev = active(); if (prev) prev.lastSeen = Date.now(); }
     activeId = t.id;
     if (!t.internal && !t.view) wake(t);              // una dormida se despierta al mirarla
+    const p = partnerOf(t.id);                        // y en un par, se ven las dos
+    if (p && !p.internal && !p.view) wake(p);
     syncAttached();
     if (changed) ctx.send('page:hover', '');
     if (focusPage && t.view && t.shown) t.view.webContents.focus();
@@ -518,6 +597,9 @@ function createTabs(ctx) {
     const i = indexOf(id);
     if (i < 0) return;
     const t = tabs[i];
+    // Cerrar una mitad deshace el par; si era la activa, queda la otra.
+    const partner = partnerOf(t.id);
+    if (partner) splits.splice(splits.indexOf(pairOf(t.id)), 1);
     if (!t.internal || t.internal !== 'nueva') {
       closed.push({ url: t.url, title: t.title, favicon: t.favicon, index: i, pinned: t.pinned });
       if (closed.length > MAX_CLOSED) closed.shift();
@@ -533,8 +615,8 @@ function createTabs(ctx) {
     if (activeId === t.id) {
       // Como Chrome: si la abrió otra pestaña, se vuelve a esa; si no, la de la derecha.
       const opener = t.openerId && get(t.openerId);
-      activateTab((opener || tabs[Math.min(i, tabs.length - 1)]).id);
-    } else emit();
+      activateTab((partner || opener || tabs[Math.min(i, tabs.length - 1)]).id);
+    } else { syncAttached(); emit(); }
   }
 
   function reopen() {
@@ -553,12 +635,17 @@ function createTabs(ctx) {
     for (const t of tabs.slice(i + 1)) if (!t.pinned) close(t.id);
   }
 
+  /** Mueve una pestaña; si es de un par, se mueve el par entero y `id` cae en `toIndex`. */
   function move(id, toIndex) {
     const i = indexOf(id);
     if (i < 0) return;
-    const [t] = tabs.splice(i, 1);
-    tabs.splice(clampIndex(Number(toIndex) || 0, t.pinned), 0, t);
-    t.openerId = null;
+    const x = pairOf(id);
+    const block = x ? [get(x.a), get(x.b)] : [tabs[i]];
+    const offset = block.findIndex((b) => b.id === Number(id));
+    for (const b of block) tabs.splice(indexOf(b.id), 1);
+    const at = clampIndex((Number(toIndex) || 0) - offset, block[0].pinned);
+    tabs.splice(block[0].pinned ? at : notInsidePair(at), 0, ...block);
+    for (const b of block) b.openerId = null;
     emit();
   }
 
@@ -566,11 +653,14 @@ function createTabs(ctx) {
   function pin(id, on) {
     const i = indexOf(id);
     if (i < 0 || tabs[i].pinned === !!on) return;
+    const x = pairOf(id);
+    if (x) splits.splice(splits.indexOf(x), 1);       // una fijada no va en un par
     const [t] = tabs.splice(i, 1);
     t.pinned = !!on;
     t.openerId = null;
     tabs.splice(pinnedCount(), 0, t);
     if (t.pinned && !t.internal && !t.view) wake(t);   // una fijada está viva
+    syncAttached();
     emit();
   }
 
@@ -594,12 +684,60 @@ function createTabs(ctx) {
     if (t && !t.everCommitted && !t.backTo && tabs.length > 1) setTimeout(() => close(t.id), 0);
   }
 
+  /* ── Vista dividida: armar, deshacer, dar vuelta, repartir ─────────────── */
+
+  /** Arma un par: `id` a la izquierda y `otherId` (o una pestaña nueva) a la
+      derecha, y la derecha pasa a ser la activa. */
+  function split(id, otherId = null) {
+    const t = get(id);
+    if (!t || t.pinned || pairOf(t.id)) return null;
+    let o = otherId == null ? null : get(otherId);
+    if (otherId != null && (!o || o.id === t.id || o.pinned || pairOf(o.id))) return null;
+    if (!o) {
+      o = get(create({ index: indexOf(t.id) + 1, active: false }));
+    } else {
+      tabs.splice(indexOf(o.id), 1);
+      tabs.splice(indexOf(t.id) + 1, 0, o);
+      o.openerId = null;
+    }
+    splits.push({ a: t.id, b: o.id, ratio: 0.5 });
+    activateTab(o.id);
+    return o.id;
+  }
+
+  function unsplit(id) {
+    const x = pairOf(id);
+    if (!x) return;
+    splits.splice(splits.indexOf(x), 1);
+    syncAttached();
+    emit();
+  }
+
+  /** Da vuelta el par: cada página conserva su ancho, cambia de lado. */
+  function swapSplit(id) {
+    const x = pairOf(id);
+    if (!x) return;
+    [x.a, x.b] = [x.b, x.a];
+    x.ratio = clampRatio(1 - x.ratio);
+    normalizeSplits();
+    syncAttached();
+    emit();
+  }
+
+  function setSplitRatio(id, ratio) {
+    const x = pairOf(id) || shownPair();
+    if (!x) return;
+    x.ratio = clampRatio(ratio);
+    layout();
+    emit();
+  }
+
   /* ── Dormir y despertar ────────────────────────────────────────────────── */
 
   /** Si esta pestaña se puede dormir ahora sin que la persona pierda nada. */
   function canSleep(t, now = Date.now()) {
     const min = Number(ctx.settings.sleepTabs) || 0;
-    if (!min || !t.view || t.internal || t.pinned || t.id === activeId) return false;
+    if (!min || !t.view || t.internal || t.pinned || isVisible(t.id)) return false;
     if (t.sleeping || t.loading || !t.shown || t.error || t.crashed || t.audible) return false;
     const wc = t.view.webContents;
     if (wc.isCurrentlyAudible() || wc.isDevToolsOpened() || wc.isBeingCaptured()) return false;
@@ -623,13 +761,13 @@ function createTabs(ctx) {
 
   async function sleep(id) {
     const t = get(id);
-    if (!t?.view || t.internal || t.id === activeId || t.sleeping) return false;
+    if (!t?.view || t.internal || isVisible(t.id) || t.sleeping) return false;
     const view = t.view;
     t.sleeping = true;
     await noteState(view.webContents);
     t.sleeping = false;
     // Mientras tanto la pudieron mirar, cerrar o navegar a una página propia.
-    if (t.view !== view || t.id === activeId || !get(t.id)) return false;
+    if (t.view !== view || isVisible(t.id) || !get(t.id)) return false;
     const nav = view.webContents.navigationHistory;
     const entries = nav.getAllEntries();
     t.slept = entries.length ? { entries, index: nav.getActiveIndex() } : null;
@@ -711,24 +849,27 @@ function createTabs(ctx) {
     fullscreen = on;
     if (ctx.win && !ctx.win.isDestroyed()) ctx.win.setFullScreen(on);
     ctx.send('page:fullscreen', on);
-    layout();
+    syncAttached();                // en pantalla completa se ve una sola, aunque sea de un par
     emit();
   }
 
   /* ── Congelado (ver el encabezado) ─────────────────────────────────────── */
 
+  /** Una foto por vista en la ventana, con el lugar que ocupa (en un par, son dos). */
   async function snapshotPage() {
-    if (!attached) return null;
-    /* La primera captura de una vista a veces sale vacía (todavía no tiene un
-       frame propio que copiar): se reintenta un par de veces antes de rendirse. */
-    for (let i = 0; i < 3; i++) {
-      try {
-        const img = await attached.webContents.capturePage();
-        if (!img.isEmpty()) return `data:image/jpeg;base64,${img.toJPEG(88).toString('base64')}`;
-      } catch { /* se reintenta */ }
-      await new Promise((r) => setTimeout(r, 40));
+    const shots = [];
+    for (const [view, slot] of attached) {
+      /* La primera captura de una vista a veces sale vacía (todavía no tiene
+         un frame propio que copiar): se reintenta un par de veces. */
+      for (let i = 0; i < 3; i++) {
+        try {
+          const img = await view.webContents.capturePage();
+          if (!img.isEmpty()) { shots.push({ slot, url: `data:image/jpeg;base64,${img.toJPEG(88).toString('base64')}` }); break; }
+        } catch { /* se reintenta */ }
+        await new Promise((r) => setTimeout(r, 40));
+      }
     }
-    return null;
+    return shots;
   }
 
   function hold(on) {
@@ -746,7 +887,7 @@ function createTabs(ctx) {
 
   function focusPage() {
     const t = active();
-    if (t?.view && attached === t.view) t.view.webContents.focus();
+    if (t?.view && attached.has(t.view)) t.view.webContents.focus();
   }
 
   /* ── Buscar en la página ───────────────────────────────────────────────── */
@@ -774,6 +915,13 @@ function createTabs(ctx) {
       case 'forward': return forward();
       case 'reload': return reload();
       case 'link-tab': return p.url && create({ url: p.url, active: false, index: indexOf(activeId) + 1 + countOpenedBy(activeId), openerId: activeId });
+      case 'link-split': {
+        // Al costado: si ya hay un par, el enlace va a la otra mitad.
+        if (!p.url || !t || t.pinned) return null;
+        const other = partnerOf(t.id);
+        if (other) { load(other, p.url); activateTab(other.id); return other.id; }
+        return split(t.id, create({ url: p.url, index: indexOf(t.id) + 1, active: false, openerId: t.id }));
+      }
       case 'link-copy': return p.url && clipboard.writeText(p.url);
       case 'link-save': return p.url && ctx.web.downloadURL(p.url);
       case 'image-tab': return p.url && create({ url: p.url, active: false, index: indexOf(activeId) + 1 });
@@ -827,13 +975,20 @@ function createTabs(ctx) {
     if (!list.length) return false;
     const act = Math.max(0, Math.min(list.length - 1, Number(data.active) || 0));
     // Las fijadas cargan de entrada: son las que tienen que estar vivas (avisos, música).
-    list.forEach((x, i) => create({ url: x.url, title: x.title, favicon: x.favicon, pinned: !!x.pinned, active: false, dormant: i !== act && !x.pinned }));
-    activateTab(tabs[act].id);
+    const ids = list.map((x, i) => create({ url: x.url, title: x.title, favicon: x.favicon, pinned: !!x.pinned, active: false, dormant: i !== act && !x.pinned }));
+    for (const x of Array.isArray(data.splits) ? data.splits : []) {
+      const a = ids[x?.a];
+      const b = ids[x?.b];
+      if (a && b && a !== b && !pairOf(a) && !pairOf(b)) splits.push({ a, b, ratio: clampRatio(x.ratio) });
+    }
+    normalizeSplits();
+    activateTab(ids[act]);
     return true;
   }
 
   return {
     create, close, reopen, closeOthers, closeRight, move, duplicate, mute, pin, sleep, sweep, navigate,
+    split, unsplit, swapSplit, setSplitRatio,
     activate: activateTab, back, forward, reload, stop, zoom, find, stopFind, devtools,
     contextAction, snapshotPage, hold, focusPage, setInsets, layout, restore, writeSession,
     closeIfDownloadOnly, countBlocked,

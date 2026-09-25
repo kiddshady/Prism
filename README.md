@@ -28,6 +28,12 @@ npm run release # publica en GitHub (ver abajo)
   cambia en Ajustes) cierra su proceso y libera memoria. Al mirarla vuelve
   donde estaba: misma página, atrás y adelante, scroll y formularios. Nunca se
   duermen las fijadas ni las que suenan.
+- **Vista dividida**: dos pestañas lado a lado, unidas en la tira. Se arma
+  desde el menú de la pestaña (con una nueva o con la actual) o con *Abrir el
+  enlace al costado*. La barra de direcciones maneja la mitad activa (la del
+  canto de luz); un clic en la otra la vuelve la activa. El divisor se
+  arrastra (doble clic: mitad y mitad), el par se arrastra entero y la sesión
+  lo recuerda. Cerrar una mitad o *Separar* lo deshace.
 - **Omnibox**: dirección o búsqueda en un solo campo, autocompleta en línea los
   sitios que ya visitaste, sugiere de tu historial, tus favoritos y el buscador.
   Sin foco muestra la dirección partida — el host claro, el resto atenuado.

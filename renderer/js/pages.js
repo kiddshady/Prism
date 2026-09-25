@@ -20,11 +20,15 @@ import { menu, modal, confirm } from './layers.js';
 import { Toast } from './overlays.js';
 import { attachSuggest } from './suggest.js';
 
-let key = null;
-let current = null;       // { name, el, refresh? }
-let cleanups = [];
+/* Una superficie por mitad de la hoja: sin vista dividida se usa solo la
+   primera; con un par, cada mitad dibuja lo suyo (una página propia, un
+   aviso o la espera debajo de la vista). `surf` es la que se está dibujando
+   ahora: mount() y las limpiezas van a esa. */
+const surface = (hostId) => ({ hostId, key: null, current: null, cleanups: [] });   // current: { name, el, refresh? }
+const surfaces = [surface('internal'), surface('internal-2')];
+let surf = surfaces[0];
 
-const host = () => document.getElementById('internal');
+const host = () => document.getElementById(surf.hostId);
 const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
 
 function favIcon(url, favicon, fallback = 'globe') {
@@ -66,20 +70,38 @@ function pageKey(t) {
 }
 
 export function render() {
-  const t = activeTab();
+  const sp = S.split;
+  const byId = (id) => S.tabs.find((x) => x.id === id) || null;
+  const list = sp ? [byId(sp.a), byId(sp.b)] : [activeTab()];
+  // Sin par, la segunda mitad se desvanece con lo que tenía: no se redibuja.
+  list.forEach((t, i) => { surf = surfaces[i]; renderSurface(t); });
+  surf = surfaces[0];
+}
+
+function renderSurface(t) {
   const k = pageKey(t);
-  if (k === key) {
+  if (k === surf.key) {
     if (k.startsWith('web:')) syncWaiting(t);
     return;
   }
-  key = k;
-  cleanups.forEach((fn) => { try { fn(); } catch { /* nada */ } });
-  cleanups = [];
-  if (!t) { mount('', 'none'); current = null; return; }
-  if (t.internal) { current = PAGES[t.internal]?.(t) || null; return; }
-  if (t.crashed) { current = crashedPage(t); return; }
-  if (t.error) { current = errorPage(t); return; }
-  current = waitingPage(t);
+  surf.key = k;
+  surf.cleanups.forEach((fn) => { try { fn(); } catch { /* nada */ } });
+  surf.cleanups = [];
+  if (!t) { mount('', 'none'); surf.current = null; return; }
+  if (t.internal) { surf.current = PAGES[t.internal]?.(t) || null; return; }
+  if (t.crashed) { surf.current = crashedPage(t); return; }
+  if (t.error) { surf.current = errorPage(t); return; }
+  surf.current = waitingPage(t);
+}
+
+/** Refresca las páginas propias que estén a la vista con alguno de esos nombres. */
+function refresh(names, when = () => true) {
+  for (const sf of surfaces) {
+    if (!names.includes(sf.current?.name) || !when()) continue;
+    surf = sf;
+    sf.current.refresh?.();
+  }
+  surf = surfaces[0];
 }
 
 /* ══ Espera ══════════════════════════════════════════════════════════════════ */
@@ -90,8 +112,8 @@ function waitingPage(t) {
 }
 
 function syncWaiting(t) {
-  if (current?.name !== 'waiting') return;
-  const dot = current.el.querySelector('.pr-waiting__dot');
+  if (surf.current?.name !== 'waiting') return;
+  const dot = surf.current.el.querySelector('.pr-waiting__dot');
   if (t.favicon && !dot.querySelector('img')) { dot.innerHTML = favIcon(t.url, t.favicon); wireFallbacks(dot); }
 }
 
@@ -157,7 +179,7 @@ function tileHTML(it, i, kind) {
     </button>`;
 }
 
-function ntpPage() {
+function ntpPage(t) {
   const el = mount(`
     <div class="pr-ntp" id="ntp">
       <div class="pr-ntp__mark">${Icons.svg('prism')}</div>
@@ -180,14 +202,14 @@ function ntpPage() {
         return;
       }
       ntpInput.blur();
-      await api.tabs.navigate(S.activeId, value).catch(() => null);
+      await api.tabs.navigate(t.id, value).catch(() => null);
     },
     onEscape: () => {
       if (ntpInput.value) { ntpInput.value = ''; return; }
       ntpInput.blur();
     },
   });
-  cleanups.push(() => sugg.detach());
+  surf.cleanups.push(() => sugg.detach());
 
   async function fill() {
     const [bm, top] = await Promise.all([api.bookmarks.list().catch(() => []), api.history.top(12).catch(() => [])]);
@@ -209,7 +231,7 @@ function ntpPage() {
     if (!tile) return;
     if (more) { e.stopPropagation(); tileMenu(more, tile); return; }
     if (e.ctrlKey) api.tabs.create(tile.dataset.url, { active: false });
-    else api.tabs.navigate(S.activeId, tile.dataset.url);
+    else api.tabs.navigate(t.id, tile.dataset.url);
   });
   el.addEventListener('auxclick', (e) => {
     const tile = e.target.closest('.pr-tile');
@@ -253,7 +275,7 @@ function dayLabel(ts) {
 
 const clock = (ts) => new Date(ts).toLocaleTimeString(locale.tag, { hour: '2-digit', minute: '2-digit', hour12: false });
 
-function historyPage() {
+function historyPage(t) {
   const el = mount(`
     <div class="op-scroll op-scroll--line-top op-scroll--line-bottom pr-view__scroll" id="h-scroll"><div class="pr-view__col">
       <div class="pr-head">
@@ -323,7 +345,7 @@ function historyPage() {
   // Carga más al acercarse al final.
   const io = new IntersectionObserver((ents) => { if (ents.some((x) => x.isIntersecting)) load(); }, { root: scroller, rootMargin: '400px' });
   io.observe(el.querySelector('#h-more'));
-  cleanups.push(() => io.disconnect());
+  surf.cleanups.push(() => io.disconnect());
 
   async function removeRow(row) {
     const id = Number(row.dataset.id);
@@ -351,7 +373,7 @@ function historyPage() {
       return;
     }
     if (e.ctrlKey) api.tabs.create(row.dataset.url, { active: false });
-    else api.tabs.navigate(S.activeId, row.dataset.url);
+    else api.tabs.navigate(t.id, row.dataset.url);
   });
   el.addEventListener('auxclick', (e) => {
     const row = e.target.closest('.pr-row');
@@ -387,7 +409,7 @@ async function editBookmark(id) {
   await api.bookmarks.update(id, { title: body.querySelector('#b-title').value, url: body.querySelector('#b-url').value });
 }
 
-function bookmarksPage() {
+function bookmarksPage(t) {
   const el = mount(`
     <div class="op-scroll op-scroll--line-top op-scroll--line-bottom pr-view__scroll"><div class="pr-view__col">
       <div class="pr-head">
@@ -450,7 +472,7 @@ function bookmarksPage() {
       return;
     }
     if (e.ctrlKey) api.tabs.create(url, { active: false });
-    else api.tabs.navigate(S.activeId, url);
+    else api.tabs.navigate(t.id, url);
   });
   el.addEventListener('auxclick', (e) => {
     const row = e.target.closest('.pr-row');
@@ -797,10 +819,10 @@ const PAGES = {
 
 export function init() {
   on('tabs', render);
-  on('library', () => { if (['nueva', 'historial', 'favoritos'].includes(current?.name)) current.refresh?.(); });
-  on('downloads', () => { if (current?.name === 'descargas') current.refresh?.(); });
-  on('settings', () => { if (current?.name === 'ajustes' && Date.now() > quietUntil) current.refresh?.(); });
-  on('update', () => { if (current?.name === 'ajustes') current.refresh?.(); });
+  on('library', () => refresh(['nueva', 'historial', 'favoritos']));
+  on('downloads', () => refresh(['descargas']));
+  on('settings', () => refresh(['ajustes'], () => Date.now() > quietUntil));
+  on('update', () => refresh(['ajustes']));
   render();
 }
 

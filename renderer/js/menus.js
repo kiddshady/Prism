@@ -26,6 +26,7 @@ export function tabMenu(anchor, id) {
     { label: 'Recargar', icon: 'reload', key: 'F5', disabled: !!t.internal, onSelect: () => { api.tabs.activate(id); api.nav.reload(); } },
     { label: 'Duplicar', icon: 'duplicate', onSelect: () => api.tabs.duplicate(id) },
     { label: t.pinned ? 'Desfijar' : 'Fijar', icon: 'pin', onSelect: () => api.tabs.pin(id, !t.pinned) },
+    ...splitItems(t),
     { label: t.muted ? 'Activar el sonido' : 'Silenciar la pestaña', icon: t.muted ? 'speaker' : 'speakerOff', onSelect: () => api.tabs.mute(id) },
     { sep: true },
     // Ctrl+W no cierra una fijada: el atajo solo se muestra donde anda.
@@ -35,6 +36,23 @@ export function tabMenu(anchor, id) {
     { sep: true },
     { label: 'Reabrir la última cerrada', icon: 'reopen', key: 'Ctrl+Mayús+T', disabled: !S.canReopen, onSelect: () => api.tabs.reopen() },
   ], { align: 'start' });
+}
+
+/** Vista dividida desde el menú de una pestaña: armar el par, o manejarlo. */
+function splitItems(t) {
+  if (t.split) {
+    return [
+      { label: 'Intercambiar lados', icon: 'swap', onSelect: () => api.tabs.swapSplit(t.id) },
+      { label: 'Separar la vista dividida', icon: 'unsplit', onSelect: () => api.tabs.unsplit(t.id) },
+    ];
+  }
+  if (t.pinned) return [];
+  const act = activeTab();
+  const withActive = act && act.id !== t.id && !act.split && !act.pinned;
+  return [
+    { label: 'Dividir con una pestaña nueva', icon: 'splitView', onSelect: () => { S.focusOmniOnNext = true; api.tabs.split(t.id); } },
+    ...(withActive ? [{ label: 'Dividir con la pestaña actual', onSelect: () => api.tabs.split(act.id, t.id) }] : []),
+  ];
 }
 
 /* ── Página (click derecho) ──────────────────────────────────────────────── */
@@ -55,6 +73,7 @@ export function pageMenu(p) {
   if (p.linkURL) {
     items.push(
       { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: act('link-tab', { url: p.linkURL }) },
+      ...(activeTab()?.pinned ? [] : [{ label: 'Abrir el enlace al costado', icon: 'splitView', onSelect: act('link-split', { url: p.linkURL }) }]),
       { label: 'Copiar la dirección del enlace', icon: 'link', onSelect: act('link-copy', { url: p.linkURL }) },
       { label: 'Guardar el enlace', icon: 'download', onSelect: act('link-save', { url: p.linkURL }) },
       { sep: true },

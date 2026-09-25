@@ -14,7 +14,8 @@
      proceso principal).
 
    Las fijadas van primero, angostas (solo el ícono), y se arrastran solo
-   entre ellas; el resto reparte el ancho que queda.
+   entre ellas; el resto reparte el ancho que queda. Las dos de una vista
+   dividida van juntas, con un contorno que las une, y se arrastran en bloque.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { api, S, on } from './state.js';
@@ -140,6 +141,9 @@ function update(el, t) {
   el.classList.toggle('is-active', t.id === S.activeId);
   el.classList.toggle('is-error', !!(t.error || t.crashed));
   el.classList.toggle('is-pinned', !!t.pinned);
+  el.classList.toggle('is-split-a', t.split === 'a');
+  el.classList.toggle('is-split-b', t.split === 'b');
+  el.classList.toggle('is-split-shown', !!S.split && (S.split.a === t.id || S.split.b === t.id));
   el.classList.toggle('is-dormant', !!t.dormant);
   el.setAttribute('aria-selected', String(t.id === S.activeId));
 
@@ -179,6 +183,15 @@ export function render() {
 
 /* ── Interacción ───────────────────────────────────────────────────────── */
 
+/** Lo que se arrastra: la pestaña sola, o su par entero en orden (a, b). */
+function blockOf(id) {
+  const t = S.tabs.find((x) => x.id === id);
+  const i = order.indexOf(id);
+  if (t?.split === 'a' && order[i + 1] != null) return [id, order[i + 1]];
+  if (t?.split === 'b' && order[i - 1] != null) return [order[i - 1], id];
+  return [id];
+}
+
 const tabOf = (target) => target.closest?.('.pr-tab:not([data-state="closing"])');
 const idOf = (el) => Number(el.dataset.id);
 
@@ -189,7 +202,7 @@ function onPointerDown(e) {
   if (e.button !== 0 || e.target.closest('button')) return;
   const id = idOf(el);
   if (id !== S.activeId) api.tabs.activate(id);         // como Chrome: activa al apretar, no al soltar
-  drag = { id, el, startX: e.clientX, originX: xAt(order.indexOf(id)), moved: false };
+  drag = { id, el, startX: e.clientX, originX: xAt(order.indexOf(id)), moved: false, block: blockOf(id) };
   el.setPointerCapture(e.pointerId);
 }
 
@@ -210,11 +223,17 @@ function onPointerMove(e) {
   const x = Math.max(xAt(lo, w), Math.min(xAt(hi, w), drag.originX + dx));
   drag.el.style.setProperty('--x', `${x - scroll}px`);
   const target = Math.max(lo, Math.min(hi, lo + Math.round((x - xAt(lo, w)) / (isPin ? PIN_W : w))));
-  if (target !== cur) {
-    order.splice(cur, 1);
-    order.splice(target, 0, drag.id);
-    layout();
-  }
+  if (target === cur) return;
+  // El par viaja entero, y nunca cae adentro de otro par.
+  const { block } = drag;
+  const rest = order.filter((id) => !block.includes(id));
+  const clamp = (i) => Math.max(lo, Math.min(rest.length, i));
+  let at = clamp(target - block.indexOf(drag.id));
+  if (S.tabs.find((t) => t.id === rest[at - 1])?.split === 'a') at = clamp(at + (target > cur ? 1 : -1));
+  const next = [...rest.slice(0, at), ...block, ...rest.slice(at)];
+  if (next.join() === order.join()) return;
+  order = next;
+  layout();
 }
 
 function onPointerUp() {
