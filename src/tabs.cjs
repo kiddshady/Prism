@@ -134,9 +134,16 @@ function createTabs(ctx) {
     };
   }
 
+  /* Congelada, la vista NO se saca de la ventana: se corre afuera, con su
+     mismo tamaño. Sacarla (removeChildView) la ocultaba para Chromium, que
+     descartaba su frame; al volver mostraba el fondo blanco hasta repintar,
+     y cerrar un menú pestañeaba. Corrida, sigue viva y pintada, no cambia de
+     tamaño (la página no se remaqueta) y vuelve en el acto. */
   function layout() {
     if (!attached) return;
-    attached.setBounds(pageBounds());
+    const b = pageBounds();
+    if (frozen && !fullscreen) b.x = -(b.width + 20000);
+    attached.setBounds(b);
     attached.setBorderRadius(fullscreen ? 0 : RADIUS);
   }
 
@@ -151,7 +158,7 @@ function createTabs(ctx) {
   function syncAttached() {
     if (!ctx.win || ctx.win.isDestroyed()) return;
     const t = active();
-    const want = t && t.view && t.shown && !t.error && !t.crashed && !frozen ? t.view : null;
+    const want = t && t.view && t.shown && !t.error && !t.crashed ? t.view : null;
     if (attached === want) { layout(); return; }
     if (attached) {
       try { ctx.win.contentView.removeChildView(attached); } catch { /* ya no estaba */ }
@@ -627,7 +634,7 @@ function createTabs(ctx) {
 
   function hold(on) {
     frozen = !!on;
-    syncAttached();
+    layout();
     if (!frozen) {
       const t = active();
       // Si el foco estaba en la página antes del overlay, vuelve a ella.

@@ -40,6 +40,11 @@ export function hold() {
       el.src = url;
       try { await el.decode(); } catch { /* una foto rota no frena el overlay */ }
       el.classList.add('is-on');
+      /* La vista se corre recién cuando la foto YA está en pantalla. Sin esta
+         espera, el proceso principal la retiraba antes de que el cromo pintara
+         la foto, y quedaba un frame con la hoja vacía: el pestañeo al abrir
+         un menú. Dos frames, con un tope por si la ventana no está pintando. */
+      await Promise.race([new Promise((r) => raf2(r)), new Promise((r) => setTimeout(r, 80))]);
     }
     await api.page.hold(true).catch(() => {});
     frozen = true;

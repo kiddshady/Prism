@@ -122,12 +122,14 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('btn-menu').click()`);
   ok('el menú abre', await until(() => js(`!!document.querySelector('.op-menu')`)));
   ok('la foto de la página está puesta', await until(() => js(`document.getElementById('freeze').classList.contains('is-on') && !!document.getElementById('freeze').naturalWidth`)));
-  ok('y la vista se retiró (si no, taparía el menú)', await until(() => !win.contentView.children.includes(ctx.tabs.active.view)));
+  ok('y la vista se corrió afuera (si no, taparía el menú)', await until(() => ctx.tabs.active.view.getBounds().x < 0));
+  ok('sin sacarla de la ventana (sacarla la hacía repintar en blanco al volver)', win.contentView.children.includes(ctx.tabs.active.view));
+  ok('ni cambiarle el tamaño (la página se remaquetaría)', ctx.tabs.active.view.getBounds().width === b.width);
   const menuBox = await js(`(() => { const r = document.querySelector('.op-menu').getBoundingClientRect(); return { top: r.top, right: r.right, bottom: r.bottom }; })()`);
   ok('el menú cae adentro de la ventana', menuBox.top > 0 && menuBox.right <= 1360 && menuBox.bottom < 880, JSON.stringify(menuBox));
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   ok('Escape lo cierra', await until(() => js(`!document.querySelector('.op-menu')`)));
-  ok('la vista vuelve', await until(() => win.contentView.children.includes(ctx.tabs.active.view)));
+  ok('la vista vuelve a su lugar', await until(() => ctx.tabs.active.view.getBounds().x === b.x));
   ok('y la foto se va', await until(() => js(`!document.getElementById('freeze').classList.contains('is-on')`)));
 
   console.log('\n5. Buscar en la página');

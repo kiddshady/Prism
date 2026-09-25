@@ -439,7 +439,8 @@ if (SHOTS) {
     const chrome = await ctx.win.webContents.capturePage();
     await fsp.writeFile(path.join(dir, 'chrome.png'), chrome.toPNG());
     const t = ctx.tabs.active;
-    const view = t?.view && ctx.win.contentView.children.includes(t.view) ? t.view : null;
+    // Una vista congelada está corrida afuera de la ventana: no se ve, no se pega.
+    const view = t?.view && ctx.win.contentView.children.includes(t.view) && t.view.getBounds().x >= 0 ? t.view : null;
     let bounds = null;
     if (view) {
       const img = await view.webContents.capturePage();
