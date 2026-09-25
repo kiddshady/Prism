@@ -46,12 +46,14 @@
 .pr-brand {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   color: var(--op-text-2);
 }
-.pr-brand .op-icon { width: 18px; height: 18px; }
+/* A 28 px el prisma mide lo mismo que el alto de una pestaña: se luce sin
+   competir con ellas (a 18 quedaba tímido al lado del resto del cromo). */
+.pr-brand .op-icon { width: 28px; height: 28px; }
 
 /* Las facetas de la marca son rellenos, no trazos: la misma tinta con tres
    luces. Donde aparezca el ícono `prism` (marca, pestaña, omnibox) se lee
