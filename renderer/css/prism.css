@@ -36,40 +36,28 @@
 .pr-app.is-fullscreen > :is(.op-titlebar, .pr-toolbar, .op-statusbar) { visibility: hidden; }
 .pr-app.is-fullscreen .pr-page { margin: 0; border-radius: 0; }
 
-/* ══ Titlebar: la marca y la tira de pestañas ═════════════════════════════ */
+/* ══ Titlebar: la tira de pestañas ════════════════════════════════════════ */
 
 .pr-titlebar {
   padding-left: var(--op-3);
   gap: var(--op-2);
 }
 
-.pr-brand {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  color: var(--op-text-2);
-}
-/* A 28 px el prisma mide lo mismo que el alto de una pestaña: se luce sin
-   competir con ellas (a 18 quedaba tímido al lado del resto del cromo). */
-.pr-brand .op-icon { width: 28px; height: 28px; }
-
 /* Las facetas de la marca son rellenos, no trazos: la misma tinta con tres
-   luces. Donde aparezca el ícono `prism` (marca, pestaña, omnibox) se lee
+   luces. Donde aparezca el ícono `prism` (pestaña, omnibox, Ajustes) se lee
    igual, en el color del texto que lo rodea. */
 .pr-mark__f { fill: currentColor; stroke: none; }
 .pr-mark__f--a { opacity: .95; }
 .pr-mark__f--b { opacity: .6; }
 .pr-mark__f--c { opacity: .32; }
 
-/* La marca de la titlebar y la pestaña de nueva pestaña van en color, como el
-   ícono de la app (pedido de Fran): son la firma de Prism, no un ícono de
-   función. El prisma de la omnibox de una página propia sigue acromático. */
-:is(.pr-brand, .pr-tab__icon) .pr-mark__f { opacity: 1; }
-:is(.pr-brand, .pr-tab__icon) .pr-mark__f--a { fill: var(--pr-facet-a); }
-:is(.pr-brand, .pr-tab__icon) .pr-mark__f--b { fill: var(--pr-facet-b); }
-:is(.pr-brand, .pr-tab__icon) .pr-mark__f--c { fill: var(--pr-facet-c); }
+/* La pestaña de nueva pestaña lleva el prisma en color, como el ícono de la
+   app (pedido de Fran): es la firma de Prism, no un ícono de función. El
+   prisma de la omnibox y el de «Acerca de» siguen acromáticos. */
+.pr-tab__icon .pr-mark__f { opacity: 1; }
+.pr-tab__icon .pr-mark__f--a { fill: var(--pr-facet-a); }
+.pr-tab__icon .pr-mark__f--b { fill: var(--pr-facet-b); }
+.pr-tab__icon .pr-mark__f--c { fill: var(--pr-facet-c); }
 
 .pr-strip {
   position: relative;
@@ -158,8 +146,8 @@
   animation: op-fade-in var(--op-t-2) var(--op-ease) both;
 }
 .pr-tab__icon .op-icon { width: 14px; height: 14px; }
-/* El prisma de la pestaña va a 20 px, entre los 14 de los íconos y los 28 de
-   la marca. La caja sigue de 16: el dibujo tiene aire propio dentro del
+/* El prisma de la pestaña va a 20 px: a 14 quedaba chico al lado de los
+   favicons. La caja sigue de 16: el dibujo tiene aire propio dentro del
    viewBox, así que la tinta no la desborda y el título no se corre. */
 .pr-tab__icon .op-icon:has(.pr-mark__f) { width: 20px; height: 20px; }
 .pr-tab.is-error .pr-tab__icon .op-icon { color: var(--op-danger); }
