@@ -107,6 +107,7 @@ const ctx = {
     ctx.send('settings:changed', ctx.settings);
     // Lo que tiene efecto inmediato sobre las pestañas abiertas.
     if (before.adblock !== ctx.settings.adblock) ctx.tabs?.reload();
+    if (before.pageScrollbars !== ctx.settings.pageScrollbars) ctx.setPageScrollbars?.(ctx.settings.pageScrollbars);
     ctx.tabs?.emit();
     return ctx.settings;
   },
@@ -372,8 +373,9 @@ ipcMain.on('win:set-bg', (_e, hex) => {
 app.whenReady().then(async () => {
   ctx.settings = await store.loadSettings();
 
-  const { session, userAgent } = createWeb(Object.assign(ctx, { prompts: createPrompts(ctx) }));
+  const { session, userAgent, setPageScrollbars } = createWeb(Object.assign(ctx, { prompts: createPrompts(ctx) }));
   ctx.web = session;
+  ctx.setPageScrollbars = setPageScrollbars;
   app.userAgentFallback = userAgent;
 
   ctx.adblock = createAdblock(ctx, { cacheFile: path.join(store.ROOT, 'adblock-engine.bin') });

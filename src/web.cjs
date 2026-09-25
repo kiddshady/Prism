@@ -16,6 +16,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { session, desktopCapturer } = require('electron');
+const path = require('path');
 const omni = require('./omni.cjs');
 
 /* Lo que se concede sin preguntar: no expone nada de la persona. */
@@ -142,7 +143,21 @@ function createWeb(ctx) {
     }
   }, { useSystemPicker: false });
 
-  return { session: web, userAgent: ua };
+  /* ── Scrollbars de las páginas ─────────────────────────────────────────────
+     Un preload de sesión (src/page-preload.cjs) que corre antes de que el
+     documento pinte. Prenderlo o apagarlo vale desde la próxima navegación. */
+  let scrollbarsId = null;
+  function setPageScrollbars(on) {
+    if (on && !scrollbarsId) {
+      scrollbarsId = web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'page-preload.cjs') });
+    } else if (!on && scrollbarsId) {
+      web.unregisterPreloadScript(scrollbarsId);
+      scrollbarsId = null;
+    }
+  }
+  setPageScrollbars(!!ctx.settings.pageScrollbars);
+
+  return { session: web, userAgent: ua, setPageScrollbars };
 }
 
 module.exports = { createWeb, ASK, ALLOW };

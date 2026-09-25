@@ -30,19 +30,6 @@ const RADIUS = 10;
 const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const MAX_CLOSED = 25;
 
-/* Las scrollbars de las páginas, a tono con las de la ventana. Van con origen
-   'user': si la página declara las suyas, las de la página ganan. El gris
-   medio con alfa se lee igual sobre una página clara que sobre una oscura. */
-const PAGE_SCROLLBARS = `
-::-webkit-scrollbar { width: 11px; height: 11px; }
-::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background-color: rgba(128, 128, 128, .38);
-  border: 3px solid transparent; border-radius: 999px; background-clip: padding-box;
-}
-::-webkit-scrollbar-thumb:hover { background-color: rgba(128, 128, 128, .62); }
-::-webkit-scrollbar-button { display: none; }`;
-
 function createTabs(ctx) {
   const tabs = [];
   let activeId = null;
@@ -254,7 +241,6 @@ function createTabs(ctx) {
 
     wc.on('dom-ready', () => {
       if (!t.painted) { t.painted = true; t.view?.setBackgroundColor('#ffffff'); }
-      if (ctx.settings.pageScrollbars) wc.insertCSS(PAGE_SCROLLBARS, { cssOrigin: 'user' }).catch(() => {});
       if (!t.shown) { t.shown = true; syncAttached(); }
     });
 
