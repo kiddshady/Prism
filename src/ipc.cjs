@@ -100,7 +100,7 @@ function register(ctx) {
 
   /* ── Omnibox ───────────────────────────────────────────────────────────── */
   handle(ctx, 'omni:suggest', (q) => {
-    const r = ctx.library.suggest(str(q, 500));
+    const r = ctx.library.suggest(str(q, 500), 6, { history: ctx.settings.historySuggest !== false });
     return { ...r, classified: omni.classify(str(q, 500), ctx.settings.searchEngine) };
   });
 

@@ -222,8 +222,10 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
    * Sugerencias locales para lo tipeado.
    * → { items: [{ kind:'bookmark'|'history', url, title, favicon }], inline }
    * `inline` es el host a completar adentro de la barra (o null).
+   * Con `history: false` solo mira los favoritos: el historial no aparece ni
+   * en la lista ni en el autocompletado (ni siquiera para ordenar).
    */
-  function suggest(query, limit = 6) {
+  function suggest(query, limit = 6, { history = true } = {}) {
     const q = String(query || '').trim().toLowerCase();
     if (!q) return { items: [], inline: null };
 
@@ -235,9 +237,9 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
       const prev = scored.get(e.url);
       if (!prev || prev.s < s) scored.set(e.url, { kind: prev?.kind === 'bookmark' ? 'bookmark' : kind, url: e.url, title: e.title, s });
     };
-    for (const e of index.values()) consider(e, 'history', 0);
+    if (history) for (const e of index.values()) consider(e, 'history', 0);
     for (const b of bookmarks) {
-      const e = index.get(b.url) || { url: b.url, title: b.title, visits: 1, last: b.createdAt || 0 };
+      const e = (history && index.get(b.url)) || { url: b.url, title: b.title, visits: 1, last: b.createdAt || 0 };
       consider({ ...e, title: b.title || e.title }, 'bookmark', 60);
     }
 
@@ -252,12 +254,18 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
     let inline = null;
     if (!/[\s/]/.test(q)) {
       let best = null;
-      for (const e of index.values()) {
-        const host = bareHost(e.url);
-        if (host.startsWith(q) && host !== q) {
-          const f = frecency(e);
-          if (!best || f > best.f) best = { host, f };
+      if (history) {
+        for (const e of index.values()) {
+          const host = bareHost(e.url);
+          if (host.startsWith(q) && host !== q) {
+            const f = frecency(e);
+            if (!best || f > best.f) best = { host, f };
+          }
         }
+      } else {
+        // Sin historial completa con el host del primer favorito que empiece así.
+        const host = bookmarks.map((b) => bareHost(b.url)).find((h) => h.startsWith(q) && h !== q);
+        if (host) best = { host };
       }
       inline = best ? best.host : null;
     }

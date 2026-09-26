@@ -72,6 +72,17 @@ const added = lib.toggleBookmark({ url: 'https://umaza.edu.ar/', title: 'UMaza' 
 ok('toggle agrega', added === true && lib.isBookmarked('https://umaza.edu.ar/'));
 r = lib.suggest('umaza');
 ok('un favorito se sugiere aunque no esté en el historial', r.items[0]?.kind === 'bookmark', JSON.stringify(r.items));
+lib.toggleBookmark({ url: 'https://www.youtube.com/', title: 'YouTube' });
+const sinHist = { history: false };
+r = lib.suggest('you', 6, sinHist);
+ok('sin historial: el favorito sigue apareciendo', r.items.length === 1 && r.items[0].kind === 'bookmark', JSON.stringify(r.items));
+ok('sin historial: no aparece el video visitado', !r.items.some((i) => i.url.includes('watch')));
+ok('sin historial: completa con el host del favorito', r.inline === 'youtube.com', String(r.inline));
+r = lib.suggest('red', 6, sinHist);
+ok('sin historial: lo visitado no se sugiere', r.items.length === 0, JSON.stringify(r.items));
+ok('sin historial: ni se autocompleta', r.inline === null, String(r.inline));
+ok('con historial vuelve a aparecer', lib.suggest('red').inline === 'redline.local.test');
+lib.toggleBookmark({ url: 'https://www.youtube.com/' });
 ok('toggle de nuevo lo saca', lib.toggleBookmark({ url: 'https://umaza.edu.ar/' }) === false && !lib.isBookmarked('https://umaza.edu.ar/'));
 const b1 = lib.addBookmark({ url: 'https://a.com/', title: 'A' });
 const b2 = lib.addBookmark({ url: 'https://b.com/', title: 'B' });

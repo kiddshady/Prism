@@ -62,6 +62,8 @@ const DEFAULT_SETTINGS = {
   startup: 'restore',
   /** Pedirle sugerencias al buscador mientras se tipea (manda lo tipeado a la red). */
   remoteSuggest: true,
+  /** Sugerir sitios del historial al tipear. Apagado, solo los favoritos. */
+  historySuggest: true,
   /** Bloqueador de anuncios y rastreadores. */
   adblock: true,
   /** Hosts donde el bloqueador está apagado. */

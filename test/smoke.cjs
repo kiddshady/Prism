@@ -257,6 +257,24 @@ app.whenReady().then(async () => {
   ok('Enter navega esta misma pestaña', await until(() => ctx.tabs.active.title === 'Página dos'));
   ctx.tabs.close(ctx.tabs.active.id);
 
+  console.log('\n7b2. Sugerencias sin historial');
+  const sugg = (q) => js(`window.prism.omni.suggest(${JSON.stringify(q)})`);
+  let sg = await sugg('dos');
+  ok('con el historial, sugiere la página visitada', sg.items.some((i) => i.kind === 'history' && i.url.endsWith('/dos')), JSON.stringify(sg.items));
+  await ctx.saveSettings({ historySuggest: false });
+  sg = await sugg('dos');
+  ok('apagado, la visitada ya no aparece', sg.items.length === 0, JSON.stringify(sg.items));
+  sg = await sugg('127.0');
+  ok('pero el favorito sí', sg.items.length === 1 && sg.items[0].kind === 'bookmark' && sg.items[0].url === `${BASE}/`, JSON.stringify(sg.items));
+  await js(`(() => { const i = document.getElementById('omni-input'); i.focus(); i.value = 'dos'; i.dispatchEvent(new InputEvent('input', { inputType: 'insertText' })); })()`);
+  await until(() => js(`!!document.querySelector('.pr-suggest:not([data-state="closing"])')`));
+  await sleep(150);
+  ok('y la barra no la muestra', await js(`![...document.querySelectorAll('.pr-suggest:not([data-state="closing"]) .pr-sugg')].some((b) => b.textContent.includes('Página dos'))`));
+  await js(`(() => { const i = document.getElementById('omni-input'); i.value = ''; i.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward' })); i.blur(); })()`);
+  await ctx.saveSettings({ historySuggest: true });
+  sg = await sugg('dos');
+  ok('prendido otra vez, vuelve', sg.items.some((i) => i.kind === 'history'), JSON.stringify(sg.items));
+
   console.log('\n7c. Silenciar desde el menú de la pestaña');
   ctx.tabs.create({ url: `${BASE}/sonido` });
   ok('la pestaña suena', await until(() => ctx.tabs.active.audible, 8000));

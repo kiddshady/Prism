@@ -617,8 +617,11 @@ function settingsPage() {
           <div class="pr-opt__hint">El que usa la barra de direcciones cuando lo que escribís no es una dirección.</div></div>
           <div class="pr-opt__ctl"><div class="op-segmented" id="s-engine">${Object.entries(engines).map(([k, v]) => `<button class="op-segmented__opt${s.searchEngine === k ? ' is-active' : ''}" data-value="${k}">${esc(v)}</button>`).join('')}</div></div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Sugerencias mientras escribís</div>
-          <div class="pr-opt__hint">Le manda al buscador lo que vas tipeando para completar. Apagado, solo sugiere de tu historial y tus favoritos.</div></div>
+          <div class="pr-opt__hint">Le manda al buscador lo que vas tipeando para completar. Apagado, solo sugiere lo que ya tenés en Prism.</div></div>
           <div class="pr-opt__ctl"><button class="op-switch${s.remoteSuggest ? ' is-on' : ''}" data-toggle="remoteSuggest" aria-label="Sugerencias"></button></div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Sugerir sitios del historial</div>
+          <div class="pr-opt__hint">Apagado, la barra no te muestra ni completa lo que visitaste: solo tus favoritos. El historial se sigue guardando.</div></div>
+          <div class="pr-opt__ctl"><button class="op-switch${s.historySuggest !== false ? ' is-on' : ''}" data-toggle="historySuggest" aria-label="Sugerir del historial"></button></div></div>
       </section>
 
       <section class="pr-set" style="--i:1">
