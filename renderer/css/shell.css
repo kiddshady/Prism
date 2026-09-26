@@ -102,9 +102,17 @@
   pointer-events: none;
 }
 
-/* Controles de ventana: propios, no los de Windows. */
+/* Controles de ventana: propios, no los de Windows. El botón ocupa todo el
+   alto (maximizada, tirar el mouse a la esquina tiene que acertar la cruz),
+   pero lo que se ve — hover, press y anillo de foco — es una pastilla
+   adentro, a la escala de un .op-iconbtn. Pintado sobre el botón, el anillo
+   del teclado se cortaba contra el canto de la ventana, y el rojo de cerrar
+   llegaba hasta el borde. `--op-wincontrol-nudge` la corre en vertical, para
+   alinearla con lo que tenga al lado la titlebar de cada app. */
 .op-wincontrols { display: flex; margin-left: auto; height: 100%; }
 .op-wincontrol {
+  position: relative;
+  z-index: 0;
   width: 46px;
   height: 100%;
   display: grid;
@@ -115,9 +123,24 @@
   cursor: default;
   transition: var(--tr-color);
 }
-.op-wincontrol:hover { background: var(--op-wash-1); color: var(--op-text); }
-.op-wincontrol:active { background: var(--op-wash-2); }
-.op-wincontrol--close:hover { background: var(--op-danger-dim); color: #fff; }
+.op-wincontrol::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  left: 5px;
+  right: 5px;
+  top: calc((100% - 28px) / 2 + var(--op-wincontrol-nudge, 0px));
+  height: 28px;
+  border-radius: var(--op-r-sm);
+  transition: background var(--op-t-2) var(--op-ease-soft), box-shadow var(--op-t-1) var(--op-ease-soft);
+}
+.op-wincontrol:hover { color: var(--op-text); }
+.op-wincontrol:hover::before { background: var(--op-wash-1); }
+.op-wincontrol:active::before { background: var(--op-wash-2); }
+.op-wincontrol--close:hover { color: #fff; }
+.op-wincontrol--close:hover::before { background: var(--op-danger-dim); }
+.op-wincontrol:focus-visible { box-shadow: none; }
+.op-wincontrol:focus-visible::before { box-shadow: 0 0 0 2px var(--op-bg), 0 0 0 3.5px var(--op-ring); }
 .op-wincontrol .op-icon { width: 11px; height: 11px; stroke-width: 1.2; }
 
 /* ── Cuerpo ───────────────────────────────────────────────────────────────── */

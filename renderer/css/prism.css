@@ -37,6 +37,9 @@
 .pr-titlebar {
   padding-left: var(--op-3);
   gap: var(--op-2);
+  /* La pastilla de los controles de ventana (Opal, shell.css) baja 1 px,
+     como las pestañas y el «+»: así quedan todos a la misma altura. */
+  --op-wincontrol-nudge: 1px;
 }
 
 /* Las facetas de la marca son rellenos, no trazos: la misma tinta con tres
