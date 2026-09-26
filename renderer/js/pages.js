@@ -657,13 +657,13 @@ function settingsPage() {
       </section>
 
       <section class="pr-set" style="--i:5">
-        <div class="pr-set__head">${Icons.svg('key')}<span class="pr-set__title">Contraseñas</span></div>
+        <div class="pr-set__head">${Icons.svg('passKey')}<span class="pr-set__title">Contraseñas</span></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Ofrecer guardar y completar contraseñas</div>
           <div class="pr-opt__hint">Se guardan cifradas con tu cuenta de Windows: el archivo copiado a otra compu, o leído desde otra cuenta, no se abre. Una página solo recibe las contraseñas de su propio sitio.</div></div>
           <div class="pr-opt__ctl"><button class="op-switch${s.passwords !== false ? ' is-on' : ''}" data-toggle="passwords" aria-label="Contraseñas"></button></div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Tus contraseñas</div>
           <div class="pr-opt__hint">Buscar, editar, agregar notas o importar de Proton Pass. También desde la llave de la barra.</div></div>
-          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-pass"><i data-icon="key"></i> Abrir</button></div></div>
+          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-pass"><i data-icon="passKey"></i> Abrir</button></div></div>
         ${(s.passNever || []).length ? `<div class="pr-opt" style="min-height:0;padding-bottom:6px"><div class="pr-opt__text"><div class="pr-opt__label">Nunca ofrecer guardar en</div></div></div>` : ''}
         <div class="pr-chips">${(s.passNever || []).map((h) => `<span class="pr-chip-x">${esc(h)}<button class="op-iconbtn" data-unnever="${esc(h)}" aria-label="Volver a ofrecer">${Icons.svg('close')}</button></span>`).join('')}</div>
       </section>

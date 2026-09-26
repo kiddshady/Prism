@@ -162,7 +162,7 @@ function paintMain() {
   if (P.mode === 'new' || (P.mode === 'edit' && it)) html += formHTML(P.mode === 'edit' ? it : null);
   else if (!P.items.length) html += welcomeHTML();
   else if (it) html += detailHTML(it);
-  else html += `<div class="pr-pass__empty"><i data-icon="key"></i><div>Elegí un elemento de la lista.</div></div>`;
+  else html += `<div class="pr-pass__empty"><i data-icon="passKey"></i><div>Elegí un elemento de la lista.</div></div>`;
 
   main.innerHTML = `<div class="pr-pass__view op-scroll" id="pp-view">${html}</div>`;
   Icons.mount(main);
@@ -175,7 +175,7 @@ function paintMain() {
 function welcomeHTML() {
   return `
     <div class="pr-pass__welcome">
-      <div class="pr-pass__hero">${Icons.svg('key')}</div>
+      <div class="pr-pass__hero">${Icons.svg('passKey')}</div>
       <div class="pr-pass__welcometitle">Tus contraseñas, adentro de Prism</div>
       <div class="pr-pass__welcometext">Cuando entres a un sitio, Prism te ofrece guardarla, y la próxima vez la completa. Se guardan cifradas con tu cuenta de Windows.</div>
       <div class="pr-pass__welcomeactions">
@@ -217,8 +217,8 @@ function detailHTML(it) {
   if (it.username) fields.push(field('Usuario', 'user', esc(it.username), { copy: 'username' }));
   if (it.email) fields.push(field('Correo', 'mail', esc(it.email), { copy: 'email' }));
   fields.push(it.hasPassword
-    ? field('Contraseña', 'lock', shown ? esc(P.revealed.value) : '<span class="pr-pass__dots"></span>', { copy: 'password', mono: shown, secret: true, id: 'pp-secret' })
-    : field('Contraseña', 'lock', '<span class="pr-pass__muted">Ninguna</span>'));
+    ? field('Contraseña', 'passKey', shown ? esc(P.revealed.value) : '<span class="pr-pass__dots"></span>', { copy: 'password', mono: shown, secret: true, id: 'pp-secret' })
+    : field('Contraseña', 'passKey', '<span class="pr-pass__muted">Ninguna</span>'));
 
   const meta = [
     it.lastUsedAt && ['wand', 'Último completado automático', when(it.lastUsedAt)],
@@ -490,7 +490,7 @@ function showOffer(o) {
           <div class="pr-pop__title">${update ? '¿Actualizar la contraseña?' : '¿Guardar la contraseña?'}</div>
           <div class="pr-pop__sub">${esc(o.host)}</div>
         </div>
-        <i data-icon="key"></i>
+        <i data-icon="passKey"></i>
       </div>
       <div class="pr-offer">
         ${update

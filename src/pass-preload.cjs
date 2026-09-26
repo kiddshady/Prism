@@ -81,7 +81,7 @@ if (window.top === window) {
 
   /* ── La lista ────────────────────────────────────────────────────────── */
 
-  const KEY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.4" cy="10.6" r="3"/><path d="M7.5 8.5 13.6 2.4M11.4 4.6l1.8 1.8M9.8 6.2l1.4 1.4"/></svg>';
+  const KEY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.9" cy="5.1" r="2.9"/><circle cx="11.5" cy="4.5" r="1" fill="currentColor" stroke="none"/><path d="M8.85 7.15 2.3 13.7M3.5 12.5l1.6 1.6M5.5 10.5l1.4 1.4"/></svg>';
   const CSS = `
     :host { all: initial; }
     .box {
