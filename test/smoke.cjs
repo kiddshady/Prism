@@ -60,6 +60,8 @@ async function until(fn, ms = 6000) {
 const PAGES = {
   '/': '<title>Inicio de prueba</title><body style="font:16px sans-serif"><h1>Hola Prism</h1><p>fiebre fiebre fiebre</p><a id="l" href="/dos">dos</a></body>',
   '/dos': '<title>Página dos</title><body><h1>Dos</h1></body>',
+  '/login': '<title>Login</title><body><form action="/bienvenida" method="post"><input id="u" name="usuario" autocomplete="username"><input id="p" type="password" name="clave"><button id="b">Entrar</button></form></body>',
+  '/bienvenida': '<title>Bienvenida</title><body><h1>Adentro</h1></body>',
   '/geo': '<title>Geo</title><body><script>navigator.geolocation.getCurrentPosition(()=>{},()=>{})</script></body>',
   /* Sonido de verdad para que Chromium marque la pestaña como audible, pero sin
      que se escuche: 30 Hz (debajo de lo que reproduce un parlante común) con
@@ -372,6 +374,45 @@ app.whenReady().then(async () => {
   ctx.tabs.contextAction('link-save', { url: `${BASE}/archivo.bin` });
   ok('baja el archivo a la carpeta elegida', await until(() => fs.existsSync(path.join(DL, 'archivo.bin')) && ctx.downloads.list()[0]?.state === 'completed', 8000));
   ok('el panel lo lista', await until(() => js(`__prism.S.downloads.some(d => d.filename === 'archivo.bin')`)));
+
+  console.log('\n9b. Contraseñas');
+  const V = ctx.passwords.vault;
+  await V.save({ title: 'Prueba', username: 'fran', password: 'secreta', urls: [BASE], note: 'una notita' });
+  const enDisco = fs.readFileSync(path.join(process.env.PRISM_DATA, 'vault.json'), 'utf8');
+  ok('la bóveda se guarda cifrada (ni el usuario ni la nota a la vista)', enDisco.includes('"blob"') && !enDisco.includes('fran') && !enDisco.includes('notita'));
+  ctx.tabs.create({ url: `${BASE}/login` });
+  ok('carga el login', await until(() => ctx.tabs.active.title === 'Login' && !ctx.tabs.active.loading));
+  const lwc = ctx.tabs.active.view.webContents;
+  const click = async (sel) => {
+    const r = await lwc.executeJavaScript(`(() => { const r = document.querySelector('${sel}').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    lwc.focus();
+    for (const type of ['mouseDown', 'mouseUp']) lwc.sendInputEvent({ type, x: Math.round(r.x), y: Math.round(r.y), button: 'left', clickCount: 1 });
+  };
+  const listaAbierta = () => lwc.executeJavaScript(`[...document.documentElement.children].some((e) => e.tagName === 'DIV' && !e.shadowRoot)`);
+  await click('#u');
+  ok('enfocar el usuario cuelga la lista de Prism', await until(listaAbierta));
+  ok('y la página no puede leerla (shadow root cerrado)', await lwc.executeJavaScript(`!document.body.innerText.includes('Prueba')`));
+  lwc.sendInputEvent({ type: 'keyDown', keyCode: 'Down' });
+  lwc.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+  ok('elegir completa usuario y contraseña', await until(() => lwc.executeJavaScript(`document.getElementById('u').value === 'fran' && document.getElementById('p').value === 'secreta'`)));
+  ok('y anota el último uso', await until(() => !!V.get(V.list()[0].id).lastUsedAt));
+  await lwc.executeJavaScript(`document.getElementById('p').value = 'nueva'`);
+  await click('#b');
+  ok('enviar navega', await until(() => ctx.tabs.active.title === 'Bienvenida'));
+  ok('y ofrece actualizar la contraseña', await until(() => js(`!!document.querySelector('.pr-offer') && document.querySelector('.pr-pop__title').textContent.includes('Actualizar')`), 6000));
+  await js(`document.querySelector('[data-o=save]').click()`);
+  ok('actualizar la reemplaza', await until(() => V.get(V.list()[0].id).password === 'nueva'));
+  ok('el panel de la oferta se va', await until(() => js(`!document.querySelector('.pr-offer')`)));
+  ok('otro sitio no recibe nada', V.findFor(BASE.replace('127.0.0.1', 'localhost') + '/login').length === 0);
+  await js(`document.getElementById('btn-pass').click()`);
+  ok('la llave abre el panel con la lista', await until(() => js(`document.querySelectorAll('.pr-pass__row').length === 1`)));
+  ok('con el detalle, la nota y las fechas', await until(() => js(`(() => { const t = document.querySelector('#pp-main').innerText; return t.includes('Prueba') && t.includes('una notita') && t.includes('Último completado automático'); })()`)));
+  ok('la contraseña no está en el cromo hasta que se pide', await js(`!document.querySelector('.pr-pass').innerText.includes('nueva')`));
+  await js(`document.querySelector('[data-a=reveal]').click()`);
+  ok('mostrarla la trae', await until(() => js(`document.getElementById('pp-secret').textContent === 'nueva'`)));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  ok('Escape cierra el panel', await until(() => js(`!document.querySelector('.pr-pass')`)));
+  ctx.tabs.close(ctx.tabs.active.id);
 
   console.log('\n10. Permisos');
   await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/geo`);

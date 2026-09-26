@@ -18,6 +18,7 @@ import * as Toolbar from './toolbar.js';
 import * as Pages from './pages.js';
 import * as Status from './status.js';
 import * as Prompts from './prompts.js';
+import * as Passwords from './passwords.js';
 import { pageMenu } from './menus.js';
 
 /* ── Ventana ─────────────────────────────────────────────────────────────── */
@@ -138,6 +139,7 @@ async function boot() {
   Pages.init();
   Status.init();
   Prompts.init();
+  Passwords.init();
   Pages.setStatusFn((text) => Status.say(text, { icon: 'check' }));
 
   api.tabs.onState(applyTabs);

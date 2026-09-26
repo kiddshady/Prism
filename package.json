@@ -15,7 +15,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node test/tokens.test.mjs && node test/store.test.mjs && node test/format.test.mjs && node test/omni.test.mjs && node test/library.test.mjs && node test/shortcuts.test.mjs",
+    "test": "node test/tokens.test.mjs && node test/store.test.mjs && node test/format.test.mjs && node test/omni.test.mjs && node test/vault.test.mjs && node test/library.test.mjs && node test/shortcuts.test.mjs",
     "smoke": "electron test/smoke.cjs",
     "icons": "node tools/icons.mjs",
     "build": "electron-builder --win --publish never",

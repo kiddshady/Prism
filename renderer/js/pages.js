@@ -19,6 +19,7 @@ import { fmtBytes, fmtDur, relTime, plural, locale } from './format.js';
 import { menu, modal, confirm } from './layers.js';
 import { Toast } from './overlays.js';
 import { attachSuggest } from './suggest.js';
+import { openPanel as openPasswords } from './passwords.js';
 
 /* Una superficie por mitad de la hoja: sin vista dividida se usa solo la
    primera; con un par, cada mitad dibuja lo suyo (una página propia, un
@@ -656,6 +657,18 @@ function settingsPage() {
       </section>
 
       <section class="pr-set" style="--i:5">
+        <div class="pr-set__head">${Icons.svg('key')}<span class="pr-set__title">Contraseñas</span></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Ofrecer guardar y completar contraseñas</div>
+          <div class="pr-opt__hint">Se guardan cifradas con tu cuenta de Windows: el archivo copiado a otra compu, o leído desde otra cuenta, no se abre. Una página solo recibe las contraseñas de su propio sitio.</div></div>
+          <div class="pr-opt__ctl"><button class="op-switch${s.passwords !== false ? ' is-on' : ''}" data-toggle="passwords" aria-label="Contraseñas"></button></div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Tus contraseñas</div>
+          <div class="pr-opt__hint">Buscar, editar, agregar notas o importar de Proton Pass. También desde la llave de la barra.</div></div>
+          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-pass"><i data-icon="key"></i> Abrir</button></div></div>
+        ${(s.passNever || []).length ? `<div class="pr-opt" style="min-height:0;padding-bottom:6px"><div class="pr-opt__text"><div class="pr-opt__label">Nunca ofrecer guardar en</div></div></div>` : ''}
+        <div class="pr-chips">${(s.passNever || []).map((h) => `<span class="pr-chip-x">${esc(h)}<button class="op-iconbtn" data-unnever="${esc(h)}" aria-label="Volver a ofrecer">${Icons.svg('close')}</button></span>`).join('')}</div>
+      </section>
+
+      <section class="pr-set" style="--i:6">
         <div class="pr-set__head">${Icons.svg('lock')}<span class="pr-set__title">Privacidad</span></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Borrar datos de navegación</div>
           <div class="pr-opt__hint">Historial, cookies y sesiones iniciadas, caché.</div></div>
@@ -668,12 +681,12 @@ function settingsPage() {
             <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-forget="${esc(origin)}">Olvidar</button></div></div>`).join('')}
       </section>
 
-      <section class="pr-set" style="--i:6">
+      <section class="pr-set" style="--i:7">
         <div class="pr-set__head">${Icons.svg('keyboard')}<span class="pr-set__title">Atajos de teclado</span></div>
         <div class="pr-keys">${(S.info?.shortcuts || []).map(([what, combo]) => `<div>${esc(what)}</div><div>${kbdHTML(combo)}</div>`).join('')}</div>
       </section>
 
-      <section class="pr-set" style="--i:7">
+      <section class="pr-set" style="--i:8">
         <div class="pr-set__head">${Icons.svg('prism')}<span class="pr-set__title">Acerca de Prism</span></div>
         <dl class="pr-about">
           <dt>Versión</dt><dd>${esc(S.info?.version || '')}</dd>
@@ -719,6 +732,12 @@ function settingsPage() {
       await exit(un.closest('.pr-chip-x'), { fallback: 150 });
       return save({ adblockAllow: (S.settings.adblockAllow || []).filter((x) => x !== h) });
     }
+    const nv = e.target.closest('[data-unnever]');
+    if (nv) {
+      const h = nv.dataset.unnever;
+      await exit(nv.closest('.pr-chip-x'), { fallback: 150 });
+      return save({ passNever: (S.settings.passNever || []).filter((x) => x !== h) });
+    }
     const fg = e.target.closest('[data-forget]');
     if (fg) { await api.permissions.revoke(fg.dataset.forget); S.settings = await api.settings.get(); return paint(); }
     const id = e.target.closest('button')?.id;
@@ -731,6 +750,7 @@ function settingsPage() {
     if (id === 's-relaunch') return api.relaunch();
     if (id === 's-clear') return clearDataModal();
     if (id === 's-data') return api.openData();
+    if (id === 's-pass') return openPasswords();
     if (id === 's-dldir') {
       const dir = await api.data.chooseFolder(S.downloadsDir).catch(() => null);
       if (dir) { await save({ downloadDir: dir }, false); S.downloadsDir = await api.downloads.dir(); paint(); }

@@ -76,6 +76,10 @@ const DEFAULT_SETTINGS = {
   downloadDir: null,
   /** Preguntar dónde guardar cada descarga. */
   askDownload: false,
+  /** Ofrecer guardar y completar contraseñas en las páginas. */
+  passwords: true,
+  /** Sitios donde nunca se ofrece guardar (dominio registrable). */
+  passNever: [],
   /** Decisiones de permisos: origen → { permiso: 'allow' | 'deny' }. */
   permissions: {},
 };

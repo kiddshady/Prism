@@ -154,6 +154,20 @@ contextBridge.exposeInMainWorld('prism', {
     chooseFolder: (current) => call('dialog:folder', current),
   },
 
+  /** Contraseñas: la ventana nunca recibe una contraseña salvo que la pida revelar. */
+  pass: {
+    list: () => call('pass:list'),
+    reveal: (id) => call('pass:reveal', id),
+    save: (item) => call('pass:save', item),
+    remove: (id) => call('pass:remove', id),
+    copy: (id, field) => call('pass:copy', id, field),
+    import: () => call('pass:import'),
+    forgetImport: () => call('pass:forget-import'),
+    answer: (id, action, patch) => call('pass:answer', id, action, patch),
+    onOffer: listen('pass:offer'),
+    onChanged: listen('pass:changed'),
+  },
+
   prompts: {
     onAsk: listen('prompt:ask'),
     onCancel: listen('prompt:cancel'),

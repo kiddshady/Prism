@@ -32,6 +32,7 @@ const { createWeb } = require('./src/web.cjs');
 const { createAdblock } = require('./src/adblock.cjs');
 const { createDownloads } = require('./src/downloads.cjs');
 const { createPrompts } = require('./src/prompts.cjs');
+const { createPasswords } = require('./src/passwords.cjs');
 const updater = require('./src/updater.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
@@ -95,6 +96,7 @@ const ctx = {
   downloads: null,
   adblock: null,
   prompts: null,
+  passwords: null,
 
   send(channel, payload) {
     const w = ctx.win;
@@ -108,6 +110,7 @@ const ctx = {
     // Lo que tiene efecto inmediato sobre las pestañas abiertas.
     if (before.adblock !== ctx.settings.adblock) ctx.tabs?.reload();
     if (before.pageScrollbars !== ctx.settings.pageScrollbars) ctx.setPageScrollbars?.(ctx.settings.pageScrollbars);
+    if (before.passwords !== ctx.settings.passwords) ctx.passwords?.setEnabled(ctx.settings.passwords !== false);
     ctx.tabs?.emit();
     return ctx.settings;
   },
@@ -394,10 +397,12 @@ app.whenReady().then(async () => {
   ctx.adblock = createAdblock(ctx, { cacheFile: path.join(store.ROOT, 'adblock-engine.bin') });
   ctx.downloads = createDownloads(ctx, { doc: store.doc('downloads', null) });
   ctx.downloads.attach(session);
+  ctx.passwords = createPasswords(ctx);
 
   await Promise.all([
     ctx.library.load().catch((err) => console.error('[library]', err.message)),
     ctx.downloads.load().catch((err) => console.error('[downloads]', err.message)),
+    ctx.passwords.load().catch((err) => console.error('[pass]', err.message)),
   ]);
 
   ipc.register(ctx);
@@ -470,6 +475,8 @@ if (SHOTS) {
    propio preload) ni abrir un esquema raro fuera del navegador sin permiso. */
 app.on('web-contents-created', (_e, wc) => {
   wc.on('will-attach-webview', (ev) => ev.preventDefault());
+  // El primer paso de un login en dos pasos se recuerda por pestaña: se va con ella.
+  wc.once('destroyed', () => ctx.passwords?.forgetTab(wc.id));
 });
 
 module.exports = { ctx, omni, shell };

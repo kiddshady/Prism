@@ -775,6 +775,248 @@
 .pr-dlrow .op-meter { margin-top: 2px; }
 .pr-dlrow__actions { display: flex; gap: 2px; flex: 0 0 auto; }
 
+/* ── Contraseñas ─────────────────────────────────────────────────────────────
+   Una hoja ancha en dos columnas. La columna de la lista es un escalón más
+   hundida que la del elemento: la jerarquía la hace el tono, y la costura
+   entre las dos es un hairline. */
+.pr-pop.pr-pop--pass { max-height: none; }
+/* Casi opaca, a diferencia del resto de las hojas: es grande, trae texto
+   chico que hay que poder leer, y sobre una página blanca el vidrio la
+   dejaba gris y con la página asomando por debajo. */
+.pr-pop.pr-pop--solid { background: linear-gradient(var(--op-s3), var(--op-s3)), rgb(12 12 14 / .97); }
+.pr-pass {
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  height: min(560px, calc(100vh - 150px));
+  min-height: 320px;
+}
+.pr-pass__side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgb(0 0 0 / .12);
+  box-shadow: inset -1px 0 0 var(--op-line);
+}
+.pr-pass__top { display: flex; align-items: center; gap: var(--op-1); padding: var(--op-3) var(--op-2) var(--op-1) var(--op-3); }
+.pr-pass__search { flex: 1 1 auto; min-width: 0; }
+.pr-pass__list { --op-fade: 12px; flex: 1 1 auto; min-height: 0; padding-left: var(--op-2); padding-right: var(--op-2); }
+.pr-pass__row {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  width: 100%;
+  padding: 7px var(--op-2);
+  border: 0;
+  border-radius: var(--op-r-md);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: var(--tr-color), box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+.pr-pass__row:hover { background: var(--op-wash-1); }
+.pr-pass__row.is-selected { background: var(--op-wash-2); box-shadow: inset 0 0 0 1px var(--op-line); }
+.pr-pass__rowtext { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pr-pass__rowtitle,
+.pr-pass__rowsub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-pass__rowtitle { font-size: var(--op-fs-13); color: var(--op-text); }
+.pr-pass__rowsub { font-size: var(--op-fs-11); color: var(--op-text-3); }
+.pr-pass__none { padding: var(--op-6) var(--op-3); text-align: center; font-size: var(--op-fs-12); color: var(--op-text-4); }
+.pr-pass__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: var(--op-2) var(--op-2) var(--op-2) var(--op-4);
+  box-shadow: inset 0 1px 0 var(--op-line);
+}
+
+/* La baldosa del sitio: su ícono si Prism lo conoce, si no la inicial. */
+.pr-pass__tile {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--op-r-md);
+  background: var(--op-wash-2);
+  box-shadow: var(--op-hairline);
+}
+.pr-pass__tile img { width: 16px; height: 16px; border-radius: 3px; }
+.pr-pass__letter { font-size: var(--op-fs-12); font-weight: var(--op-w-semi); color: var(--op-text-2); }
+.pr-pass__tile--lg { width: 42px; height: 42px; border-radius: var(--op-r-lg); }
+.pr-pass__tile--lg img { width: 22px; height: 22px; }
+.pr-pass__tile--lg .pr-pass__letter { font-size: var(--op-fs-15); }
+
+.pr-pass__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pr-pass__view {
+  --op-fade: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-left: var(--op-5);
+  padding-right: var(--op-5);
+  animation: pr-pass-in var(--op-t-2) var(--op-ease) both;
+}
+@keyframes pr-pass-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.pr-pass__head { display: flex; align-items: center; gap: var(--op-3); padding: var(--op-1) 0 var(--op-4); }
+.pr-pass__headtext { flex: 1 1 auto; min-width: 0; }
+.pr-pass__title { font-size: 17px; font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-pass__sub { font-size: var(--op-fs-12); color: var(--op-text-3); margin-top: 2px; }
+.pr-pass__del { color: var(--op-text-3); transition: var(--tr-color); }
+.pr-pass__del.is-open { color: var(--op-danger); background: var(--op-danger-wash); }
+
+/* Confirmar el borrado se despliega en el lugar (0fr → 1fr), sin modal. */
+.pr-pass__confirm {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  margin-bottom: 0;
+  transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft), margin-bottom var(--op-t-3) var(--op-ease);
+}
+.pr-pass__confirm.is-open { grid-template-rows: 1fr; opacity: 1; margin-bottom: var(--op-3); }
+.pr-pass__confirminner { min-height: 0; overflow: hidden; }
+.pr-pass__confirmrow {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: var(--op-2) var(--op-2) var(--op-2) var(--op-4);
+  border-radius: var(--op-r-lg);
+  background: var(--op-danger-wash);
+  box-shadow: inset 0 0 0 1px var(--op-danger-ring);
+  font-size: var(--op-fs-12);
+  color: var(--op-text-2);
+}
+.pr-pass__confirmrow b { color: var(--op-text); font-weight: var(--op-w-medium); }
+
+.pr-pass__card {
+  margin-bottom: var(--op-3);
+  border-radius: var(--op-r-lg);
+  background: var(--op-wash-1);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+}
+.pr-pass__field { display: flex; align-items: center; gap: var(--op-3); min-height: 58px; padding: var(--op-2) var(--op-2) var(--op-2) var(--op-4); }
+.pr-pass__field + .pr-pass__field { box-shadow: inset 0 1px 0 var(--op-line); }
+.pr-pass__field--top { align-items: flex-start; padding-top: var(--op-3); padding-bottom: var(--op-3); }
+.pr-pass__field--top .pr-pass__fieldicon { margin-top: 2px; }
+.pr-pass__field--meta { min-height: 46px; }
+.pr-pass__fieldicon { display: grid; flex: 0 0 auto; color: var(--op-text-3); }
+.pr-pass__fieldicon .op-icon { width: 15px; height: 15px; }
+.pr-pass__fieldbody { flex: 1 1 auto; min-width: 0; }
+.pr-pass__label { font-size: var(--op-fs-11); color: var(--op-text-3); margin-bottom: 3px; }
+.pr-pass__value { font-size: var(--op-fs-13); color: var(--op-text); overflow-wrap: anywhere; user-select: text; cursor: text; }
+.pr-pass__value.is-mono { font-family: var(--op-mono); font-size: 12.5px; letter-spacing: .02em; }
+.pr-pass__muted { color: var(--op-text-4); }
+.pr-pass__note { font-size: var(--op-fs-13); line-height: var(--op-lh); color: var(--op-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pr-pass__metalabel { font-size: var(--op-fs-12); color: var(--op-text-2); }
+.pr-pass__metavalue { font-size: var(--op-fs-11); color: var(--op-text-3); margin-top: 1px; }
+
+/* Los puntos de una contraseña oculta: dibujados, no caracteres. */
+.pr-pass__dots {
+  display: inline-block;
+  width: 81px;
+  height: 8px;
+  vertical-align: middle;
+  color: var(--op-text-2);
+  background: radial-gradient(circle, currentColor 2.2px, transparent 2.8px) 0 50% / 9px 8px repeat-x;
+}
+
+/* Copiar y mostrar: los dos íconos apilados cruzan de uno al otro. */
+.pr-pass__copy,
+.pr-pass__eye { color: var(--op-text-3); }
+.pr-pass__copy > .op-icon,
+.pr-pass__eye > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
+.pr-copy__b,
+.pr-eye__b { opacity: 0; transform: scale(.6); }
+.pr-pass__copy.is-done { color: var(--op-text); }
+.pr-pass__copy.is-done .pr-copy__a,
+.pr-pass__eye.is-on .pr-eye__a { opacity: 0; transform: scale(.6); }
+.pr-pass__copy.is-done .pr-copy__b,
+.pr-pass__eye.is-on .pr-eye__b { opacity: 1; transform: none; }
+
+.pr-pass__urls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.pr-pass__url {
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: var(--op-r-md);
+  background: var(--op-sunken);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+  color: var(--op-text-2);
+  font-family: var(--op-mono);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: var(--tr-color), box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+.pr-pass__url:hover { color: var(--op-text); box-shadow: inset 0 0 0 1px var(--op-line-2); }
+
+.pr-pass__banner,
+.pr-pass__warn {
+  margin-bottom: var(--op-3);
+  padding: var(--op-3) var(--op-4);
+  border-radius: var(--op-r-lg);
+  background: var(--op-wash-2);
+  box-shadow: inset 0 0 0 1px var(--op-line-2);
+  animation: op-rise-in var(--op-t-3) var(--op-ease) both;
+}
+.pr-pass__bannerhead { display: flex; align-items: center; gap: var(--op-2); font-size: var(--op-fs-13); font-weight: var(--op-w-medium); }
+.pr-pass__bannerhead .op-icon { width: 14px; height: 14px; }
+.pr-pass__bannertext { margin-top: 6px; font-size: var(--op-fs-12); line-height: var(--op-lh); color: var(--op-text-2); }
+.pr-pass__bannertext b { font-weight: var(--op-w-medium); color: var(--op-text); overflow-wrap: anywhere; }
+.pr-pass__banneractions { display: flex; justify-content: flex-end; gap: var(--op-2); margin-top: var(--op-3); }
+.pr-pass__warn { display: flex; gap: var(--op-3); font-size: var(--op-fs-12); line-height: var(--op-lh); color: var(--op-text-2); background: var(--op-danger-wash); box-shadow: inset 0 0 0 1px var(--op-danger-ring); }
+.pr-pass__warn .op-icon { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 2px; color: var(--op-danger); }
+
+.pr-pass__empty,
+.pr-pass__welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--op-3);
+  min-height: 100%;
+  text-align: center;
+}
+.pr-pass__empty { font-size: var(--op-fs-12); color: var(--op-text-4); }
+.pr-pass__empty .op-icon { width: 22px; height: 22px; }
+.pr-pass__hero {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--op-wash-2);
+  box-shadow: var(--op-hairline), var(--op-e2);
+  color: var(--op-text-2);
+}
+.pr-pass__hero .op-icon { width: 24px; height: 24px; }
+.pr-pass__welcometitle { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); }
+.pr-pass__welcometext { max-width: 360px; font-size: var(--op-fs-12); line-height: var(--op-lh); color: var(--op-text-3); }
+.pr-pass__welcomeactions { display: flex; gap: var(--op-2); margin-top: var(--op-2); }
+
+.pr-pass__form { display: flex; flex-direction: column; gap: var(--op-3); padding-bottom: var(--op-2); }
+.pr-pass__formtitle { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); padding: var(--op-1) 0 var(--op-1); }
+.pr-pass__formrow { display: grid; grid-template-columns: 1fr 1fr; gap: var(--op-3); }
+.pr-pass__pwwrap { position: relative; display: flex; align-items: center; }
+.pr-pass__pwwrap .op-input { padding-right: 38px; }
+.pr-pass__pwwrap .pr-pass__eye { position: absolute; right: 3px; }
+.pr-pass__urlsinput { min-height: 60px; font-family: var(--op-mono); font-size: 12px; }
+.pr-pass__formactions { display: flex; justify-content: flex-end; gap: var(--op-2); }
+
+/* "¿Guardar la contraseña?" */
+.pr-offer { display: flex; flex-direction: column; gap: var(--op-3); padding: var(--op-1) var(--op-4) var(--op-4); }
+.pr-offer__text { font-size: var(--op-fs-12); line-height: var(--op-lh); color: var(--op-text-2); }
+.pr-offer__text b { color: var(--op-text); font-weight: var(--op-w-medium); overflow-wrap: anywhere; }
+.pr-offer__pw {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 var(--op-3);
+  border-radius: var(--op-r-sm);
+  background: var(--op-sunken);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+}
+
 /* Un ancla invisible para el menú contextual de la página: Menu.show() se
    posiciona contra un elemento, y el click derecho es un punto. */
 .pr-anchor { position: fixed; width: 1px; height: 1px; pointer-events: none; }
