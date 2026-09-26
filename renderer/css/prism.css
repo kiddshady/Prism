@@ -15,10 +15,6 @@
   --pr-toolbar: 46px;
   --pr-gutter: 8px;
   --pr-page-r: 10px;
-  /* Las caras de la marca en color: las mismas del ícono de la app. */
-  --pr-facet-a: rgb(251 191 36 / .94);
-  --pr-facet-b: rgb(34 211 238 / .9);
-  --pr-facet-c: rgb(167 139 250 / .92);
   --pr-tab-h: 32px;
   grid-template-rows: var(--op-titlebar) var(--pr-toolbar) 1fr var(--op-statusbar);
 }
@@ -51,13 +47,14 @@
 .pr-mark__f--b { opacity: .6; }
 .pr-mark__f--c { opacity: .32; }
 
-/* La pestaña de nueva pestaña lleva el prisma en color, como el ícono de la
-   app (pedido de Fran): es la firma de Prism, no un ícono de función. El
-   prisma de la omnibox y el de «Acerca de» siguen acromáticos. */
-.pr-tab__icon .pr-mark__f { opacity: 1; }
-.pr-tab__icon .pr-mark__f--a { fill: var(--pr-facet-a); }
-.pr-tab__icon .pr-mark__f--b { fill: var(--pr-facet-b); }
-.pr-tab__icon .pr-mark__f--c { fill: var(--pr-facet-c); }
+/* La pestaña de nueva pestaña y la nueva pestaña llevan el prisma con la luz
+   del ícono de la app (pedido de Fran): es la firma de Prism, no un ícono de
+   función. El degradé #pr-gem está definido en index.html; cada cara se apaga
+   un escalón hacia el fondo, como en el ícono. El prisma de la omnibox y el
+   de «Acerca de» siguen en la tinta del texto. */
+:is(.pr-tab__icon, .pr-ntp__mark) .pr-mark__f { opacity: 1; fill: url(#pr-gem); }
+:is(.pr-tab__icon, .pr-ntp__mark) .pr-mark__f--b { fill-opacity: .9; }
+:is(.pr-tab__icon, .pr-ntp__mark) .pr-mark__f--c { fill-opacity: .76; }
 
 .pr-strip {
   position: relative;

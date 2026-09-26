@@ -10,8 +10,9 @@ import { Icons } from './icons.js';
 Icons.add({
   /* La marca: un prisma visto como gema, tres caras que reciben luz distinta.
      En la interfaz es acromática — la luz no rellena: talla —, así que las
-     caras son la misma tinta con tres opacidades. El color de las facetas
-     vive solo en el ícono de la app, el splash y la nueva pestaña. */
+     caras son la misma tinta con tres opacidades. La luz de la marca (el
+     degradé #pr-gem) vive solo en el ícono de la app, el splash, la pestaña
+     de nueva pestaña y la nueva pestaña. */
   prism: '<path class="pr-mark__f pr-mark__f--a" d="M7.55 3.78 2.73 12.12 7.55 9.34Z"/>'
        + '<path class="pr-mark__f pr-mark__f--b" d="M8.45 3.78 13.27 12.12 8.45 9.34Z"/>'
        + '<path class="pr-mark__f pr-mark__f--c" d="M3.18 12.90 12.82 12.90 8.00 10.12Z"/>',

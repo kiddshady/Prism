@@ -3,10 +3,14 @@
    La marca facetada (el prisma visto como gema: tres caras que reciben luz
    distinta) sobre la baldosa de Opal: a sangre, sin borde, esquinas al 19 %.
 
-   La interfaz es acromática, pero el ícono no puede serlo: a 32 px en la
-   barra de tareas un gris desaparece al lado de los vecinos. Las caras van en
-   los acentos de la familia Opal (ámbar, cian, violeta), y las separa una
-   costura del color de la baldosa — la luz talla, no rellena.
+   Acromático, con la escalera de grises de Finway (#e9ebee → #a4a9b0 →
+   #6e737b): un degradé en diagonal, con la luz entrando de arriba a la
+   izquierda, que cruza las tres caras. Cada cara, además, se apaga un escalón
+   (izquierda, derecha, base), la misma luz que tiene el prisma de la
+   interfaz. El degradé no llega al gris más oscuro: a 32 px un gris de más
+   se apaga al lado de los vecinos. Las caras las separa una costura del color
+   de la baldosa — la luz talla, no rellena. (Hasta el 26 sep 2026 las caras
+   iban en ámbar, cian y violeta.)
 
    Geometría con distancia con signo y supermuestreo: cada tamaño se dibuja a
    SU tamaño. La costura tiene un piso de ~1 px real para no empastarse en la
@@ -46,7 +50,19 @@ const mix = (a, b, k) => a.map((v, i) => Math.round(v * (1 - k) + b[i] * k));
 const BG = token('bg');
 const [S1] = num(/--op-s1:\s*rgb\(255 255 255 \/ (\.\d+)\)/, '--op-s1');
 const TILE = mix(BG, [255, 255, 255], S1);
-const FACES = [[251, 191, 36], [34, 211, 238], [167, 139, 250]];   // izquierda · derecha · base
+const HI = [233, 235, 238];
+const MID = [164, 169, 176];
+const LO = [110, 115, 123];
+const SHADE = [0, 0.1, 0.24];            // cuánto se apaga hacia la baldosa: izquierda · derecha · base
+
+/* El degradé recorre la gema en diagonal (dirección 1,1) y termina en el 80 %
+   de la escalera, entre el gris medio y el oscuro. */
+function paint(f, u, v, g) {
+  const t = Math.max(0, Math.min(1, (u - g.left + v - g.top) / (g.right - g.left + g.bot - g.top)));
+  const s = t * 0.8;
+  const col = s < 0.5 ? mix(HI, MID, s * 2) : mix(MID, LO, (s - 0.5) * 2);
+  return mix(col, TILE, SHADE[f]);
+}
 
 /* ── La gema ─────────────────────────────────────────────────────────────── */
 
@@ -83,7 +99,8 @@ function layout(size) {
   const cy = 0.5 + r / 4;                  // el centroide queda abajo del centro de la caja
   const ang = (deg) => [0.5 + r * Math.cos((deg * Math.PI) / 180), cy + r * Math.sin((deg * Math.PI) / 180)];
   const seam = Math.max(tray ? 0.075 : 0.034, 1.05 / size);
-  return { A: ang(-90), B: ang(30), D: ang(150), C: [0.5, cy], seam };
+  const A = ang(-90); const B = ang(30); const D = ang(150);
+  return { A, B, D, C: [0.5, cy], seam, top: A[1], bot: B[1], left: D[0], right: B[0] };
 }
 
 /** Qué cara pinta en (u,v): 0 izquierda, 1 derecha, 2 base, o null. */
@@ -112,7 +129,7 @@ function render(size) {
           if (sdTile(u, v) > 0) continue;
           tile++;
           const f = sample(g, u, v);
-          const col = f == null ? TILE : FACES[f];
+          const col = f == null ? TILE : paint(f, u, v, g);
           acc[0] += col[0]; acc[1] += col[1]; acc[2] += col[2];
         }
       }
@@ -174,7 +191,7 @@ fs.writeFileSync(path.join(ROOT, '.shots/icons.png'), sheet());
 
 const kb = (f) => (fs.statSync(path.join(OUT, f)).size / 1024).toFixed(1);
 const hex = (c) => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
-console.log(`baldosa ${hex(TILE)} · caras ${FACES.map(hex).join(' ')}`);
+console.log(`baldosa ${hex(TILE)} · escalera ${[HI, MID, LO].map(hex).join(' ')}`);
 console.log(`icon.ico  ${kb('icon.ico')} kB  (${ICO_SIZES.join(', ')})`);
 console.log(`icon.png  ${kb('icon.png')} kB`);
 console.log(`tray.ico  ${kb('tray.ico')} kB  (32, 24, 20, 16)`);
