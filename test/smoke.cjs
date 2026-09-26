@@ -321,9 +321,15 @@ app.whenReady().then(async () => {
   ok('arrastrar el divisor reparte el ancho', await until(async () => T.snapshot().split.ratio < 0.4 && same(tx.view.getBounds(), await paneRect(0))), `ratio ${T.snapshot().split.ratio}`);
   T.setSplitRatio(sx, 0.5);
   await js(`document.getElementById('btn-menu').click()`);
-  ok('un menú congela las dos mitades', await until(() => js(`['freeze', 'freeze-2'].every((id) => document.getElementById(id).classList.contains('is-on'))`)));
+  /* El menú aparece recién DESPUÉS de congelar (layers.js: fotos → vistas
+     afuera → Menu.show). Un Escape mandado apenas se ven las fotos puede
+     llegar antes que el menú: se pierde, el menú se abre igual y queda
+     abierto con la página congelada — y todo lo que sigue falla en cadena.
+     Por eso se espera al menú, no a las fotos. */
+  ok('un menú congela las dos mitades', await until(() => js(`!!document.querySelector('.op-menu') && ['freeze', 'freeze-2'].every((id) => document.getElementById(id).classList.contains('is-on'))`)));
+  ok('y corre las dos vistas', await until(() => tx.view.getBounds().x < 0 && tn.view.getBounds().x < 0));
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
-  ok('y al cerrarlo vuelven las dos', await until(() => tx.view.getBounds().x >= 0 && tn.view.getBounds().x >= 0 && js(`!document.getElementById('freeze-2').classList.contains('is-on')`)));
+  ok('y al cerrarlo vuelven las dos', await until(() => tx.view.getBounds().x >= 0 && tn.view.getBounds().x >= 0 && js(`!document.querySelector('.op-menu') && !document.getElementById('freeze-2').classList.contains('is-on')`)));
   ok('el barrido no duerme la mitad que no es la activa', (await T.sweep(Date.now() + 99 * 60 * 1000), !!tn.view && !!tx.view));
   T.swapSplit(sx);
   ok('intercambiar lados da vuelta el par', T.snapshot().split.a === sn && T.list[T.list.indexOf(tn) + 1] === tx);
