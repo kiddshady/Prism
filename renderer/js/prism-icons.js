@@ -52,9 +52,11 @@ Icons.add({
   splitView: '<rect x="1.6" y="2.8" width="5.6" height="10.4" rx="1.6"/><rect x="8.8" y="2.8" width="5.6" height="10.4" rx="1.6"/>',
   unsplit: '<rect x="2.4" y="2.8" width="11.2" height="10.4" rx="2"/><path d="M8 5.4v5.2" stroke-dasharray="1.2 1.6"/>',
   swap: '<path d="M2.6 5.4h10.4M10.6 3 13 5.4l-2.4 2.4M13.4 10.6H3M5.4 8.2 3 10.6 5.4 13"/>',
-  /* La llave del gestor de contraseñas: en diagonal, el ojo arriba con su
-     agujero y dos dientes (la `key` de Opal es horizontal y genérica). */
-  passKey: '<circle cx="10.9" cy="5.1" r="2.9"/><circle cx="11.5" cy="4.5" r="1" fill="currentColor" stroke="none"/><path d="M8.85 7.15 2.3 13.7M3.5 12.5l1.6 1.6M5.5 10.5l1.4 1.4"/>',
+  /* La llave del gestor de contraseñas, de contorno continuo: el ojo y el eje
+     con su diente son una sola silueta, sin palito (la `key` de Opal es
+     horizontal y de trazos sueltos). Se dibuja acostada, con el ojo a la
+     derecha y el agujero hacia la punta, y rotate(-45) la pone en diagonal. */
+  passKey: '<g transform="rotate(-45 8 8)"><path d="M8.31 6.6H1.9V9.4H3.2V11H5.8V9.4H8.31A3.3 3.3 0 1 0 8.31 6.6Z"/><circle cx="12.3" cy="8" r="1" fill="currentColor" stroke="none"/></g>',
   mail: '<rect x="1.8" y="3.2" width="12.4" height="9.6" rx="1.8"/><path d="M2.2 4.4 8 8.6l5.8-4.2"/>',
   note: '<path d="M13.4 9.4V3.8a1.4 1.4 0 0 0-1.4-1.4H4a1.4 1.4 0 0 0-1.4 1.4v8.4A1.4 1.4 0 0 0 4 13.6h5.6z"/><path d="M13.4 9.4H10.4a1 1 0 0 0-1 1v3.2M5.2 5.8h5.6M5.2 8.2h3"/>',
   wand: '<path d="M2.4 13.6 10.2 5.8M8.9 4.5l2.6 2.6"/><path d="M12.2 1.8v2.4M11 3h2.4M13.8 6.4v1.8M12.9 7.3h1.8M5.8 1.8v1.8M4.9 2.7h1.8"/>',
