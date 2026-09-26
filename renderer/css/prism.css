@@ -150,8 +150,12 @@
 .pr-tab__icon .op-icon { width: 14px; height: 14px; }
 /* El prisma de la pestaña va a 20 px: a 14 quedaba chico al lado de los
    favicons. La caja sigue de 16: el dibujo tiene aire propio dentro del
-   viewBox, así que la tinta no la desborda y el título no se corre. */
-.pr-tab__icon .op-icon:has(.pr-mark__f) { width: 20px; height: 20px; }
+   viewBox, así que la tinta no la desborda y el título no se corre.
+   El margen negativo es lo que lo centra: sin él, la celda de la grilla
+   crece a 20 y el svg se pega arriba a la izquierda (quedaba 2 px corrido
+   hacia abajo y a la derecha de los favicons). Y la tinta del prisma está
+   un pelo baja en su viewBox (centro en y = 8.34), así que sube 0.4 px. */
+.pr-tab__icon .op-icon:has(.pr-mark__f) { width: 20px; height: 20px; margin: -2px; translate: 0 -.4px; }
 .pr-tab.is-error .pr-tab__icon .op-icon { color: var(--op-danger); }
 
 .pr-tab__title {
