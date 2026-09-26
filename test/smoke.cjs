@@ -414,12 +414,45 @@ app.whenReady().then(async () => {
   ok('Escape cierra el panel', await until(() => js(`!document.querySelector('.pr-pass')`)));
   ctx.tabs.close(ctx.tabs.active.id);
 
+  console.log('\n9c. El IPC del cromo no atiende a las páginas');
+  /* Un preload SOLO de prueba le pasa ipcRenderer al mundo de la página: es
+     lo que tendría un renderer comprometido. Los pedidos salen de verdad
+     desde el webContents de una página, no de un evento simulado. */
+  const hostil = path.join(TMP, 'preload-hostil.cjs');
+  fs.writeFileSync(hostil, `const { contextBridge, ipcRenderer } = require('electron');
+    contextBridge.exposeInMainWorld('__ipc', { invoke: (c, ...a) => ipcRenderer.invoke(c, ...a), send: (c, ...a) => ipcRenderer.send(c, ...a) });`);
+  const hostilId = ctx.web.registerPreloadScript({ type: 'frame', filePath: hostil });
+  ctx.tabs.create({ url: `${BASE}/` });
+  ok('carga una página con ipcRenderer a mano', await until(() => ctx.tabs.active.title === 'Inicio de prueba' && !ctx.tabs.active.loading));
+  const hwc = ctx.tabs.active.view.webContents;
+  const desde = (c) => hwc.executeJavaScript(c).catch((e) => ({ rechazado: String(e?.message || e) }));
+  const antesDl = ctx.settings.downloadDir;
+  const r1 = await desde(`__ipc.invoke('settings:save', { downloadDir: 'C:/de-la-pagina', searchEngine: 'bing' })`);
+  ok('settings:save desde una página: "No autorizado."', r1?.ok === false && r1.error === 'No autorizado.', JSON.stringify(r1));
+  ok('y los ajustes no cambian', ctx.settings.downloadDir === antesDl && ctx.settings.searchEngine !== 'bing');
+  const r2 = await desde(`__ipc.invoke('bookmarks:add', { url: 'https://malo.example/', title: 'Malo' })`);
+  ok('bookmarks:add tampoco', r2?.ok === false && !ctx.library.listBookmarks().some((b) => b.url === 'https://malo.example/'), JSON.stringify(r2));
+  const r3 = await desde(`__ipc.invoke('pass:list')`);
+  ok('ni la lista de contraseñas', r3?.ok === false && !r3.data, JSON.stringify(r3));
+  const r4 = await desde(`__ipc.invoke('update:state')`);
+  ok('los canales de main.cjs rechazan', !!r4?.rechazado, JSON.stringify(r4));
+  await desde(`__ipc.send('win:minimize'); __ipc.send('win:toggle-maximize'); true`);
+  await sleep(300);
+  ok('y la ventana no se minimiza ni se maximiza desde una página', !win.isMinimized() && !win.isMaximized());
+  const r5 = await js(`window.prism.settings.get().then(() => 'ok', (e) => e.message)`);
+  ok('el cromo sigue pudiendo', r5 === 'ok', r5);
+
   console.log('\n10. Permisos');
   await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/geo`);
   ok('pregunta antes de dar la ubicación', await until(() => js(`!!document.querySelector('.op-modal .pr-ask')`), 8000));
+  // La página intenta contestarse sola que sí (a cualquier id de pregunta).
+  await desde(`for (let i = 1; i <= 40; i++) __ipc.send('prompt:answer', i, { allow: true, remember: true }); true`);
+  await sleep(300);
+  ok('una página no puede contestarse el permiso', !ctx.settings.permissions?.[BASE]?.geolocation && await js(`!!document.querySelector('.op-modal .pr-ask')`));
   await js(`[...document.querySelectorAll('.op-modal__foot .op-btn')].find(b => b.textContent.includes('Bloquear')).click()`);
   ok('y recuerda el "no"', await until(() => ctx.settings.permissions?.[BASE]?.geolocation === 'deny'));
   ok('el velo se va', await until(() => js(`!document.querySelector('.op-scrim')`)));
+  ctx.web.unregisterPreloadScript(hostilId);
 
   console.log('\n11. Páginas propias');
   for (const p of ['historial', 'favoritos', 'descargas', 'ajustes']) {

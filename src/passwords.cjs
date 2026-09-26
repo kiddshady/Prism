@@ -25,6 +25,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const store = require('./store.cjs');
 const V = require('./vault.cjs');
+const { fromChrome } = require('./ipc.cjs');
 
 /** Cuánto vive una contraseña copiada en el portapapeles. */
 const CLIPBOARD_MS = 45 * 1000;
@@ -129,7 +130,7 @@ function createPasswords(ctx) {
 
   function chrome(channel, fn) {
     ipcMain.handle(channel, async (e, ...args) => {
-      if (!ctx.win || e.sender !== ctx.win.webContents) return { ok: false, error: 'No autorizado.' };
+      if (!fromChrome(ctx, e)) return { ok: false, error: 'No autorizado.' };
       try {
         return { ok: true, data: await fn(...args) };
       } catch (err) {

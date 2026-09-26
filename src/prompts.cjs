@@ -9,6 +9,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { ipcMain } = require('electron');
+const { fromChrome } = require('./ipc.cjs');
 
 function createPrompts(ctx) {
   let seq = 0;
@@ -22,7 +23,10 @@ function createPrompts(ctx) {
     });
   }
 
-  ipcMain.on('prompt:answer', (_e, id, answer) => {
+  /* Solo contesta la ventana. Si una página pudiera mandar esto, un renderer
+     comprometido se concedería la cámara a sí mismo. */
+  ipcMain.on('prompt:answer', (e, id, answer) => {
+    if (!fromChrome(ctx, e)) return;
     const p = pending.get(Number(id));
     if (!p) return;
     pending.delete(Number(id));

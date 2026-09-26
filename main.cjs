@@ -365,23 +365,30 @@ function createTray() {
   tray.on('click', showMain);
 }
 
-/* ── Controles de ventana ────────────────────────────────────────────────── */
-ipcMain.on('win:minimize', () => ctx.win?.minimize());
-ipcMain.on('win:toggle-maximize', () => {
+/* ── Controles de ventana ──────────────────────────────────────────────────
+   Como en src/ipc.cjs: solo la ventana de Prism manda esto, nunca una página. */
+const chromeOn = (channel, fn) => ipcMain.on(channel, (e, ...args) => { if (ipc.fromChrome(ctx, e)) fn(...args); });
+const chromeHandle = (channel, fn) => ipcMain.handle(channel, (e, ...args) => {
+  if (!ipc.fromChrome(ctx, e)) throw new Error('No autorizado.');
+  return fn(...args);
+});
+
+chromeOn('win:minimize', () => ctx.win?.minimize());
+chromeOn('win:toggle-maximize', () => {
   const win = ctx.win;
   if (!win) return;
   if (win.isFullScreen()) win.setFullScreen(false);
   else win.isMaximized() ? win.unmaximize() : win.maximize();
 });
-ipcMain.on('win:close', () => ctx.win?.close());
-ipcMain.on('app:quit', () => quit());
+chromeOn('win:close', () => ctx.win?.close());
+chromeOn('app:quit', () => quit());
 
-ipcMain.handle('update:state', () => updater.get());
-ipcMain.handle('update:check', () => updater.check({ manual: true }));
-ipcMain.handle('update:download', () => updater.download());
-ipcMain.handle('update:install', () => updater.install(() => { quitting = true; }));
-ipcMain.handle('win:is-maximized', () => !!ctx.win?.isMaximized());
-ipcMain.on('win:set-bg', (_e, hex) => {
+chromeHandle('update:state', () => updater.get());
+chromeHandle('update:check', () => updater.check({ manual: true }));
+chromeHandle('update:download', () => updater.download());
+chromeHandle('update:install', () => updater.install(() => { quitting = true; }));
+chromeHandle('win:is-maximized', () => !!ctx.win?.isMaximized());
+chromeOn('win:set-bg', (hex) => {
   if (ctx.win && !ctx.win.isDestroyed() && /^#[0-9a-f]{6}$/i.test(String(hex))) ctx.win.setBackgroundColor(hex);
 });
 
