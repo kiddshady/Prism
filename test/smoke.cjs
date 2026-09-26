@@ -29,6 +29,8 @@ fs.writeFileSync(path.join(process.env.PRISM_DATA, 'settings.json'), JSON.string
 }));
 
 const { app } = require('electron');
+// Cámara y micrófono de mentira de Chromium: la videollamada se prueba sin tocar los de verdad.
+app.commandLine.appendSwitch('use-fake-device-for-media-stream');
 const { ctx } = require(path.join(__dirname, '..', 'main.cjs'));
 
 let pass = 0; let fail = 0;
@@ -63,6 +65,20 @@ const PAGES = {
   '/login': '<title>Login</title><body><form action="/bienvenida" method="post"><input id="u" name="usuario" autocomplete="username"><input id="p" type="password" name="clave"><button id="b">Entrar</button></form></body>',
   '/bienvenida': '<title>Bienvenida</title><body><h1>Adentro</h1></body>',
   '/geo': '<title>Geo</title><body><script>navigator.geolocation.getCurrentPosition(()=>{},()=>{})</script></body>',
+  /* Lo que hace una videollamada al entrar: mira el permiso, pide cámara y
+     micrófono, y lista los dispositivos. */
+  '/llamada': `<title>Llamada</title><body><script>
+    const q = async (name) => (await navigator.permissions.query({ name })).state;
+    const nombres = async () => (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind !== 'audiooutput').every((d) => d.label);
+    (async () => {
+      const r = { antes: await q('camera'), noti: Notification.permission };
+      try { r.pistas = (await navigator.mediaDevices.getUserMedia({ video: true, audio: true })).getTracks().map((t) => t.kind + ':' + t.readyState).sort().join(); }
+      catch (e) { r.pistas = e.name; }
+      r.despues = await q('camera');
+      r.nombres = await nombres();
+      window.__r = r;
+    })();
+  </script></body>`,
   /* Sonido de verdad para que Chromium marque la pestaña como audible, pero sin
      que se escuche: 30 Hz (debajo de lo que reproduce un parlante común) con
      ganancia 0,001 (-60 dB, arriba del umbral de silencio de Chromium). */
@@ -477,6 +493,39 @@ app.whenReady().then(async () => {
   ok('y recuerda el "no"', await until(() => ctx.settings.permissions?.[BASE]?.geolocation === 'deny'));
   ok('el velo se va', await until(() => js(`!document.querySelector('.op-scrim')`)));
   ctx.web.unregisterPreloadScript(hostilId);
+
+  console.log('\n10b. Videollamadas: cámara y micrófono (falsos)');
+  const llamada = `${BASE}/llamada`;
+  const resultado = async () => { await until(() => ctx.tabs.active.view.webContents.executeJavaScript('!!window.__r'), 8000); return ctx.tabs.active.view.webContents.executeJavaScript('window.__r'); };
+  const pregunta = () => until(() => js(`!!document.querySelector('.op-modal .pr-ask')`), 8000);
+  const contestar = async (boton, recordar) => {
+    if (!recordar) await js(`document.getElementById('p-remember').click()`);
+    await js(`[...document.querySelectorAll('.op-modal__foot .op-btn')].find(b => b.textContent.includes('${boton}')).click()`);
+    await until(() => js(`!document.querySelector('.op-scrim')`));
+  };
+  await ctx.tabs.navigate(ctx.tabs.active.id, llamada);
+  ok('pregunta por la cámara y el micrófono', await pregunta());
+  await contestar('Permitir', false);
+  let r = await resultado();
+  ok('antes de decidir, el sitio lee "prompt" y no "denied"', r.antes === 'prompt' && r.noti === 'default', JSON.stringify(r));
+  ok('permitir da video y audio en vivo', r.pistas === 'audio:live,video:live', JSON.stringify(r));
+  ok('y el sitio ya lee "granted", con los dispositivos por su nombre', r.despues === 'granted' && r.nombres, JSON.stringify(r));
+  ok('sin "Recordar" no se guarda nada', !ctx.settings.permissions?.[BASE]?.camera && !ctx.settings.permissions?.[BASE]?.microphone);
+  ctx.tabs.active.view.webContents.reload();
+  r = await resultado();
+  ok('recargar el mismo sitio no vuelve a preguntar', r.antes === 'granted' && r.pistas === 'audio:live,video:live' && !(await js(`!!document.querySelector('.op-modal .pr-ask')`)), JSON.stringify(r));
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE.replace('127.0.0.1', 'localhost')}/dos`);
+  await until(() => ctx.tabs.active.title === 'Página dos');
+  await ctx.tabs.navigate(ctx.tabs.active.id, llamada);
+  ok('irse a otro sitio y volver: pregunta de nuevo', await pregunta());
+  await contestar('Bloquear', true);
+  r = await resultado();
+  ok('bloquear recordando: el sitio lee "denied" y no recibe nada', r.despues === 'denied' && r.pistas === 'NotAllowedError' && ctx.settings.permissions?.[BASE]?.camera === 'deny', JSON.stringify(r));
+  await js(`window.prism.permissions.revoke('${BASE}', 'camera').then(() => window.prism.permissions.revoke('${BASE}', 'microphone'))`);
+  ok('"Olvidar" borra el bloqueo', await until(() => !ctx.settings.permissions?.[BASE]?.camera && !ctx.settings.permissions?.[BASE]?.microphone));
+  ctx.tabs.active.view.webContents.reload();
+  ok('y el sitio vuelve a preguntar', await pregunta());
+  await contestar('Bloquear', false);
 
   console.log('\n11. Páginas propias');
   for (const p of ['historial', 'favoritos', 'descargas', 'ajustes']) {

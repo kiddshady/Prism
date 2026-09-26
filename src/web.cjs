@@ -15,7 +15,7 @@
    Todo lo sensible pasa por una pregunta propia, y la respuesta se recuerda.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { session, desktopCapturer } = require('electron');
+const { session, desktopCapturer, ipcMain } = require('electron');
 const path = require('path');
 const omni = require('./omni.cjs');
 
@@ -87,6 +87,36 @@ function createWeb(ctx) {
     await ctx.saveSettings({ permissions: all });
   }
 
+  /* "Permitir" sin "Recordar" vale mientras esa pestaña siga en ese sitio:
+     una videollamada pide la cámara varias veces (al entrar, al cambiar de
+     dispositivo) y preguntar en cada una sería insoportable. Se olvida al
+     irse a otro sitio o al cerrar la pestaña. */
+  const once = new Map();     // wcId → { origin, keys: Set }
+  function grantOnce(wc, origin, keys) {
+    if (!wc || wc.isDestroyed()) return;
+    const g = once.get(wc.id);
+    if (g && g.origin === origin) { keys.forEach((k) => g.keys.add(k)); return; }
+    const fresh = !g;
+    once.set(wc.id, { origin, keys: new Set(keys) });
+    if (!fresh) return;
+    wc.on('did-navigate', (_e, url) => { if (omni.originOf(url) !== once.get(wc.id)?.origin) once.delete(wc.id); });
+    wc.once('destroyed', () => once.delete(wc.id));
+  }
+  const grantedOnce = (wc, origin, key) => {
+    const g = wc && once.get(wc.id);
+    return !!g && g.origin === origin && g.keys.has(key);
+  };
+  /** Olvidar un sitio (Ajustes, el panel del sitio) también olvida lo de esta visita. */
+  ctx.forgetOnce = (origin) => { for (const [id, g] of once) if (g.origin === origin) once.delete(id); };
+
+  /** 'granted' · 'denied' · 'prompt', como lo diría Chrome. */
+  function stateOf(wc, origin, key) {
+    const d = decided(origin, key);
+    if (d === 'allow' || grantedOnce(wc, origin, key)) return 'granted';
+    if (d === 'deny') return 'denied';
+    return 'prompt';
+  }
+
   web.setPermissionRequestHandler((wc, permission, callback, details) => {
     if (ALLOW.has(permission)) return callback(true);
     const origin = omni.originOf(details?.requestingUrl || wc?.getURL?.());
@@ -96,31 +126,49 @@ function createWeb(ctx) {
     if (!keys.length || keys.some((k) => !ASK[k])) return callback(false);
 
     // Si ya hay respuesta para todo lo pedido, no se vuelve a preguntar.
-    const prev = keys.map((k) => decided(origin, k));
-    if (prev.every((v) => v === 'allow')) return callback(true);
-    if (prev.some((v) => v === 'deny')) return callback(false);
+    const prev = keys.map((k) => stateOf(wc, origin, k));
+    if (prev.every((v) => v === 'granted')) return callback(true);
+    if (prev.some((v) => v === 'denied')) return callback(false);
 
     const label = keys.length === 2 ? ASK['camera+microphone'] : ASK[keys[0]];
     ctx.prompts.permission({ origin, what: label, keys, wcId: wc?.id })
       .then(async ({ allow, remember: keep }) => {
         if (keep) await remember(origin, keys, allow ? 'allow' : 'deny');
+        else if (allow) grantOnce(wc, origin, keys);
         callback(!!allow);
       })
       .catch(() => callback(false));
   });
 
   /* El chequeo sincrónico (enumerateDevices, Notification.permission…): solo
-     dice que sí a lo que la persona ya concedió explícitamente. */
-  web.setPermissionCheckHandler((_wc, permission, requestingOrigin, details) => {
+     dice que sí a lo que la persona concedió, guardado o por esta visita. */
+  web.setPermissionCheckHandler((wc, permission, requestingOrigin, details) => {
     if (ALLOW.has(permission)) return true;
     const origin = omni.originOf(requestingOrigin || details?.requestingUrl);
     if (!origin) return false;
     if (permission === 'media') {
       const k = details?.mediaType === 'video' ? 'camera' : details?.mediaType === 'audio' ? 'microphone' : null;
-      return !!k && decided(origin, k) === 'allow';
+      return !!k && stateOf(wc, origin, k) === 'granted';
     }
-    return decided(origin, permission) === 'allow';
+    return stateOf(wc, origin, permission) === 'granted';
   });
+
+  /* Electron solo sabe decir sí o no: lo que no se preguntó todavía le llega
+     a la página como "denied", y una videollamada que lee "denied" muestra
+     "tu navegador bloqueó la cámara" y ni la pide (lo mismo las
+     notificaciones: un sitio que las ve bloqueadas no las ofrece).
+     src/permissions-preload.cjs corrige lo que lee la página con el estado
+     de verdad, que sale de acá: del documento que pregunta, nunca de otro. */
+  const QUERYABLE = ['camera', 'microphone', 'geolocation', 'notifications'];
+  const statesFor = (e) => {
+    const wc = e.sender;
+    if (!wc || wc.session !== web || e.senderFrame?.parent) return null;
+    const origin = omni.originOf(e.senderFrame?.url);
+    return origin ? Object.fromEntries(QUERYABLE.map((k) => [k, stateOf(wc, origin, k)])) : null;
+  };
+  ipcMain.on('perm:states', (e) => { e.returnValue = statesFor(e); });
+  ipcMain.handle('perm:state', (e, name) => (QUERYABLE.includes(name) ? statesFor(e)?.[name] ?? null : null));
+  web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'permissions-preload.cjs') });
 
   /* ── Compartir pantalla ────────────────────────────────────────────────────
      Sin este manejador, getDisplayMedia falla directo: Meet dice que no se

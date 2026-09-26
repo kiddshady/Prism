@@ -182,6 +182,7 @@ function register(ctx) {
   handle(ctx, 'permissions:revoke', async (origin, key) => {
     const all = { ...(ctx.settings.permissions || {}) };
     const o = str(origin, 400);
+    ctx.forgetOnce?.(o);
     if (!all[o]) return false;
     if (key) { all[o] = { ...all[o] }; delete all[o][str(key, 60)]; if (!Object.keys(all[o]).length) delete all[o]; } else delete all[o];
     await ctx.saveSettings({ permissions: all });
