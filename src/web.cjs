@@ -15,9 +15,23 @@
    Todo lo sensible pasa por una pregunta propia, y la respuesta se recuerda.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { session, desktopCapturer } = require('electron');
+const { session, desktopCapturer, ipcMain } = require('electron');
 const path = require('path');
 const omni = require('./omni.cjs');
+
+/** Donde Prism se presenta como Firefox (ver "Entrar con Google"). La misma
+    lista vive en src/login-preload.cjs. PRISM_LOGIN_HOSTS suma hosts para el humo. */
+const LOGIN_HOSTS = ['accounts.google.com', ...String(process.env.PRISM_LOGIN_HOSTS || '').split(',').filter(Boolean)];
+
+/* La versión de Firefox sale de la fecha: sale una cada cuatro semanas desde
+   la 128 (9 jul 2024). Una de atrás de la última, que es lo que más hay en la
+   calle; un número fijo envejecería y "navegador desactualizado" también
+   hace que Google corte. */
+function firefoxVersion(now = Date.now()) {
+  const since = (now - Date.UTC(2024, 6, 9)) / (28 * 86400000);
+  return Math.max(128, 128 + Math.floor(since) - 1);
+}
+const FIREFOX_UA = `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:${firefoxVersion()}.0) Gecko/20100101 Firefox/${firefoxVersion()}.0`;
 
 /* Lo que se concede sin preguntar: no expone nada de la persona. */
 const ALLOW = new Set(['fullscreen', 'clipboard-sanitized-write', 'pointerLock', 'keyboardLock', 'speaker-selection']);
@@ -58,6 +72,34 @@ function createWeb(ctx) {
      identifican como Electron. Se presenta como el Chromium que es. */
   const ua = web.getUserAgent().replace(/\s(Electron|prism|Prism)\/\S+/g, '');
   web.setUserAgent(ua);
+
+  /* ── Entrar con Google ─────────────────────────────────────────────────────
+     Google corta el login desde navegadores "embebidos" ("No puedes acceder:
+     es posible que este navegador no sea seguro"): no distingue a Prism de un
+     Chromium metido en el medio para robar sesiones. Y Prism se delata solo:
+     dice Chrome en el user agent pero sus client hints dicen "Chromium" a
+     secas, y window.chrome está vacío.
+
+     En las páginas de login de Google, Prism se presenta como Firefox, que
+     Google no bloquea — y entero, para que no haya contradicciones: la
+     cabecera (acá), sin client hints (Firefox no las manda), y `navigator`
+     sin userAgentData ni window.chrome (src/login-preload.cjs, antes de que
+     corra el script de la página). La sesión queda en las cookies: afuera de
+     esas páginas, Prism vuelve a ser el Chromium que es. */
+  const loginPattern = LOGIN_HOSTS.map((h) => `*://${h}/*`);
+  web.webRequest.onBeforeSendHeaders({ urls: loginPattern }, (details, callback) => {
+    const headers = { ...details.requestHeaders };
+    for (const k of Object.keys(headers)) {
+      if (/^user-agent$/i.test(k) || /^sec-ch-ua/i.test(k)) delete headers[k];
+    }
+    headers['User-Agent'] = FIREFOX_UA;
+    callback({ requestHeaders: headers });
+  });
+  ipcMain.on('login:disguise', (e) => {
+    const host = (() => { try { return new URL(e.senderFrame?.url || '').hostname; } catch { return ''; } })();
+    e.returnValue = e.sender.session === web && LOGIN_HOSTS.includes(host) ? FIREFOX_UA : null;
+  });
+  web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'login-preload.cjs') });
 
   /* ── Ortografía en castellano (y en inglés) ────────────────────────────── */
   const avail = new Set(web.availableSpellCheckerLanguages || []);
@@ -160,4 +202,4 @@ function createWeb(ctx) {
   return { session: web, userAgent: ua, setPageScrollbars };
 }
 
-module.exports = { createWeb, ASK, ALLOW };
+module.exports = { createWeb, ASK, ALLOW, LOGIN_HOSTS, FIREFOX_UA, firefoxVersion };
