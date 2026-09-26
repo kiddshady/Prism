@@ -571,6 +571,24 @@ app.whenReady().then(async () => {
   ok('y un clic solo lo da vuelta', !!ctx.settings.askDownload === !antesAsk && await until(async () => (await js(`${sw}.classList.contains('is-on')`)) === !antesAsk, 3000));
   await ctx.saveSettings({ askDownload: antesAsk });
 
+  /* Cambiar de página propia: la que se va se desvanece (antes un estilo en
+     línea le apagaba la animación y quedaba entera encima de la nueva), y la
+     nueva espera su turno. */
+  ok('Ajustes ya se asentó', await until(() => js(`!!document.querySelector('#internal .pr-view[data-page="ajustes"].is-settled')`)));
+  const relevo = await js(`new Promise((res) => {
+    const t0 = performance.now();
+    const tick = () => {
+      const c = document.querySelector('#internal .pr-view[data-state="closing"]');
+      if (c) return res({ sale: getComputedStyle(c).animationName, llega: !!document.querySelector('#internal .pr-view.is-after:not([data-state])') });
+      if (performance.now() - t0 > 2000) return res(null);
+      requestAnimationFrame(tick);
+    };
+    window.prism.tabs.navigate(null, 'prism://historial');
+    requestAnimationFrame(tick);
+  })`);
+  ok('al cambiar de página, la vieja se desvanece', relevo?.sale === 'op-fade-out', JSON.stringify(relevo));
+  ok('y la nueva espera a que se vaya', relevo?.llega === true, JSON.stringify(relevo));
+
   console.log('\n12. Bandeja e instancia única');
   win.close();
   ok('cerrar esconde la ventana en vez de salir', await until(() => !win.isDestroyed() && !win.isVisible()));

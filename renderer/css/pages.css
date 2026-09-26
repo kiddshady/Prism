@@ -13,7 +13,11 @@
   flex-direction: column;
   animation: op-rise-in var(--op-t-4) var(--op-ease) both;
 }
-.pr-view[data-state='closing'] { animation: op-fade-out 120ms var(--op-ease-in) both; }
+/* La que llega después de otra espera a que la vieja casi no se vea. */
+.pr-view.is-after { animation-delay: 90ms; }
+.pr-view.is-settled { animation: none; }
+/* Después de is-settled, con la misma especificidad: salir siempre gana. */
+.pr-view[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
 
 /* Una página de lectura: columna centrada, con el scroll de la hoja entera. */
 .pr-view__scroll {

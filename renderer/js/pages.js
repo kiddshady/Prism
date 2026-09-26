@@ -53,12 +53,18 @@ function mount(html, name) {
   Icons.mount(el);
   wireFallbacks(el);
   const old = host().querySelectorAll('.pr-view:not([data-state="closing"])');
-  old.forEach((o) => exit(o, { fallback: 160 }));
+  old.forEach((o) => exit(o, { fallback: 240 }));
+  /* Si hay una que se va, la nueva espera a que casi no se vea: sale y
+     después entra. Entrando las dos a la vez quedaban encimadas. */
+  if (old.length) el.classList.add('is-after');
   host().appendChild(el);
   el.querySelectorAll('.op-scroll').forEach(scrollFade);
   /* La animación de entrada se saca al terminar (lección de Opal): una
-     opacidad retenida deja al contenedor como frontera de backdrop. */
-  setTimeout(() => { el.style.animation = 'none'; }, 520);
+     opacidad retenida deja al contenedor como frontera de backdrop. Con una
+     clase y no con style.animation: un estilo en línea le ganaba a la regla
+     de salida, y la página vieja no se desvanecía — quedaba entera encima
+     de la nueva hasta desaparecer de golpe. */
+  setTimeout(() => el.classList.add('is-settled'), 620);
   return el;
 }
 
