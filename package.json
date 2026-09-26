@@ -1,7 +1,7 @@
 {
   "name": "prism",
   "productName": "Prism",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Navegador de escritorio sobre Chromium, con el cromo de vidrio de Opal: pestañas, bloqueador, historial, favoritos y descargas.",
   "main": "main.cjs",
   "author": "Kidd Shady",
