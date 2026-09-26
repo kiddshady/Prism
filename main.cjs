@@ -33,6 +33,7 @@ const { createAdblock } = require('./src/adblock.cjs');
 const { createDownloads } = require('./src/downloads.cjs');
 const { createPrompts } = require('./src/prompts.cjs');
 const { createPasswords } = require('./src/passwords.cjs');
+const { createCerts } = require('./src/certs.cjs');
 const updater = require('./src/updater.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
@@ -108,6 +109,7 @@ const ctx = {
   adblock: null,
   prompts: null,
   passwords: null,
+  certs: null,
 
   send(channel, payload) {
     const w = ctx.win;
@@ -431,6 +433,7 @@ app.whenReady().then(async () => {
   ctx.downloads = createDownloads(ctx, { doc: store.doc('downloads', null) });
   ctx.downloads.attach(session);
   ctx.passwords = createPasswords(ctx);
+  ctx.certs = createCerts(ctx);
 
   await Promise.all([
     ctx.library.load().catch((err) => console.error('[library]', err.message)),

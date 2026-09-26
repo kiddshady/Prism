@@ -82,6 +82,9 @@ const DEFAULT_SETTINGS = {
   passNever: [],
   /** Decisiones de permisos: origen → { permiso: 'allow' | 'deny' }. */
   permissions: {},
+  /** Certificados inválidos en los que se confió, solo de la red local
+      (ver certs.cjs): [{ host, fp: huella SHA-256, at }]. */
+  certAllow: [],
 };
 
 /** Migraciones: cada función lleva el archivo de la versión N a la N+1.

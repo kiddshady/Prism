@@ -151,6 +151,11 @@ contextBridge.exposeInMainWorld('prism', {
     revoke: (origin, key) => call('permissions:revoke', origin, key),
   },
 
+  certs: {
+    allow: (tabId) => call('certs:allow', tabId),
+    forget: (host) => call('certs:forget', host),
+  },
+
   data: {
     clear: (what) => call('data:clear', what),
     chooseFolder: (current) => call('dialog:folder', current),

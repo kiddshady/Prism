@@ -191,6 +191,18 @@ function register(ctx) {
   });
   handle(ctx, 'adblock:stats', () => ({ ready: ctx.adblock.ready, total: ctx.adblock.total }));
 
+  /* Certificados de la red local (certs.cjs). Aceptar es aceptar el que se
+     rechazó en ESA pestaña: la ventana no manda huellas, solo dice cuál. */
+  handle(ctx, 'certs:allow', async (id) => {
+    const t = T().list.find((x) => x.id === num(id));
+    if (!t?.view || !t.error) throw new Error('Esa pestaña no tiene un certificado para aceptar.');
+    const url = t.error.url || t.url;
+    const host = await ctx.certs.allow(t.view.webContents.id, url);
+    T().navigate(t.id, url);
+    return host;
+  });
+  handle(ctx, 'certs:forget', (host) => ctx.certs.forget(str(host, 300)));
+
   handle(ctx, 'permissions:revoke', async (origin, key) => {
     const o = str(origin, 400);
     ctx.forgetOnce?.(o);

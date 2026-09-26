@@ -140,15 +140,23 @@ function errorInfo(code) {
 
 function errorPage(t) {
   const info = errorInfo(t.error.code);
+  /* Un certificado inválido en la red de casa (router, NAS, impresora) es lo
+     normal: se lo fabricaron ellos. Solo ahí se puede confiar en él; en
+     internet la página sigue sin salida (certs.cjs). */
+  const local = t.error.cert?.local;
+  const text = local
+    ? `${t.error.cert.host} es una dirección de tu red. Los routers, los NAS y las impresoras suelen usar un certificado que se fabricaron ellos mismos, y Chromium no lo puede verificar. Si es un aparato tuyo, podés confiar en este certificado: Prism lo recuerda, y si alguna vez cambia vuelve a preguntar.`
+    : info.text;
   const el = mount(`
     <div class="pr-notice"><div class="pr-notice__box${info.failed ? ' is-failed' : ''}">
       ${Icons.svg(info.icon, 'pr-notice__icon')}
       <div class="pr-notice__title">${esc(info.title)}</div>
-      <div class="pr-notice__text">${esc(info.text)}</div>
+      <div class="pr-notice__text">${esc(text)}</div>
       <div class="pr-notice__url">${esc(t.error.url || t.url)}</div>
       <span class="pr-notice__code">${esc(t.error.desc || 'ERROR')} · ${t.error.code}</span>
       <div class="pr-notice__actions">
         <button class="op-btn op-btn--primary op-flashable" data-a="retry"><i data-icon="reload"></i> Reintentar</button>
+        ${local ? '<button class="op-btn op-btn--secondary" data-a="trust"><i data-icon="shieldCheck"></i> Confiar en este certificado</button>' : ''}
         ${t.canGoBack ? '<button class="op-btn op-btn--ghost" data-a="back"><i data-icon="arrowLeft"></i> Volver</button>' : ''}
       </div>
     </div></div>`, 'error');
@@ -156,6 +164,7 @@ function errorPage(t) {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'retry') api.nav.reload();
     if (a === 'back') api.nav.back();
+    if (a === 'trust') api.certs.allow(t.id).catch((err) => console.error('[certs]', err?.message || err));
   });
   return { name: 'error', el };
 }
@@ -685,6 +694,12 @@ function settingsPage() {
             <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(origin.replace(/^https:\/\//, ''))}</div>
               <div class="pr-opt__hint">${Object.entries(map).map(([k, v]) => `${esc(PERM_NAMES[k] || k)}: ${v === 'allow' ? 'permitido' : 'bloqueado'}`).join(' · ')}</div></div>
             <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-forget="${esc(origin)}">Olvidar</button></div></div>`).join('')}
+        ${(s.certAllow || []).length ? `<div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Certificados de tu red</div>
+          <div class="pr-opt__hint">Aparatos de tu red (el router, un NAS) cuyo certificado aceptaste. Si el certificado cambia, Prism vuelve a preguntar. Olvidarlo hace que el sitio vuelva a dar error.</div></div></div>` : ''}
+        ${(s.certAllow || []).map((c) => `<div class="pr-opt" style="min-height:44px">
+            <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(c.host)}</div>
+              <div class="pr-opt__hint">Aceptado el ${esc(new Date(c.at || Date.now()).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' }))}</div></div>
+            <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-uncert="${esc(c.host)}">Olvidar</button></div></div>`).join('')}
       </section>
 
       <section class="pr-set" style="--i:7">
@@ -760,6 +775,8 @@ function settingsPage() {
     }
     const fg = e.target.closest('[data-forget]');
     if (fg) { await api.permissions.revoke(fg.dataset.forget); S.settings = await api.settings.get(); return paint(); }
+    const uc = e.target.closest('[data-uncert]');
+    if (uc) { await api.certs.forget(uc.dataset.uncert); S.settings = await api.settings.get(); return paint(); }
     const id = e.target.closest('button')?.id;
     if (id === 's-update') {
       const p = S.update?.phase;

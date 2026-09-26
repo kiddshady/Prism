@@ -123,6 +123,9 @@ function createTabs(ctx) {
       loading: t.loading,
       internal: t.internal,
       error: t.error,
+      // Abierta confiando en un certificado que Chromium no valida: la barra
+      // no puede mostrarle el candado de "conexión segura".
+      certAccepted: !t.internal && !t.error && !!t.certAccepted,
       crashed: t.crashed,
       audible: t.audible,
       muted: t.muted,
@@ -320,6 +323,10 @@ function createTabs(ctx) {
       t.title = title && title !== url ? title : '';
       t.error = null;
       t.crashed = false;
+      /* Se decide al abrir la página y queda fijo hasta la próxima: olvidar el
+         certificado desde Ajustes no puede pasar esta página abierta a
+         "conexión segura". */
+      t.certAccepted = !!ctx.certs?.acceptedFor(url);
       t.blocked = t.pendingBlocked || 0;
       t.pendingBlocked = 0;
       t.navPending = false;
@@ -365,6 +372,9 @@ function createTabs(ctx) {
       t.navPending = false;
       if (code === -3) return;
       t.error = { code, desc, url };
+      // Un certificado inválido: la página de error ofrece confiar en él si es
+      // de la red local (certs.cjs decide).
+      if (code <= -200 && code > -300) t.error.cert = ctx.certs?.rejectedFor(wc.id, url) || null;
       t.url = url || t.url;
       t.loading = false;
       // Lo que quedaba de la página anterior (título, ícono, bloqueados) ya no

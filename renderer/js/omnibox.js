@@ -57,6 +57,9 @@ function paintSite(t) {
   if (!t || t.internal === 'nueva') key = 'search';
   else if (t.internal) { key = 'prism'; tip = 'Página de Prism'; }
   else if (t.error || t.crashed) { key = 'alert'; tip = 'No se pudo cargar'; }
+  // https, pero con un certificado que Chromium no valida y que la persona
+  // aceptó (certs.cjs): nada de candado de "conexión segura".
+  else if (t.certAccepted) { key = 'alert'; tip = 'Certificado no verificado: confiaste en él para este sitio'; }
   else {
     const kind = splitUrl(t.url).kind;
     if (kind === 'https') { key = 'lock'; tip = 'Conexión segura'; }
