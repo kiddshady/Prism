@@ -154,7 +154,12 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
       el.addEventListener('pointerdown', (e) => e.preventDefault());
       el.addEventListener('click', (e) => {
         const b = e.target.closest('.pr-sugg');
-        if (b) go(Number(b.dataset.i), { newTab: e.ctrlKey || e.button === 1 });
+        if (b) go(Number(b.dataset.i), { newTab: e.ctrlKey });
+      });
+      // El click del medio no llega como `click` sino como `auxclick`: abre en una pestaña nueva.
+      el.addEventListener('auxclick', (e) => {
+        const b = e.target.closest('.pr-sugg');
+        if (b && e.button === 1) { e.preventDefault(); go(Number(b.dataset.i), { newTab: true }); }
       });
       el.addEventListener('pointermove', (e) => {
         const b = e.target.closest('.pr-sugg');

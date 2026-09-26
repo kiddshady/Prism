@@ -167,6 +167,8 @@ function createDownloads(ctx, { doc }) {
       list = list.filter((x) => x !== d);
       ctx.web.downloadURL(d.url);
       emit(true);
+      // La fila vieja se va también del disco: si no, volvía al reiniciar.
+      save();
       return true;
     },
     remove(id) {

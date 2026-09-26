@@ -14,10 +14,10 @@
 import { api, S, on, activeTab } from './state.js';
 import { Icons } from './icons.js';
 import { exit, scrollFade, bindSwitcher, raf2 } from './motion.js';
-import { esc, copy } from './ui.js';
+import { esc } from './ui.js';
 import { fmtBytes, fmtDur, relTime, plural, locale } from './format.js';
 import { menu, modal, confirm } from './layers.js';
-import { Toast } from './overlays.js';
+import { say } from './status.js';
 import { attachSuggest } from './suggest.js';
 import { openPanel as openPasswords } from './passwords.js';
 
@@ -43,6 +43,17 @@ function wireFallbacks(root) {
   root.querySelectorAll('img[data-fallback]').forEach((img) => {
     img.addEventListener('error', () => { img.outerHTML = Icons.svg(img.dataset.fallback); }, { once: true });
   });
+}
+
+/* Los avisos de Prism van en la statusbar, no en un toast: con la vista
+   dividida, un toast cae sobre la mitad que es una página y queda tapado. */
+async function copyUrl(url) {
+  try {
+    await navigator.clipboard.writeText(String(url));
+    say('Dirección copiada', { icon: 'copy' });
+  } catch (err) {
+    say(`No se pudo copiar: ${err.message}`, { icon: 'alert', tone: 'error' });
+  }
 }
 
 function mount(html, name) {
@@ -267,7 +278,7 @@ function tileMenu(anchor, tile) {
   const { url, id, kind } = tile.dataset;
   menu(anchor, [
     { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: () => api.tabs.create(url, { active: false }) },
-    { label: 'Copiar la dirección', icon: 'link', onSelect: () => copy(url, { label: 'Dirección copiada' }) },
+    { label: 'Copiar la dirección', icon: 'link', onSelect: () => copyUrl(url) },
     ...(kind === 'bookmark' ? [
       { sep: true },
       { label: 'Editar', icon: 'edit', onSelect: () => editBookmark(id) },
@@ -381,7 +392,7 @@ function historyPage(t) {
       const url = row.dataset.url;
       menu(more, [
         { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: () => api.tabs.create(url, { active: false }) },
-        { label: 'Copiar la dirección', icon: 'link', onSelect: () => copy(url, { label: 'Dirección copiada' }) },
+        { label: 'Copiar la dirección', icon: 'link', onSelect: () => copyUrl(url) },
         { label: 'Más de este sitio', icon: 'filter', onSelect: () => { q.value = hostOf(url); query = q.value; load(true); } },
         { sep: true },
         { label: 'Borrar del historial', icon: 'trash', danger: true, onSelect: () => removeRow(row) },
@@ -422,7 +433,8 @@ async function editBookmark(id) {
     actions: [{ label: 'Cancelar', value: false }, { label: 'Guardar', value: true, variant: 'primary', autofocus: true }],
   });
   if (!ok) return;
-  await api.bookmarks.update(id, { title: body.querySelector('#b-title').value, url: body.querySelector('#b-url').value });
+  await api.bookmarks.update(id, { title: body.querySelector('#b-title').value, url: body.querySelector('#b-url').value })
+    .catch((err) => say(err.message, { icon: 'alert', tone: 'error' }));
 }
 
 function bookmarksPage(t) {
@@ -477,7 +489,7 @@ function bookmarksPage(t) {
       const i = all.findIndex((b) => b.id === id);
       menu(more, [
         { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: () => api.tabs.create(url, { active: false }) },
-        { label: 'Copiar la dirección', icon: 'link', onSelect: () => copy(url, { label: 'Dirección copiada' }) },
+        { label: 'Copiar la dirección', icon: 'link', onSelect: () => copyUrl(url) },
         { label: 'Editar', icon: 'edit', onSelect: () => editBookmark(id) },
         { sep: true },
         { label: 'Subir', icon: 'chevronUp', disabled: i <= 0, onSelect: () => api.bookmarks.move(id, i - 1) },
@@ -578,7 +590,7 @@ function downloadsPage() {
     const id = Number(b.closest('.pr-dlrow')?.dataset.id);
     const a = b.dataset.a;
     if (a === 'remove') { await exit(b.closest('.pr-dlrow'), { fallback: 200 }); }
-    await api.downloads[a](id).catch((err) => Toast.error('No se pudo', err.message));
+    await api.downloads[a](id).catch((err) => say(err.message, { icon: 'alert', tone: 'error' }));
   });
   el.querySelector('#d-folder').addEventListener('click', () => api.downloads.folder());
   el.querySelector('#d-clear').addEventListener('click', () => api.downloads.clear());
@@ -698,7 +710,7 @@ function settingsPage() {
           <div class="pr-opt__hint">Aparatos de tu red (el router, un NAS) cuyo certificado aceptaste. Si el certificado cambia, Prism vuelve a preguntar. Olvidarlo hace que el sitio vuelva a dar error.</div></div></div>` : ''}
         ${(s.certAllow || []).map((c) => `<div class="pr-opt" style="min-height:44px">
             <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(c.host)}</div>
-              <div class="pr-opt__hint">Aceptado el ${esc(new Date(c.at || Date.now()).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' }))}</div></div>
+              <div class="pr-opt__hint">Aceptado el ${esc(new Date(c.at || Date.now()).toLocaleDateString(locale.tag, { day: 'numeric', month: 'short', year: 'numeric' }))}</div></div>
             <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-uncert="${esc(c.host)}">Olvidar</button></div></div>`).join('')}
       </section>
 
@@ -857,12 +869,9 @@ export async function clearDataModal() {
   if (!ok) return;
   const pick = (k) => body.querySelector(`[data-k="${k}"] .op-check`).classList.contains('is-on');
   const since = range === 'hour' ? Date.now() - 3_600_000 : range === 'day' ? new Date().setHours(0, 0, 0, 0) : 0;
-  const done = await api.data.clear({ history: pick('history'), since, cookies: pick('cookies'), cache: pick('cache') }).catch((err) => { Toast.error('No se pudo borrar', err.message); return null; });
-  if (done?.length) status?.(`Borrado: ${done.join(', ')}`);
+  const done = await api.data.clear({ history: pick('history'), since, cookies: pick('cookies'), cache: pick('cache') }).catch((err) => { say(`No se pudo borrar: ${err.message}`, { icon: 'alert', tone: 'error' }); return null; });
+  if (done?.length) say(`Borrado: ${done.join(', ')}`, { icon: 'check' });
 }
-
-let status = null;
-export function setStatusFn(fn) { status = fn; }
 
 /* ══ Registro ════════════════════════════════════════════════════════════════ */
 

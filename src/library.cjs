@@ -101,6 +101,9 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
       const v = visits[i];
       if (v.url !== url) continue;
       v.t = t;
+      // El índice también se entera: si no, la omnibox rankea con la hora vieja.
+      const e = index.get(url);
+      if (e && t > e.last) e.last = t;
       if (i !== visits.length - 1) { visits.splice(i, 1); visits.push(v); }
       if (title) setTitle(url, title);
       schedule('history');

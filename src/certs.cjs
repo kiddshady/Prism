@@ -62,6 +62,8 @@ function createCerts(ctx) {
      página de error lo ofrece, y aceptar es aceptar ESE, no el que mande el
      sitio la próxima vez. */
   const rejected = new Map();
+  // Un solo escuchador de cierre por pestaña, aunque rechace varios certificados.
+  const watched = new WeakSet();
 
   const list = () => ctx.settings?.certAllow || [];
   const allowed = (host, fp) => list().some((c) => c.host === host && c.fp === fp);
@@ -76,7 +78,11 @@ function createCerts(ctx) {
     }
     if (isMainFrame) {
       rejected.set(wc.id, { host, fp, error, local: isLocalHost(host), issuer: cert?.issuerName || '' });
-      wc.once('destroyed', () => rejected.delete(wc.id));
+      if (!watched.has(wc)) {
+        watched.add(wc);
+        const id = wc.id;
+        wc.once('destroyed', () => rejected.delete(id));
+      }
     }
     callback(false);
   });

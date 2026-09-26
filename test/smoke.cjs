@@ -591,6 +591,22 @@ app.whenReady().then(async () => {
   ok('y el sitio vuelve a preguntar', await pregunta());
   await contestar('Bloquear', false);
 
+  /* Una pregunta es de la pestaña que la hizo: si esa pestaña se cierra, el
+     diálogo se va solo (antes quedaba abierto, esperando), y la que esperaba
+     su turno en la fila ni aparece. */
+  console.log('\n10b2. Una pregunta se va con su pestaña');
+  const volver = ctx.tabs.active.id;
+  const idA = ctx.tabs.create({ url: llamada });
+  ok('la pestaña nueva pregunta', await pregunta());
+  const idB = ctx.tabs.create({ url: `${BASE.replace('127.0.0.1', 'localhost')}/llamada` });
+  await sleep(1500);                     // la segunda ya preguntó: espera en la fila
+  ctx.tabs.close(idB);
+  ctx.tabs.close(idA);
+  ok('cerrar la pestaña cierra su pregunta', await until(() => js(`!document.querySelector('.op-scrim')`)));
+  await sleep(700);
+  ok('y la que esperaba en la fila no aparece', !(await js(`!!document.querySelector('.op-modal .pr-ask')`)));
+  ctx.tabs.activate(volver);
+
   console.log('\n10c. Los ajustes se guardan en fila');
   const enDiscoAj = () => JSON.parse(fs.readFileSync(path.join(process.env.PRISM_DATA, 'settings.json'), 'utf8'));
   const previo = { sleepTabs: ctx.settings.sleepTabs, askDownload: ctx.settings.askDownload };

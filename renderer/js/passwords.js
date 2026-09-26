@@ -332,7 +332,7 @@ async function doImport() {
   try {
     r = await api.pass.import();
   } catch (err) {
-    say(err.message, { icon: 'alert', tone: 'danger', ms: 8000 });
+    say(err.message, { icon: 'alert', tone: 'error', ms: 8000 });
     return;
   }
   if (!r) return;
@@ -364,7 +364,7 @@ async function submitForm(form) {
     paintMain();
     say(it ? 'Cambios guardados' : 'Contraseña guardada', { icon: 'check' });
   } catch (err) {
-    say(err.message, { icon: 'alert', tone: 'danger', ms: 8000 });
+    say(err.message, { icon: 'alert', tone: 'error', ms: 8000 });
   }
 }
 

@@ -94,15 +94,20 @@ function createWeb(ctx) {
      dispositivo) y preguntar en cada una sería insoportable. Se olvida al
      irse a otro sitio o al cerrar la pestaña. */
   const once = new Map();     // wcId → { origin, keys: Set }
+  /* Los escuchadores se cuelgan una sola vez por pestaña. Colgarlos cada vez
+     que la entrada se creaba de nuevo (después de irse a otro sitio o de
+     "Olvidar") los iba sumando: uno más por cada permiso concedido. */
+  const watched = new WeakSet();
   function grantOnce(wc, origin, keys) {
     if (!wc || wc.isDestroyed()) return;
     const g = once.get(wc.id);
     if (g && g.origin === origin) { keys.forEach((k) => g.keys.add(k)); return; }
-    const fresh = !g;
     once.set(wc.id, { origin, keys: new Set(keys) });
-    if (!fresh) return;
-    wc.on('did-navigate', (_e, url) => { if (omni.originOf(url) !== once.get(wc.id)?.origin) once.delete(wc.id); });
-    wc.once('destroyed', () => once.delete(wc.id));
+    if (watched.has(wc)) return;
+    watched.add(wc);
+    const id = wc.id;
+    wc.on('did-navigate', (_e, url) => { if (omni.originOf(url) !== once.get(id)?.origin) once.delete(id); });
+    wc.once('destroyed', () => once.delete(id));
   }
   const grantedOnce = (wc, origin, key) => {
     const g = wc && once.get(wc.id);

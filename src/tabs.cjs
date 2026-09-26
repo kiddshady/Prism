@@ -805,8 +805,10 @@ function createTabs(ctx) {
     t.waking = true;
     ensureView(t);
     if (t.muted) t.view.webContents.setAudioMuted(true);
-    // Si falla, did-fail-load lo cuenta (y restore ya trae su propio catch).
-    t.view.webContents.navigationHistory.restore({ entries: h.entries, index: h.index });
+    /* restore devuelve una promesa que se rechaza si la página no carga. Eso
+       ya lo cuenta did-fail-load: acá solo se atrapa, para que no quede una
+       promesa rechazada suelta en el proceso principal. */
+    t.view.webContents.navigationHistory.restore({ entries: h.entries, index: h.index }).catch(() => {});
     syncAttached();
     emit();
   }

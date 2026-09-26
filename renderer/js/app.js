@@ -141,7 +141,6 @@ async function boot() {
   Status.init();
   Prompts.init();
   Passwords.init();
-  Pages.setStatusFn((text) => Status.say(text, { icon: 'check' }));
 
   api.tabs.onState(applyTabs);
   api.settings.onChange(async (s) => {

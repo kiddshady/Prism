@@ -25,7 +25,9 @@ function sync() {
   const loading = !!t?.loading && !t.internal;
   reload.classList.toggle('is-loading', loading);
   reload.dataset.tip = loading ? 'Detener' : 'Recargar';
-  reload.dataset.tipKey = loading ? 'Esc' : 'F5';
+  // Detener no tiene tecla: Escape es de la página (cierra SUS modales), no de Prism.
+  if (loading) delete reload.dataset.tipKey;
+  else reload.dataset.tipKey = 'F5';
   reload.disabled = !t || (t.internal && !t.error);
   loadbar.classList.toggle('is-on', loading);
 

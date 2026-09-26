@@ -148,7 +148,21 @@ function register(ctx) {
     return on;
   });
   handle(ctx, 'bookmarks:add', (info = {}) => { const b = L().addBookmark({ url: str(info.url), title: str(info.title, 300), favicon: info.favicon || null }); changed(); return b; });
-  handle(ctx, 'bookmarks:update', (id, patch = {}) => { const b = L().updateBookmark(str(id, 64), { title: patch.title != null ? str(patch.title, 300) : undefined, url: patch.url != null ? str(patch.url) : undefined }); changed(); return b; });
+  /* La dirección editada a mano pasa por la omnibox: "google.com" se guarda
+     como https://google.com (abierta en una pestaña nueva va directo a
+     Chromium, que sin esquema no la entiende), y lo que no es una dirección
+     que se pueda visitar no se guarda. */
+  const bookmarkUrl = (raw) => {
+    const r = omni.classify(str(raw), ctx.settings.searchEngine);
+    if (r?.type !== 'url' || !/^(https?|file):/i.test(r.url)) throw new Error('Esa dirección no es válida.');
+    return r.url;
+  };
+  handle(ctx, 'bookmarks:update', (id, patch = {}) => {
+    const url = patch.url != null && str(patch.url).trim() ? bookmarkUrl(patch.url) : undefined;
+    const b = L().updateBookmark(str(id, 64), { title: patch.title != null ? str(patch.title, 300) : undefined, url });
+    changed();
+    return b;
+  });
   handle(ctx, 'bookmarks:remove', (id) => { const r = L().removeBookmark(str(id)); changed(); return r; });
   handle(ctx, 'bookmarks:move', (id, to) => { const r = L().moveBookmark(str(id, 64), Number(to)); changed(); return r; });
 

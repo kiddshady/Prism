@@ -16,6 +16,8 @@ import { modal } from './layers.js';
 
 let queue = Promise.resolve();
 let openId = null;
+/** Las que el proceso principal canceló antes de que les tocara el turno. */
+const cancelled = new Set();
 
 const ICON = {
   camera: 'camera', microphone: 'mic', geolocation: 'location', notifications: 'bell',
@@ -103,6 +105,8 @@ async function askDisplay(req) {
 export function init() {
   api.prompts.onAsk((req) => {
     queue = queue.then(async () => {
+      // La pestaña que preguntaba se cerró mientras esperaba en la fila: ni se muestra.
+      if (cancelled.delete(req.id)) return;
       openId = req.id;
       let answer = null;
       try {
@@ -114,6 +118,10 @@ export function init() {
       api.prompts.answer(req.id, answer);
     });
   });
-  // El proceso principal lo dio por perdido (se cerró la pestaña): se cierra el diálogo.
-  api.prompts.onCancel((id) => { if (openId === id) Modal.close(null); });
+  // El proceso principal lo dio por perdido (se cerró la pestaña): se cierra el
+  // diálogo, o si todavía no le tocaba, se saltea.
+  api.prompts.onCancel((id) => {
+    if (openId === id) Modal.close(null);
+    else cancelled.add(id);
+  });
 }

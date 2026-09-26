@@ -184,14 +184,21 @@ function siteInfo() {
   try { origin = new URL(t.url).origin; } catch { /* no es http */ }
   popover(site, (el, ctl) => {
     const perms = Object.entries(S.settings.permissions?.[origin] || {});
-    const secure = p.kind === 'https';
+    // Lo mismo que dice el ícono de la barra (paintSite): un certificado que
+    // aceptaste a mano cifra, pero nadie verificó con quién.
+    const [icon, sub] = t.certAccepted
+      ? ['alert', 'Certificado no verificado: confiaste en él para este aparato de tu red.']
+      : p.kind === 'https' ? ['lock', 'Conexión segura: lo que mandás viaja cifrado.']
+        : p.kind === 'http' ? ['alert', 'Conexión no segura: no escribas contraseñas acá.']
+          : p.kind === 'file' ? ['file', 'Un archivo de tu compu.']
+            : ['globe', ''];
     el.innerHTML = `
       <div class="pr-pop__head">
         <div class="op-grow">
           <div class="pr-pop__title op-truncate op-copyable">${esc(p.host || t.url)}</div>
-          <div class="pr-pop__sub">${secure ? 'Conexión segura: lo que mandás viaja cifrado.' : p.kind === 'http' ? 'Conexión no segura: no escribas contraseñas acá.' : p.kind === 'file' ? 'Un archivo de tu compu.' : ''}</div>
+          <div class="pr-pop__sub">${sub}</div>
         </div>
-        <i data-icon="${secure ? 'lock' : p.kind === 'http' ? 'alert' : 'file'}"></i>
+        <i data-icon="${icon}"></i>
       </div>
       <div class="pr-pop__body">
         <div class="op-eyebrow" style="padding:10px 8px 6px">Permisos</div>

@@ -356,16 +356,38 @@
   font-size: var(--op-fs-11);
   font-variant-numeric: tabular-nums;
   flex: 0 0 auto;
-  transition: var(--tr-color), opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease);
 }
 .pr-omni__chip:hover { background: var(--op-wash-2); color: var(--op-text); }
-.pr-omni__chip[hidden] { display: none; }
 
 .pr-omni__star > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
 .pr-omni__star .pr-star__b { opacity: 0; transform: scale(.4) rotate(-40deg); color: var(--op-text); }
 .pr-omni__star.is-on .pr-star__a { opacity: 0; }
 .pr-omni__star.is-on .pr-star__b { opacity: 1; transform: none; }
-.pr-omni__star[hidden] { display: none; }
+
+/* El chip del zoom y la estrella entran y se van, no aparecen de golpe:
+   `hidden` es display:none, y con `allow-discrete` el display espera a que
+   termine la salida. La entrada arranca del estado de @starting-style. La
+   salida es más corta y en ease-in: lo que se va no hace esperar. */
+.pr-omni__chip,
+.pr-omni__star {
+  transition: var(--tr-color),
+              opacity var(--op-t-2) var(--op-ease-soft),
+              transform var(--op-t-2) var(--op-ease),
+              display var(--op-t-2) allow-discrete;
+}
+.pr-omni__chip[hidden],
+.pr-omni__star[hidden] {
+  display: none;
+  opacity: 0;
+  transform: scale(.8);
+  transition: opacity var(--op-t-1) var(--op-ease-in),
+              transform var(--op-t-1) var(--op-ease-in),
+              display var(--op-t-1) allow-discrete;
+}
+@starting-style {
+  .pr-omni__chip,
+  .pr-omni__star { opacity: 0; transform: scale(.8); }
+}
 
 /* ── Buscar en la página ─────────────────────────────────────────────────────
    Entra por el grid 0fr → 1fr sobre el ancho: sin conocer el ancho de

@@ -511,8 +511,14 @@ if (SHOTS) {
    propio preload) ni abrir un esquema raro fuera del navegador sin permiso. */
 app.on('web-contents-created', (_e, wc) => {
   wc.on('will-attach-webview', (ev) => ev.preventDefault());
-  // El primer paso de un login en dos pasos se recuerda por pestaña: se va con ella.
-  wc.once('destroyed', () => ctx.passwords?.forgetTab(wc.id));
+  const id = wc.id;
+  wc.once('destroyed', () => {
+    // El primer paso de un login en dos pasos se recuerda por pestaña: se va con ella.
+    ctx.passwords?.forgetTab(id);
+    // Lo que esa pestaña preguntaba (la cámara, la ubicación) ya no tiene a quién
+    // concedérselo: se niega y el diálogo se cierra, en vez de quedar esperando.
+    ctx.prompts?.cancelAll(id);
+  });
 });
 
 module.exports = { ctx, omni, shell };
