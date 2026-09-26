@@ -667,13 +667,27 @@
 
 /* ══ Overlays propios ═════════════════════════════════════════════════════ */
 
+/* Lo que flota — menú, popover, sugerencias, modal, tooltip, toast — es una
+   hoja OPACA, no vidrio, y es la misma en todos lados (pedido de Fran, 26 sep
+   2026). En un navegador casi siempre flota sobre una página, muchas veces
+   blanca: el vidrio al 8 % la dejaba gris, con la página asomando por debajo,
+   y el texto chico se leía mal. Era el estilo que ya tenía el gestor de
+   contraseñas.
+   Y sin backdrop-filter por una segunda razón: mientras la hoja entra
+   (op-pop-in la agranda y la baja), Chromium recalcula el blur en cada frame
+   y contra la foto blanca de la página el canto de arriba salía como una línea
+   blanca, hasta que la hoja se quedaba quieta. Sin blur, no hay línea.
+   El velo del modal (.op-scrim) sigue esmerilando: no se mueve, solo cambia de
+   opacidad. Opal no se toca (es del framework): esto lo pisa. */
+:root { --pr-float: linear-gradient(var(--op-s3), var(--op-s3)), rgb(12 12 14 / .97); }
+:is(.op-menu, .op-modal, .op-tooltip, .op-toast) { background: var(--pr-float); backdrop-filter: none; }
+
 /* Las sugerencias de la omnibox: una hoja que cuelga de la barra. */
 .pr-suggest {
   position: absolute;
   padding: var(--op-1);
   border-radius: var(--op-r-lg);
-  background: var(--op-s3);
-  backdrop-filter: var(--op-glass-heavy);
+  background: var(--pr-float);
   box-shadow: var(--op-sheet), var(--op-e4);
   animation: op-pop-in var(--op-t-2) var(--op-ease) both;
   transform-origin: top center;
@@ -718,7 +732,7 @@
 .pr-sugg.is-active .pr-sugg__key { opacity: 1; }
 .pr-suggest__sep { height: 1px; margin: var(--op-1) var(--op-3); background: var(--op-line); }
 
-/* Popover: panel de vidrio anclado a un botón (escudo, descargas). */
+/* Popover: hoja opaca anclada a un botón (escudo, descargas, contraseñas). */
 .pr-pop {
   position: absolute;
   width: 340px;
@@ -726,8 +740,7 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--op-r-xl);
-  background: var(--op-s3);
-  backdrop-filter: var(--op-glass-heavy);
+  background: var(--pr-float);
   box-shadow: var(--op-sheet), var(--op-e4);
   animation: op-pop-in var(--op-t-2) var(--op-ease) both;
   transform-origin: top right;
@@ -795,10 +808,6 @@
    hundida que la del elemento: la jerarquía la hace el tono, y la costura
    entre las dos es un hairline. */
 .pr-pop.pr-pop--pass { max-height: none; }
-/* Casi opaca, a diferencia del resto de las hojas: es grande, trae texto
-   chico que hay que poder leer, y sobre una página blanca el vidrio la
-   dejaba gris y con la página asomando por debajo. */
-.pr-pop.pr-pop--solid { background: linear-gradient(var(--op-s3), var(--op-s3)), rgb(12 12 14 / .97); }
 .pr-pass {
   display: grid;
   grid-template-columns: 252px minmax(0, 1fr);
@@ -1042,20 +1051,9 @@
 .pr-find__input:focus-visible { box-shadow: none; }
 .pr-sugg.is-active .pr-sugg__sub { color: var(--op-text-3); }
 
-/* ── Vidrio sobre páginas claras ─────────────────────────────────────────────
-   Opal está pensado para vidrio sobre niebla oscura. En un navegador los
-   overlays caen sobre CUALQUIER página, y la mayoría son blancas: la hoja de
-   luz esmerilando blanco da un gris claro donde el texto gris no se lee.
-   Debajo de la hoja va una base oscura; el vidrio sigue dejando pasar el
-   color de la página, pero el contraste ya no depende de ella. */
-:root { --pr-float-base: rgb(13 13 15 / .8); }
-.op-menu,
-.op-modal,
-.op-tooltip,
-.pr-pop,
-.pr-suggest {
-  background: linear-gradient(var(--op-s3), var(--op-s3)), var(--pr-float-base);
-}
+/* El velo del modal, más oscuro que el de Opal: detrás casi siempre hay una
+   página, y muchas veces blanca. (Las hojas que flotan: ver «Overlays
+   propios», arriba.) */
 .op-scrim { background: rgb(3 3 4 / .58); }
 
 /* Los grises terciarios de los menús suben un escalón: sobre fondo casi negro
