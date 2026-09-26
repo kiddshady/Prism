@@ -81,10 +81,12 @@ function createWeb(ctx) {
   const decided = (origin, key) => ctx.settings.permissions?.[origin]?.[key] || null;
 
   async function remember(origin, keys, value) {
-    const all = { ...(ctx.settings.permissions || {}) };
-    all[origin] = { ...(all[origin] || {}) };
-    for (const k of keys) all[origin][k] = value;
-    await ctx.saveSettings({ permissions: all });
+    await ctx.updateSettings((s) => {
+      const all = { ...(s.permissions || {}) };
+      all[origin] = { ...(all[origin] || {}) };
+      for (const k of keys) all[origin][k] = value;
+      return { permissions: all };
+    });
   }
 
   /* "Permitir" sin "Recordar" vale mientras esa pestaña siga en ese sitio:

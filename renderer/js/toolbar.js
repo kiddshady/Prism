@@ -125,8 +125,10 @@ function shieldPanel() {
       setTimeout(() => ctl.refresh(), 200);
     });
     el.querySelector('#sh-global').addEventListener('click', async (e) => {
-      e.currentTarget.classList.toggle('is-on');
-      S.settings = await api.settings.save({ adblock: !global });
+      // Lo que muestra el switch, no "lo contrario" de lo que había al abrir:
+      // un doble clic mandaba dos veces lo mismo.
+      const on = e.currentTarget.classList.toggle('is-on');
+      S.settings = await api.settings.save({ adblock: on });
       setTimeout(() => ctl.refresh(), 200);
     });
     el.querySelector('#sh-settings').addEventListener('click', () => { ctl.close(); openPage('ajustes'); });

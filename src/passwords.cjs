@@ -205,7 +205,7 @@ function createPasswords(ctx) {
     const o = offer;
     offer = null;
     if (action === 'never') {
-      await ctx.saveSettings({ passNever: [...never().add(o.site)] });
+      await ctx.updateSettings((s) => ({ passNever: [...new Set([...(s.passNever || []), o.site])] }));
       return true;
     }
     if (action !== 'save') return false;

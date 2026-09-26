@@ -521,11 +521,26 @@ app.whenReady().then(async () => {
   await contestar('Bloquear', true);
   r = await resultado();
   ok('bloquear recordando: el sitio lee "denied" y no recibe nada', r.despues === 'denied' && r.pistas === 'NotAllowedError' && ctx.settings.permissions?.[BASE]?.camera === 'deny', JSON.stringify(r));
-  await js(`window.prism.permissions.revoke('${BASE}', 'camera').then(() => window.prism.permissions.revoke('${BASE}', 'microphone'))`);
-  ok('"Olvidar" borra el bloqueo', await until(() => !ctx.settings.permissions?.[BASE]?.camera && !ctx.settings.permissions?.[BASE]?.microphone));
+  // Los dos a la vez: antes el segundo pisaba al primero (ver ctx.updateSettings).
+  await js(`Promise.all([window.prism.permissions.revoke('${BASE}', 'camera'), window.prism.permissions.revoke('${BASE}', 'microphone')])`);
+  ok('"Olvidar" los dos a la vez borra los dos', await until(() => !ctx.settings.permissions?.[BASE]?.camera && !ctx.settings.permissions?.[BASE]?.microphone));
   ctx.tabs.active.view.webContents.reload();
   ok('y el sitio vuelve a preguntar', await pregunta());
   await contestar('Bloquear', false);
+
+  console.log('\n10c. Los ajustes se guardan en fila');
+  const enDiscoAj = () => JSON.parse(fs.readFileSync(path.join(process.env.PRISM_DATA, 'settings.json'), 'utf8'));
+  const previo = { sleepTabs: ctx.settings.sleepTabs, askDownload: ctx.settings.askDownload };
+  await js(`Promise.all([window.prism.settings.save({ sleepTabs: 15 }), window.prism.settings.save({ askDownload: true })])`);
+  ok('dos guardados a la vez: quedan los dos', ctx.settings.sleepTabs === 15 && ctx.settings.askDownload === true);
+  ok('también en el disco', enDiscoAj().sleepTabs === 15 && enDiscoAj().askDownload === true, JSON.stringify(enDiscoAj()));
+  await ctx.saveSettings(previo);
+  await ctx.saveSettings({ adblockAllow: ['uno.example', 'dos.example', 'tres.example'] });
+  await js(`Promise.all([window.prism.settings.remove('adblockAllow', 'uno.example'), window.prism.settings.remove('adblockAllow', 'dos.example')])`);
+  ok('quitar dos de una lista a la vez: se van los dos', JSON.stringify(ctx.settings.adblockAllow) === '["tres.example"]', JSON.stringify(ctx.settings.adblockAllow));
+  const ajeno = await js(`window.prism.settings.remove('permissions', 'x').then(() => 'pasó', (e) => e.message)`);
+  ok('y solo se puede con las listas previstas', ajeno === 'Esa lista no existe.', ajeno);
+  await ctx.saveSettings({ adblockAllow: [] });
 
   console.log('\n11. Páginas propias');
   for (const p of ['historial', 'favoritos', 'descargas', 'ajustes']) {
@@ -534,6 +549,27 @@ app.whenReady().then(async () => {
     if (p === 'historial') ok('el historial lista lo visitado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="historial"] .pr-row').length >= 2`)));
     if (p === 'favoritos') ok('los favoritos listan el guardado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="favoritos"] .pr-row').length === 1`)));
   }
+
+  // Ajustes quedó abierta: doble clic en un switch. Tiene que volver a como estaba,
+  // guardado Y a la vista (antes quedaba prendido pero mostrándose apagado).
+  const sw = `document.querySelector('.pr-view[data-page="ajustes"] [data-toggle="askDownload"]')`;
+  const antesAsk = !!ctx.settings.askDownload;
+  /* Se cuentan los guardados y se compara cuando terminaron los dos: mirar
+     enseguida daba bien por casualidad (dos clics devuelven el switch a su
+     lugar antes de que llegue ningún guardado). */
+  let guardados = 0;
+  const upd = ctx.updateSettings;
+  ctx.updateSettings = (fn) => upd(fn).finally(() => { guardados++; });
+  await js(`(() => { const b = ${sw}; b.click(); b.click(); })()`);
+  await until(() => guardados >= 2, 3000);
+  ok('doble clic en un switch: lo guardado vuelve a como estaba', !!ctx.settings.askDownload === antesAsk, `guardado ${ctx.settings.askDownload}`);
+  ok('y lo que se ve coincide', await until(async () => (await js(`${sw}.classList.contains('is-on')`)) === antesAsk, 3000));
+  guardados = 0;
+  await js(`${sw}.click()`);
+  await until(() => guardados >= 1, 3000);
+  ctx.updateSettings = upd;
+  ok('y un clic solo lo da vuelta', !!ctx.settings.askDownload === !antesAsk && await until(async () => (await js(`${sw}.classList.contains('is-on')`)) === !antesAsk, 3000));
+  await ctx.saveSettings({ askDownload: antesAsk });
 
   console.log('\n12. Bandeja e instancia única');
   win.close();

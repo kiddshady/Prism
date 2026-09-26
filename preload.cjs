@@ -137,6 +137,8 @@ contextBridge.exposeInMainWorld('prism', {
   settings: {
     get: () => call('settings:get'),
     save: (patch) => call('settings:save', patch),
+    /** Saca un valor de una lista de ajustes (se calcula del lado del sistema, en fila). */
+    remove: (key, value) => call('settings:remove', key, value),
     onChange: listen('settings:changed'),
   },
 

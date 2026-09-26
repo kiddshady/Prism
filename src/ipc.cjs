@@ -165,14 +165,26 @@ function register(ctx) {
   /* ── Ajustes ───────────────────────────────────────────────────────────── */
   handle(ctx, 'settings:get', () => ctx.settings);
   handle(ctx, 'settings:save', (patch) => ctx.saveSettings(patch || {}));
+  /* Sacar uno de una lista se calcula en la fila de guardados, no con la copia
+     de la ventana: dos chips quitados rápido no se pisan. */
+  const LISTS = new Set(['adblockAllow', 'passNever']);
+  handle(ctx, 'settings:remove', (key, value) => {
+    const k = str(key, 40);
+    if (!LISTS.has(k)) throw new Error('Esa lista no existe.');
+    const v = str(value, 400);
+    return ctx.updateSettings((s) => ({ [k]: (s[k] || []).filter((x) => x !== v) }));
+  });
 
   handle(ctx, 'adblock:toggle-site', (url) => {
     const host = ctx.adblock.hostOf(str(url || T().active?.url));
     if (!host) return null;
-    const list = new Set(ctx.settings.adblockAllow || []);
-    const allowed = !list.has(host);
-    allowed ? list.add(host) : list.delete(host);
-    return ctx.saveSettings({ adblockAllow: [...list] }).then(() => {
+    let allowed = false;
+    return ctx.updateSettings((s) => {
+      const list = new Set(s.adblockAllow || []);
+      allowed = !list.has(host);
+      allowed ? list.add(host) : list.delete(host);
+      return { adblockAllow: [...list] };
+    }).then(() => {
       T().reload();
       return { host, allowed };
     });
@@ -180,13 +192,17 @@ function register(ctx) {
   handle(ctx, 'adblock:stats', () => ({ ready: ctx.adblock.ready, total: ctx.adblock.total }));
 
   handle(ctx, 'permissions:revoke', async (origin, key) => {
-    const all = { ...(ctx.settings.permissions || {}) };
     const o = str(origin, 400);
     ctx.forgetOnce?.(o);
-    if (!all[o]) return false;
-    if (key) { all[o] = { ...all[o] }; delete all[o][str(key, 60)]; if (!Object.keys(all[o]).length) delete all[o]; } else delete all[o];
-    await ctx.saveSettings({ permissions: all });
-    return true;
+    let had = false;
+    await ctx.updateSettings((s) => {
+      const all = { ...(s.permissions || {}) };
+      if (!all[o]) return null;
+      had = true;
+      if (key) { all[o] = { ...all[o] }; delete all[o][str(key, 60)]; if (!Object.keys(all[o]).length) delete all[o]; } else delete all[o];
+      return { permissions: all };
+    });
+    return had;
   });
 
   handle(ctx, 'data:clear', async (what = {}) => {

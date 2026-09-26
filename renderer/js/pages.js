@@ -709,20 +709,34 @@ function settingsPage() {
   }
 
   let first = true;
+  const toggleSeq = {};   // clave → número del último clic en su switch
   async function save(patch, repaint = true) {
     quietUntil = Date.now() + 600;
     S.settings = await api.settings.save(patch);
     if (repaint) paint();
   }
+  /* Quitar un chip lo calcula el sistema sobre los ajustes al día: con la
+     copia de acá, dos chips quitados rápido devolvían el primero. */
+  async function removeFrom(key, value) {
+    quietUntil = Date.now() + 600;
+    S.settings = await api.settings.remove(key, value);
+    paint();
+  }
 
   col.addEventListener('click', async (e) => {
     const tg = e.target.closest('[data-toggle]');
     if (tg) {
-      tg.classList.toggle('is-on');
+      // Se guarda lo que muestra el switch, no "lo contrario de S.settings":
+      // en un doble clic la copia de acá todavía no cambió, y los dos clics
+      // mandaban lo mismo — el switch quedaba al revés de lo guardado.
+      const on = tg.classList.toggle('is-on');
       const k = tg.dataset.toggle;
+      const seq = (toggleSeq[k] = (toggleSeq[k] || 0) + 1);
       // El switch se mueve ya; el repintado espera a que termine su transición.
       quietUntil = Date.now() + 600;
-      S.settings = await api.settings.save({ [k]: !S.settings[k] });
+      S.settings = await api.settings.save({ [k]: on });
+      // Solo la respuesta del último clic lo acomoda: una vieja lo haría parpadear.
+      if (seq === toggleSeq[k]) tg.classList.toggle('is-on', k === 'passwords' ? S.settings[k] !== false : !!S.settings[k]);
       if (k === 'forceDark' || k === 'adblock') setTimeout(paint, 220);
       return;
     }
@@ -730,13 +744,13 @@ function settingsPage() {
     if (un) {
       const h = un.dataset.unallow;
       await exit(un.closest('.pr-chip-x'), { fallback: 150 });
-      return save({ adblockAllow: (S.settings.adblockAllow || []).filter((x) => x !== h) });
+      return removeFrom('adblockAllow', h);
     }
     const nv = e.target.closest('[data-unnever]');
     if (nv) {
       const h = nv.dataset.unnever;
       await exit(nv.closest('.pr-chip-x'), { fallback: 150 });
-      return save({ passNever: (S.settings.passNever || []).filter((x) => x !== h) });
+      return removeFrom('passNever', h);
     }
     const fg = e.target.closest('[data-forget]');
     if (fg) { await api.permissions.revoke(fg.dataset.forget); S.settings = await api.settings.get(); return paint(); }

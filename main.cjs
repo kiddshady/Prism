@@ -85,6 +85,9 @@ function urlsFromArgv(argv) {
   }).map((a) => (/^https?:/i.test(a) ? a : `file:///${path.resolve(a).replace(/\\/g, '/')}`));
 }
 
+/** La fila de los guardados de ajustes (ver ctx.updateSettings). */
+let settingsQueue = Promise.resolve();
+
 const ctx = {
   win: null,
   web: null,
@@ -103,16 +106,33 @@ const ctx = {
     if (w && !w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(channel, payload);
   },
 
-  async saveSettings(patch) {
-    const before = ctx.settings;
-    ctx.settings = await store.saveSettings(patch);
-    ctx.send('settings:changed', ctx.settings);
-    // Lo que tiene efecto inmediato sobre las pestañas abiertas.
-    if (before.adblock !== ctx.settings.adblock) ctx.tabs?.reload();
-    if (before.pageScrollbars !== ctx.settings.pageScrollbars) ctx.setPageScrollbars?.(ctx.settings.pageScrollbars);
-    if (before.passwords !== ctx.settings.passwords) ctx.passwords?.setEnabled(ctx.settings.passwords !== false);
-    ctx.tabs?.emit();
-    return ctx.settings;
+  saveSettings(patch) {
+    return ctx.updateSettings(() => patch);
+  },
+
+  /* Los ajustes se guardan de a uno, en fila. Guardar es leer el archivo,
+     mezclar y escribir: dos guardados a la vez leían el mismo archivo viejo
+     y el segundo pisaba al primero (dos "Olvidar" seguidos dejaban uno sin
+     olvidar). Y el cambio se calcula recién cuando le toca, con `fn` sobre
+     los ajustes ya al día: quien agrega o saca algo de una lista (permisos,
+     sitios del bloqueador, "nunca guardar") no la pisa con una copia vieja.
+     `fn` devuelve el parche, o null para no guardar nada. */
+  updateSettings(fn) {
+    const run = settingsQueue.then(async () => {
+      const before = ctx.settings;
+      const patch = fn(before);
+      if (!patch) return ctx.settings;
+      ctx.settings = await store.saveSettings(patch);
+      ctx.send('settings:changed', ctx.settings);
+      // Lo que tiene efecto inmediato sobre las pestañas abiertas.
+      if (before.adblock !== ctx.settings.adblock) ctx.tabs?.reload();
+      if (before.pageScrollbars !== ctx.settings.pageScrollbars) ctx.setPageScrollbars?.(ctx.settings.pageScrollbars);
+      if (before.passwords !== ctx.settings.passwords) ctx.passwords?.setEnabled(ctx.settings.passwords !== false);
+      ctx.tabs?.emit();
+      return ctx.settings;
+    });
+    settingsQueue = run.catch(() => {});
+    return run;
   },
 
   /** Enfoca la ventana (el cromo) para que la interfaz reciba el teclado. */
