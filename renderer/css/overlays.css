@@ -41,6 +41,13 @@
   animation: op-pop-in var(--op-t-2) var(--op-ease) both;
   will-change: transform, opacity;
 }
+/* Una sola línea: cuando abajo no hay lugar (ver `wall` en overlays.js). */
+.op-tooltip--line {
+  max-width: 340px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .op-tooltip[data-state='closing'] { animation: op-pop-out 100ms var(--op-ease-in) both; }
 .op-tooltip__key { margin-left: var(--op-2); color: var(--op-text-4); }
 

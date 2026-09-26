@@ -64,9 +64,23 @@ const Tooltip = (() => {
     current = tip;
 
     const a = el.getBoundingClientRect();
-    const t = tip.getBoundingClientRect();
-    const side = el.dataset.tipSide || 'top';
+    let [x, y, t] = place(tip, a, el.dataset.tipSide || 'top');
 
+    /* La pared: lo que hay debajo de ella es una vista nativa que tapa al DOM
+       (la página, en Prism). Un tooltip de más arriba que la cruzaría queda en
+       una sola línea con puntos suspensivos, en vez de meterse abajo. */
+    const w = wall?.();
+    if (w != null && a.bottom <= w && y + t.height > w) {
+      tip.classList.add('op-tooltip--line');
+      [x, y, t] = place(tip, a, el.dataset.tipSide || 'top');
+    }
+
+    tip.style.left = `${Math.round(x)}px`;
+    tip.style.top = `${Math.round(y)}px`;
+  }
+
+  function place(tip, a, side) {
+    const t = tip.getBoundingClientRect();
     let x, y;
     if (side === 'bottom')      { x = a.left + a.width / 2 - t.width / 2; y = a.bottom + GAP; }
     else if (side === 'left')   { x = a.left - t.width - GAP;             y = a.top + a.height / 2 - t.height / 2; }
@@ -77,12 +91,14 @@ const Tooltip = (() => {
     if (side === 'top' && y < EDGE) y = a.bottom + GAP;
     if (side === 'bottom' && y + t.height > window.innerHeight - EDGE) y = a.top - t.height - GAP;
 
-    [x, y] = clamp(x, y, t.width, t.height);
-    tip.style.left = `${Math.round(x)}px`;
-    tip.style.top = `${Math.round(y)}px`;
+    return [...clamp(x, y, t.width, t.height), t];
   }
 
-  function init(root = document) {
+  let wall = null;
+
+  /** `opts.wall()` → la Y desde la que el DOM queda tapado (o null). */
+  function init(root = document, opts = {}) {
+    wall = opts.wall || null;
     root.addEventListener('pointerover', (e) => {
       const el = e.target.closest?.('[data-tip]');
       if (!el || el === anchor) return;

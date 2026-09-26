@@ -62,6 +62,7 @@ async function until(fn, ms = 6000) {
 const PAGES = {
   '/': '<title>Inicio de prueba</title><body style="font:16px sans-serif"><h1>Hola Prism</h1><p>fiebre fiebre fiebre</p><a id="l" href="/dos">dos</a></body>',
   '/dos': '<title>Página dos</title><body><h1>Dos</h1></body>',
+  '/titulo-largo': `<title>${'Un título larguísimo como el de un posteo de X, que no entra en una línea '.repeat(3)}</title><body></body>`,
   '/login': '<title>Login</title><body><form action="/bienvenida" method="post"><input id="u" name="usuario" autocomplete="username"><input id="p" type="password" name="clave"><button id="b">Entrar</button></form></body>',
   '/bienvenida': '<title>Bienvenida</title><body><h1>Adentro</h1></body>',
   '/geo': '<title>Geo</title><body><script>navigator.geolocation.getCurrentPosition(()=>{},()=>{})</script></body>',
@@ -313,6 +314,17 @@ app.whenReady().then(async () => {
   ok('una sin fijar no se mete entre las fijadas', T.list[0].id === pb && T.list[1].id === pa);
   await T.writeSession();
   ok('la sesión recuerda cuál está fijada', (await ctx.sessionDoc.read()).tabs[0].pinned === true);
+
+  console.log('\n7d2. El cartelito de una pestaña no se mete bajo la página');
+  const pl = T.create({ url: `${BASE}/titulo-largo` });
+  await until(() => T.list.find((t) => t.id === pl)?.title.startsWith('Un título'));
+  await until(() => tabEl(pl, `el.dataset.tip?.startsWith('Un título')`));
+  await tabEl(pl, `(el.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })), true)`);
+  ok('aparece el cartelito', await until(() => js(`!!document.querySelector('.op-tooltip:not([data-state="closing"])')`)));
+  const tipBox = await js(`(() => { const t = document.querySelector('.op-tooltip:not([data-state="closing"])').getBoundingClientRect(); return { bottom: t.bottom, page: document.getElementById('page').getBoundingClientRect().top }; })()`);
+  ok('termina antes de donde empieza la página', tipBox.bottom <= tipBox.page, JSON.stringify(tipBox));
+  await js(`document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+  T.close(pl);
 
   console.log('\n7e. Dormidas');
   await ctx.saveSettings({ sleepTabs: 30 });

@@ -111,7 +111,8 @@ function onCommand(cmd) {
 
 async function boot() {
   Icons.mount(document);
-  Tooltip.init();
+  // La página es una vista nativa: tapa cualquier tooltip que baje hasta ella.
+  Tooltip.init(document, { wall: () => document.getElementById('page')?.getBoundingClientRect().top ?? null });
   initClickFlash();
   initScrollFades();
   wireWindow();
