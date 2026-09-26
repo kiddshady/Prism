@@ -651,9 +651,6 @@ function settingsPage() {
           <div class="pr-opt__hint">Los sitios con modo oscuro propio ya lo usan solos. Esto oscurece también los que no lo tienen (a veces con colores raros).${s.forceDark !== launchForceDark ? ' <b style="color:var(--op-text-2);font-weight:500">Se aplica al reiniciar.</b>' : ''}</div></div>
           <div class="pr-opt__ctl">${s.forceDark !== launchForceDark ? '<button class="op-btn op-btn--secondary op-btn--sm" id="s-relaunch"><i data-icon="reload"></i> Reiniciar</button>' : ''}
             <button class="op-switch${s.forceDark ? ' is-on' : ''}" data-toggle="forceDark" aria-label="Oscurecer todo"></button></div></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Scrollbars finas en las páginas</div>
-          <div class="pr-opt__hint">Las mismas de Prism, adentro de cada sitio (salvo que el sitio tenga las suyas). Vale para lo que abras después.</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.pageScrollbars ? ' is-on' : ''}" data-toggle="pageScrollbars" aria-label="Scrollbars"></button></div></div>
       </section>
 
       <section class="pr-set" style="--i:4">

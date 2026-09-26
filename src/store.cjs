@@ -72,8 +72,6 @@ const DEFAULT_SETTINGS = {
   forceDark: false,
   /** Minutos sin mirarla para que una pestaña se duerma. 0 = nunca. */
   sleepTabs: 30,
-  /** Scrollbars finas y propias también adentro de las páginas. */
-  pageScrollbars: true,
   /** null = la carpeta de Descargas del sistema. */
   downloadDir: null,
   /** Preguntar dónde guardar cada descarga. */

@@ -88,6 +88,7 @@ const PAGES = {
   </script></body>`,
   /* Mide la scrollbar MIENTRAS se parsea, antes de dom-ready: si el CSS
      llegara tarde, acá todavía se vería la nativa. */
+  '/negra': '<title>Negra</title><style>html{background:#000}body{margin:0}#app{background:rgb(12,16,20);min-height:4000px}</style><div id="app"></div>',
   '/larga': `<title>Larga</title><body style="margin:0"><div style="height:5000px"></div><script>
     window.__sb = innerWidth - document.documentElement.clientWidth;
   </script></body>`,
@@ -425,15 +426,22 @@ app.whenReady().then(async () => {
   console.log('\n8b. Scrollbars de las páginas');
   ctx.tabs.create({ url: `${BASE}/larga` });
   ok('carga la página larga', await until(() => ctx.tabs.active.title === 'Larga'));
-  const sb = () => ctx.tabs.active.view.webContents.executeJavaScript('window.__sb');
-  ok('la propia ya está antes de dom-ready (11 px)', (await sb()) === 11, `midió ${await sb()}`);
-  await ctx.saveSettings({ pageScrollbars: false });
-  ctx.tabs.reload(false);
-  ok('apagada, vuelve la nativa', await until(async () => ![undefined, 11].includes(await sb())), `midió ${await sb()}`);
-  await ctx.saveSettings({ pageScrollbars: true });
-  ctx.tabs.reload(false);
-  ok('prendida otra vez, la propia', await until(async () => (await sb()) === 11), `midió ${await sb()}`);
+  const sb = await ctx.tabs.active.view.webContents.executeJavaScript('window.__sb');
+  ok('la scrollbar flota: no le come ancho a la página', sb === 0, `midió ${sb}`);
   ctx.tabs.close(ctx.tabs.active.id);
+  // Como Instagram: <html> negro y el contenido en un bloque de otro color.
+  ctx.tabs.create({ url: `${BASE}/negra` });
+  ok('carga la página de <html> negro', await until(() => ctx.tabs.active.title === 'Negra' && !ctx.tabs.active.loading));
+  await sleep(300);
+  const shot = await ctx.tabs.active.view.webContents.capturePage();
+  const { width: shw, height: shh } = shot.getSize();
+  const bmp = shot.toBitmap();
+  const px = (x, y) => { const i = (y * shw + x) * 4; return [bmp[i + 2], bmp[i + 1], bmp[i]]; };
+  const borde = px(shw - 3, shh - 20);
+  ok('en el borde derecho no asoma el negro', borde[0] > 6 && borde[2] > 12, borde.join(','));
+  ctx.tabs.close(ctx.tabs.active.id);
+  const propia = await js(`(() => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;left:-300px;top:0;width:100px;height:40px;overflow-y:scroll'; d.innerHTML = '<div style="height:400px"></div>'; document.body.appendChild(d); const w = d.offsetWidth - d.clientWidth; d.remove(); return w; })()`);
+  ok('las de la ventana siguen siendo las propias (10 px)', propia === 10, `midió ${propia}`);
 
   console.log('\n8c. window.chrome como en Chrome (lo que pide el login de Google)');
   ctx.tabs.create({ url: `${BASE}/` });

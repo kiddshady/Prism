@@ -52,7 +52,15 @@ const MIN_H = 480;
 const early = (() => {
   try { return JSON.parse(fs.readFileSync(store.SETTINGS_FILE, 'utf8')); } catch { return {}; }
 })();
-if (early.forceDark) app.commandLine.appendSwitch('enable-features', 'WebContentsForceDark');
+/* Scrollbars flotantes en las páginas, como Edge y Firefox en Windows 11: van
+   ENCIMA del contenido y no ocupan lugar. Una clásica reserva su carril, y en
+   sitios que pintan un <html> de otro color que su contenido (Instagram) por
+   ahí asomaba una franja. Las de la ventana siguen siendo las propias: el CSS
+   de base.css las dibuja, y una scrollbar con estilo nunca es flotante.
+   Un solo enable-features: si se pone dos veces, el segundo pisa al primero. */
+const FEATURES = ['OverlayScrollbar', 'FluentOverlayScrollbar', 'FluentScrollbar'];
+if (early.forceDark) FEATURES.push('WebContentsForceDark');
+app.commandLine.appendSwitch('enable-features', FEATURES.join(','));
 
 /* Modo de verificación (tools/shot.ps1 y el humo): la ventana vive FUERA de
    pantalla, sin robar el foco, con su propio perfil. Así se la puede manejar y
@@ -126,7 +134,6 @@ const ctx = {
       ctx.send('settings:changed', ctx.settings);
       // Lo que tiene efecto inmediato sobre las pestañas abiertas.
       if (before.adblock !== ctx.settings.adblock) ctx.tabs?.reload();
-      if (before.pageScrollbars !== ctx.settings.pageScrollbars) ctx.setPageScrollbars?.(ctx.settings.pageScrollbars);
       if (before.passwords !== ctx.settings.passwords) ctx.passwords?.setEnabled(ctx.settings.passwords !== false);
       ctx.tabs?.emit();
       return ctx.settings;
@@ -416,9 +423,8 @@ chromeOn('win:set-bg', (hex) => {
 app.whenReady().then(async () => {
   ctx.settings = await store.loadSettings();
 
-  const { session, userAgent, setPageScrollbars } = createWeb(Object.assign(ctx, { prompts: createPrompts(ctx) }));
+  const { session, userAgent } = createWeb(Object.assign(ctx, { prompts: createPrompts(ctx) }));
   ctx.web = session;
-  ctx.setPageScrollbars = setPageScrollbars;
   app.userAgentFallback = userAgent;
 
   ctx.adblock = createAdblock(ctx, { cacheFile: path.join(store.ROOT, 'adblock-engine.bin') });

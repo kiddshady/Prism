@@ -71,7 +71,7 @@ ok('guardar un parche no pisa el resto', parche.searchEngine === 'duckduckgo' &&
 // Una clave nueva del código tiene que aparecer en un archivo viejo.
 await store.writeJSON(store.SETTINGS_FILE, { schema: store.SCHEMA, searchEngine: 'bing' });
 const completado = await store.loadSettings();
-ok('las claves nuevas se completan solas', 'pageScrollbars' in completado && completado.searchEngine === 'bing');
+ok('las claves nuevas se completan solas', 'historySuggest' in completado && completado.searchEngine === 'bing');
 
 console.log('\n5. Colección');
 const col = store.collection('items');
