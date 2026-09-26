@@ -30,10 +30,11 @@ function paintLeft() {
   const key = hoverUrl ? `u:${hoverUrl}` : msg ? `m:${msg.text}` : '';
   if (key === shownKey) return;
   shownKey = key;
-  left.querySelectorAll('.pr-status__msg:not([data-state="closing"])').forEach((el) => exit(el, { fallback: 140 }));
+  const old = left.querySelectorAll('.pr-status__msg:not([data-state="closing"])');
+  old.forEach((el) => exit(el, { fallback: 180 }));
   if (!key) return;
   const el = document.createElement('div');
-  el.className = `pr-status__msg${msg?.tone === 'error' && !hoverUrl ? ' pr-status__msg--error' : ''}`;
+  el.className = `pr-status__msg${msg?.tone === 'error' && !hoverUrl ? ' pr-status__msg--error' : ''}${old.length ? ' is-after' : ''}`;
   el.innerHTML = hoverUrl
     ? `${Icons.svg('link')}<span class="pr-status__url op-truncate">${esc(safeDecode(hoverUrl))}</span>`
     : `${Icons.svg(msg.icon || 'info')}<span class="op-truncate">${esc(msg.text)}</span>`;

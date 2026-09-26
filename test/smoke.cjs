@@ -132,6 +132,31 @@ app.whenReady().then(async () => {
   ok('la omnibox muestra el host partido', await until(() => js(`document.getElementById('omni-display').querySelector('b')?.textContent === '127.0.0.1:${server.address().port}'`)));
   ok('se registró en el historial', ctx.library.listVisits().some((v) => v.url === `${BASE}/`));
 
+  console.log('\n2b. La statusbar al pasar de un link a otro');
+  ctx.send('page:hover', `${BASE}/uno`);
+  await until(() => js(`document.querySelectorAll('#status-left .pr-status__msg').length === 1`));
+  await sleep(300);
+  /* Mientras el viejo se va y el nuevo llega, los dos en el MISMO lugar
+     (antes el nuevo entraba al lado y la barra se veía larguísima). */
+  const posiciones = js(`new Promise((res) => {
+    const xs = new Set(); let dos = false; const t0 = performance.now();
+    const tick = () => {
+      const ms = [...document.querySelectorAll('#status-left .pr-status__msg')];
+      if (ms.length > 1) dos = true;
+      ms.forEach((m) => xs.add(Math.round(m.getBoundingClientRect().left)));
+      if (performance.now() - t0 < 350) requestAnimationFrame(tick); else res({ xs: [...xs], dos });
+    };
+    requestAnimationFrame(tick);
+  })`);
+  ctx.send('page:hover', `${BASE}/dos`);
+  const pos = await posiciones;
+  ok('el aviso viejo y el nuevo se cruzan en el mismo lugar, no uno al lado del otro', pos.dos && pos.xs.length === 1, JSON.stringify(pos));
+  ctx.send('page:hover', `${BASE}/${'larguisimo/'.repeat(60)}`);
+  await sleep(400);
+  const anchos = await js(`(() => { const l = document.getElementById('status-left').getBoundingClientRect(); const m = [...document.querySelectorAll('#status-left .pr-status__msg')].pop().getBoundingClientRect(); return { l: Math.round(l.right), m: Math.round(m.right) }; })()`);
+  ok('un link larguísimo se recorta y no estira la barra', anchos.m <= anchos.l, JSON.stringify(anchos));
+  ctx.send('page:hover', '');
+
   console.log('\n3. Atrás / adelante');
   /* Un click de mouse DE VERDAD sobre el link. Con .click() por script no hay
      gesto de usuario, y Chromium marca la entrada anterior como "salteable":

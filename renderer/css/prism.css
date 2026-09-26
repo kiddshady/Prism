@@ -634,8 +634,17 @@
   min-width: 0;
   height: 100%;
 }
-.pr-status__left { flex: 1 1 auto; }
+/* Una sola celda: el aviso que se va y el que llega ocupan el mismo lugar.
+   En fila, el nuevo entraba AL LADO del viejo mientras este se desvanecía
+   (la barra se veía larguísima) y después saltaba a la izquierda. */
+.pr-status__left {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+}
 .pr-status__msg {
+  grid-area: 1 / 1;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -643,7 +652,9 @@
   max-width: 100%;
   animation: op-fade-in var(--op-t-2) var(--op-ease) both;
 }
-.pr-status__msg[data-state='closing'] { animation: op-fade-out 120ms var(--op-ease-in) both; }
+/* El que llega después de otro espera a que casi no se vea: los textos no se cruzan. */
+.pr-status__msg.is-after { animation-delay: 70ms; }
+.pr-status__msg[data-state='closing'] { animation: op-fade-out 110ms var(--op-ease-both) both; }
 .pr-status__msg .op-icon { width: 12px; height: 12px; flex: 0 0 auto; }
 .pr-status__msg--error { color: var(--op-danger); }
 .pr-status__url { font-family: var(--op-mono); font-size: 10.5px; color: var(--op-text-2); }
