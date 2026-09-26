@@ -92,7 +92,7 @@ export async function openPanel() {
   popover(btn, (el) => {
     if (el.dataset.built) return;
     el.dataset.built = '1';
-    el.classList.add('pr-pop--pass', 'pr-pop--solid');
+    el.classList.add('pr-pop--pass');
     el.innerHTML = `
       <div class="pr-pass">
         <aside class="pr-pass__side">
@@ -104,7 +104,7 @@ export async function openPanel() {
           <div class="pr-pass__list op-scroll op-scroll--line-bottom" id="pp-list" role="listbox"></div>
           <div class="pr-pass__foot">
             <span class="op-meta op-grow op-truncate" id="pp-count"></span>
-            <button class="op-btn op-btn--ghost op-btn--sm" id="pp-import"><i data-icon="upload"></i> Importar</button>
+            <button class="op-btn op-btn--ghost op-btn--sm" id="pp-import"><i data-icon="download"></i> Importar</button>
           </div>
         </aside>
         <section class="pr-pass__main" id="pp-main"></section>
@@ -179,7 +179,7 @@ function welcomeHTML() {
       <div class="pr-pass__welcometitle">Tus contraseñas, adentro de Prism</div>
       <div class="pr-pass__welcometext">Cuando entres a un sitio, Prism te ofrece guardarla, y la próxima vez la completa. Se guardan cifradas con tu cuenta de Windows.</div>
       <div class="pr-pass__welcomeactions">
-        <button class="op-btn op-btn--primary" data-a="import"><i data-icon="upload"></i> Importar de Proton Pass</button>
+        <button class="op-btn op-btn--primary" data-a="import"><i data-icon="download"></i> Importar de Proton Pass</button>
         <button class="op-btn op-btn--secondary" data-a="new"><i data-icon="plus"></i> Agregar una</button>
       </div>
     </div>`;
@@ -483,7 +483,6 @@ function showOffer(o) {
     if (el.dataset.built) return;
     el.dataset.built = '1';
     const update = o.kind === 'update';
-    el.classList.add('pr-pop--solid');
     el.innerHTML = `
       <div class="pr-pop__head">
         <div class="op-grow">
