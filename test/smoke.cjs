@@ -22,7 +22,6 @@ process.env.PRISM_SHOTS = '1';
 process.env.PRISM_PROFILE = path.join(TMP, 'perfil');
 process.env.PRISM_DATA = path.join(TMP, 'datos');
 process.env.PRISM_TRAY = '1';   // la bandeja existe unos segundos, para probarla
-process.env.PRISM_LOGIN_HOSTS = 'login.test';   // se hace pasar por el login de Google
 // Ajustes de arranque: nada de red (sin sugerencias remotas ni listas del bloqueador).
 fs.mkdirSync(process.env.PRISM_DATA, { recursive: true });
 fs.writeFileSync(path.join(process.env.PRISM_DATA, 'settings.json'), JSON.stringify({
@@ -30,8 +29,6 @@ fs.writeFileSync(path.join(process.env.PRISM_DATA, 'settings.json'), JSON.string
 }));
 
 const { app } = require('electron');
-// login.test es el servidor de mentira: así se prueba el disfraz de Firefox sin internet.
-app.commandLine.appendSwitch('host-resolver-rules', 'MAP login.test 127.0.0.1');
 const { ctx } = require(path.join(__dirname, '..', 'main.cjs'));
 
 let pass = 0; let fail = 0;
@@ -79,14 +76,12 @@ const PAGES = {
     window.__sb = innerWidth - document.documentElement.clientWidth;
   </script></body>`,
 };
-const lastHeaders = {};
 const server = http.createServer((req, res) => {
   if (req.url === '/archivo.bin') {
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="archivo.bin"' });
     return res.end(Buffer.alloc(64 * 1024, 7));
   }
-  if (req.url.startsWith('/ident')) lastHeaders[req.url] = req.headers;
-  const body = PAGES[req.url] || (req.url.startsWith('/ident') ? '<title>ident</title><body>ok</body>' : null);
+  const body = PAGES[req.url];
   res.writeHead(body ? 200 : 404, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(body || 'no');
 });
@@ -375,24 +370,22 @@ app.whenReady().then(async () => {
   ok('prendida otra vez, la propia', await until(async () => (await sb()) === 11), `midió ${await sb()}`);
   ctx.tabs.close(ctx.tabs.active.id);
 
-  console.log('\n8c. Entrar con Google: se presenta como Firefox');
-  const PORT = server.address().port;
-  const ident = async (url) => {
-    await ctx.tabs.navigate(ctx.tabs.active.id, url);
-    await until(() => ctx.tabs.active.title === 'ident' && !ctx.tabs.active.loading && ctx.tabs.active.url === url);
-    return ctx.tabs.active.view.webContents.executeJavaScript(`({ ua: navigator.userAgent, uad: typeof navigator.userAgentData, uadIn: 'userAgentData' in navigator, chrome: typeof window.chrome, vendor: navigator.vendor, platform: navigator.platform, oscpu: navigator.oscpu })`);
-  };
-  ctx.tabs.create({ url: '' });
-  const g = await ident(`http://login.test:${PORT}/ident-login`);
-  const gh = lastHeaders['/ident-login'] || {};
-  ok('en el login, la cabecera dice Firefox', /Gecko\/20100101 Firefox\/\d+\.0$/.test(gh['user-agent'] || ''), gh['user-agent']);
-  ok('sin client hints', !Object.keys(gh).some((k) => k.startsWith('sec-ch-ua')));
-  ok('navigator dice lo mismo que la cabecera', g.ua === gh['user-agent'], JSON.stringify(g));
-  ok('sin userAgentData ni window.chrome (Firefox no los tiene)', g.uad === 'undefined' && !g.uadIn && g.chrome === 'undefined', JSON.stringify(g));
-  ok('y el resto como Firefox', g.vendor === '' && g.platform === 'Win32' && g.oscpu === 'Windows NT 10.0; Win64; x64', JSON.stringify(g));
-  const c = await ident(`${BASE}/ident-otro`);
-  const ch = lastHeaders['/ident-otro'] || {};
-  ok('afuera del login, Prism sigue siendo Chromium', /Chrome\/\d/.test(ch['user-agent'] || '') && /Chrome\/\d/.test(c.ua) && c.uad === 'object' && c.chrome === 'object', JSON.stringify(c));
+  console.log('\n8c. window.chrome como en Chrome (lo que pide el login de Google)');
+  ctx.tabs.create({ url: `${BASE}/` });
+  ok('carga una página', await until(() => ctx.tabs.active.title === 'Inicio de prueba' && !ctx.tabs.active.loading));
+  const wch = await ctx.tabs.active.view.webContents.executeJavaScript(`(() => {
+    const c = window.chrome;
+    const lt = c?.loadTimes?.();
+    const csi = c?.csi?.();
+    return {
+      keys: c ? Object.keys(c).sort() : null,
+      installed: c?.app?.isInstalled, state: c?.app?.runningState?.(),
+      lt: lt && typeof lt.requestTime === 'number' && typeof lt.connectionInfo === 'string' && lt.finishLoadTime >= lt.requestTime,
+      csi: csi && typeof csi.startE === 'number' && typeof csi.pageT === 'number',
+    };
+  })()`);
+  ok('trae app, csi y loadTimes', JSON.stringify(wch.keys) === '["app","csi","loadTimes"]', JSON.stringify(wch));
+  ok('con la forma de Chrome', wch.installed === false && wch.state === 'cannot_run' && wch.lt && wch.csi, JSON.stringify(wch));
   ctx.tabs.close(ctx.tabs.active.id);
 
   console.log('\n9. Descargas');
