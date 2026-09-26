@@ -119,6 +119,9 @@ function onBlur() {
     edited = false;
     input.value = fullText(activeTab());
   }
+  // La selección sobrevive al blur: se colapsa al principio, que además
+  // vuelve el scroll del campo a donde arranca la dirección partida.
+  input.setSelectionRange(0, 0);
   paintSite(activeTab());
 }
 

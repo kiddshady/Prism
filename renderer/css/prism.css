@@ -301,13 +301,15 @@
   min-width: 0;
   height: 100%;
 }
+/* Las dos capas van con renglón de 20 px centrado en el pozo: la selección
+   pinta el alto del renglón, y a 34 tocaba los cantos de la barra. */
 .pr-omni__input,
 .pr-omni__display {
   position: absolute;
   inset: 0;
   padding: 0 6px;
   font-size: var(--op-fs-13);
-  line-height: 34px;
+  line-height: 20px;
   white-space: nowrap;
   overflow: hidden;
 }
@@ -325,8 +327,12 @@
 /* Sin foco se ve la dirección partida (host claro, resto atenuado) y el input
    queda transparente debajo: sigue siendo él el que recibe el click. */
 .pr-omni:not(.is-focused) .pr-omni__input:not(:placeholder-shown) { color: transparent; }
+/* Si quedara una selección sin foco, el ::selection global le devolvería el
+   color al texto y se encimaría con la dirección partida. */
+.pr-omni:not(.is-focused) .pr-omni__input::selection { background: transparent; color: transparent; }
 .pr-omni.is-focused .pr-omni__display { opacity: 0; }
 .pr-omni__display {
+  inset: 7px 0;
   pointer-events: none;
   color: var(--op-text-3);
   transition: opacity var(--op-t-1) var(--op-ease-soft);
