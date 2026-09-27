@@ -9,7 +9,6 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { ipcMain } = require('electron');
-const { fromChrome } = require('./ipc.cjs');
 
 function createPrompts(ctx) {
   let seq = 0;
@@ -23,10 +22,11 @@ function createPrompts(ctx) {
     });
   }
 
-  /* Solo contesta la ventana. Si una página pudiera mandar esto, un renderer
-     comprometido se concedería la cámara a sí mismo. */
+  /* Solo contesta la ventana de esta pregunta (cada ventana tiene su fila).
+     Si una página pudiera mandar esto, un renderer comprometido se concedería
+     la cámara a sí mismo. */
   ipcMain.on('prompt:answer', (e, id, answer) => {
-    if (!fromChrome(ctx, e)) return;
+    if (!ctx.win || ctx.win.isDestroyed() || e.sender !== ctx.win.webContents) return;
     const p = pending.get(Number(id));
     if (!p) return;
     pending.delete(Number(id));

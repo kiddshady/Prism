@@ -103,7 +103,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="archivo.bin"' });
     return res.end(Buffer.alloc(64 * 1024, 7));
   }
-  const body = PAGES[req.url];
+  const body = PAGES[req.url.split('?')[0]];
   res.writeHead(body ? 200 : 404, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(body || 'no');
 });
@@ -765,6 +765,50 @@ app.whenReady().then(async () => {
   win.webContents.sendInputEvent({ type: 'mouseUp', x: bx1, y: by, button: 'left', clickCount: 1 });
   ok('arrastrar un favorito lo cambia de lugar', await until(() => ctx.library.listBookmarks()[1]?.url === primero));
   ok('y soltarlo no lo abre', ctx.tabs.active.url === urlAntes);
+
+  console.log('\n11d. Incógnito');
+  const g = ctx.openIncognito();
+  const gjs = (c) => g.win.webContents.executeJavaScript(c);
+  ok('Ctrl+Mayús+N abre la ventana de incógnito', await until(() => g.win && !g.win.isDestroyed() && g.tabs.active?.internal === 'nueva', 8000));
+  await until(() => gjs(`!document.getElementById('boot-splash') && !!window.__prism`), 8000);
+  ok('con su fantasmita en la barra', await until(() => gjs(`getComputedStyle(document.querySelector('.pr-incognito')).display === 'flex'`)));
+  ok('y la pestaña nueva de incógnito', await until(() => gjs(`!!document.querySelector('.pr-view[data-page="nueva"] .pr-incog') && !document.getElementById('ntp-tiles')`)));
+  ok('la normal no lleva fantasma', await js(`getComputedStyle(document.querySelector('.pr-incognito')).display === 'none'`));
+  ok('el título lo dice', /Incógnito/.test(g.win.getTitle()), g.win.getTitle());
+  ok('su sesión es otra y en memoria', g.web !== ctx.web && !g.web.isPersistent());
+  ok('otro Ctrl+Mayús+N trae la misma', ctx.openIncognito() === g);
+  const gTabs = await gjs(`window.prism.tabs.state().then((s) => s.tabs.length)`);
+  ok('cada ventana ve sus pestañas', gTabs === g.tabs.list.length && gTabs !== ctx.tabs.list.length, `${gTabs} vs ${ctx.tabs.list.length}`);
+
+  // Cookies: lo de la normal no se ve en incógnito, ni al revés.
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/dos`);
+  await until(() => ctx.tabs.active.title === 'Página dos');
+  await ctx.tabs.active.view.webContents.executeJavaScript(`document.cookie = 'normal=1; path=/'`);
+  await g.tabs.navigate(g.tabs.active.id, `${BASE}/dos?incognito=1`);
+  ok('navega en incógnito', await until(() => g.tabs.active.title === 'Página dos'));
+  const gv = g.tabs.active.view.webContents;
+  ok('no ve las cookies de la normal', !(await gv.executeJavaScript('document.cookie')).includes('normal'));
+  await gv.executeJavaScript(`document.cookie = 'fantasma=1; path=/'`);
+  ok('y la normal no ve las suyas', !(await ctx.tabs.active.view.webContents.executeJavaScript('document.cookie')).includes('fantasma'));
+  await sleep(200);
+  ok('no anota historial', !ctx.library.listVisits({ query: 'incognito' }).some((v) => v.url.includes('incognito=1')));
+  await ctx.tabs.writeSession();
+  ok('ni queda en la sesión para el reinicio', !JSON.stringify(await ctx.sessionDoc.read()).includes('incognito=1'));
+  g.command('open:historial');
+  ok('el historial se abre en la normal', await until(() => ctx.tabs.list.some((t) => t.internal === 'historial')) && !g.tabs.list.some((t) => t.internal === 'historial'));
+
+  g.win.close();
+  ok('cerrarla la termina', await until(() => globalThis.__prismGhost() === null));
+  ok('y cierra sus pestañas de verdad', gv.isDestroyed());
+  ok('la normal sigue', !win.isDestroyed() && ctx.tabs.list.length > 0);
+  const g2 = ctx.openIncognito();
+  ok('una nueva es otra sesión', g2 !== g && g2.web !== g.web);
+  await until(() => g2.tabs.active?.internal === 'nueva', 8000);
+  await g2.tabs.navigate(g2.tabs.active.id, `${BASE}/dos`);
+  await until(() => g2.tabs.active.title === 'Página dos');
+  ok('sin las cookies de la anterior', !(await g2.tabs.active.view.webContents.executeJavaScript('document.cookie')).includes('fantasma'));
+  g2.win.close();
+  await until(() => globalThis.__prismGhost() === null);
 
   console.log('\n12. Bandeja e instancia única');
   win.close();

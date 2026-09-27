@@ -46,6 +46,27 @@
   --op-wincontrol-nudge: 1px;
 }
 
+/* La etiqueta de la ventana de incógnito: el fantasmita y la palabra, antes
+   de los controles de ventana. En la normal no existe. */
+.pr-incognito {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 26px;
+  margin: 1px var(--op-2) 0 0;
+  padding: 0 10px 0 8px;
+  border-radius: var(--op-r-pill);
+  background: var(--op-wash-1);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+  color: var(--op-text-2);
+  font-size: var(--op-fs-12);
+  font-weight: var(--op-w-medium);
+  white-space: nowrap;
+}
+.pr-incognito .op-icon { width: 15px; height: 15px; }
+.pr-app.is-incognito .pr-incognito { display: flex; animation: op-fade-in var(--op-t-3) var(--op-ease-soft) both; }
+
 /* Las facetas de la marca son rellenos, no trazos: la misma tinta con tres
    luces. Donde aparezca el ícono `prism` (pestaña, omnibox, Ajustes) se lee
    igual, en el color del texto que lo rodea. */

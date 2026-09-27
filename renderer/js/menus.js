@@ -74,6 +74,7 @@ export function pageMenu(p) {
     items.push(
       { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: act('link-tab', { url: p.linkURL }) },
       ...(activeTab()?.pinned ? [] : [{ label: 'Abrir el enlace al costado', icon: 'splitView', onSelect: act('link-split', { url: p.linkURL }) }]),
+      ...(S.info?.private ? [] : [{ label: 'Abrir el enlace en incógnito', icon: 'ghost', onSelect: act('link-incognito', { url: p.linkURL }) }]),
       { label: 'Copiar la dirección del enlace', icon: 'link', onSelect: act('link-copy', { url: p.linkURL }) },
       { label: 'Guardar el enlace', icon: 'download', onSelect: act('link-save', { url: p.linkURL }) },
       { sep: true },
@@ -154,6 +155,7 @@ export function mainMenu(anchor, { openFind } = {}) {
   menu(anchor, [
     ...updateItems(),
     { label: 'Nueva pestaña', icon: 'plus', key: 'Ctrl+T', onSelect: () => newTab() },
+    { label: 'Nueva ventana de incógnito', icon: 'ghost', key: 'Ctrl+Mayús+N', onSelect: () => api.win.incognito() },
     { label: 'Reabrir la última cerrada', icon: 'reopen', key: 'Ctrl+Mayús+T', disabled: !S.canReopen, onSelect: () => api.tabs.reopen() },
     { sep: true },
     { label: 'Historial', icon: 'history', key: 'Ctrl+H', onSelect: () => openPage('historial') },

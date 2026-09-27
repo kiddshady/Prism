@@ -45,7 +45,12 @@ npm run release # publica en GitHub (ver abajo)
   **Descargas** con progreso, pausa y reintento.
 - **Barra de favoritos** debajo de la de direcciones, como en Chrome
   (Ctrl+Mayús+B la muestra u oculta). Lo que no entra queda en la flecha de la
-  punta; el botón del medio abre en una pestaña nueva.
+  punta; se arrastran para cambiarlos de lugar, y el botón del medio abre en
+  una pestaña nueva.
+- **Incógnito** (Ctrl+Mayús+N), con su fantasmita: una ventana aparte con su
+  propia sesión en memoria, nueva cada vez. No anota historial, no recuerda
+  permisos ni ofrece guardar contraseñas, y al cerrarla se borra todo. Los
+  favoritos, los ajustes y el bloqueador son los mismos.
 - **Capturas**: lo visible, o la página entera de punta a punta (Ctrl+Mayús+S)
   sin mover el scroll, también en las que scrollean una caja adentro (Moodle).
   Van a Imágenes\Prism y quedan copiadas; una tarjeta en la esquina avisa, con
@@ -151,6 +156,7 @@ src/
   updater.cjs         Auto-update desde los releases de GitHub.
   ipc.cjs             Lo que el cromo puede pedir.
   store.cjs           JSON atómico (de Opal) y los ajustes.
+  windows.cjs         Las ventanas (normal e incógnito): de cuál viene cada pedido.
 renderer/
   index.html          El shell: tira de pestañas, barra, hoja de la página.
   css/prism.css       El cromo del navegador (prefijo pr-).

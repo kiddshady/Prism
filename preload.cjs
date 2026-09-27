@@ -47,6 +47,8 @@ contextBridge.exposeInMainWorld('prism', {
     close: () => send('win:close'),
     isMaximized: () => ipcRenderer.invoke('win:is-maximized'),
     setBackground: (hex) => send('win:set-bg', hex),
+    /** Abre la ventana de incógnito (o la trae, si ya está abierta). */
+    incognito: () => send('win:incognito'),
     onMaximized: listen('win:maximized'),
   },
 

@@ -20,6 +20,7 @@ function match(i) {
 
   if (ctrl && !alt) {
     if (k === 't') return shift ? 'tab:reopen' : 'tab:new';
+    if (k === 'n' && shift) return 'win:incognito';
     if (k === 'w' || k === 'f4') return 'tab:close';
     if (k === 'tab') return shift ? 'tab:prev' : 'tab:next';
     if (k === 'pagedown') return 'tab:next';
@@ -68,6 +69,7 @@ function match(i) {
 /** La tabla que muestra Ajustes: se deriva del mismo lugar para no mentir. */
 const TABLE = [
   ['Nueva pestaña', 'Ctrl+T'],
+  ['Nueva ventana de incógnito', 'Ctrl+Mayús+N'],
   ['Cerrar pestaña', 'Ctrl+W'],
   ['Reabrir la última cerrada', 'Ctrl+Mayús+T'],
   ['Pestaña siguiente / anterior', 'Ctrl+Tab · Ctrl+Mayús+Tab'],

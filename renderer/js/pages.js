@@ -206,14 +206,31 @@ function tileHTML(it, i, kind) {
     </button>`;
 }
 
+/* En incógnito no hay accesos: los más visitados saldrían del historial. En
+   su lugar, qué se guarda y qué no — dicho sin prometer de más. */
+function incognitoHTML() {
+  return `<div class="pr-incog">
+      <div class="pr-incog__title">Estás en incógnito</div>
+      <div class="pr-incog__text">Lo que hagas en esta ventana no queda en Prism. Al cerrarla se borran sus pestañas, cookies e inicios de sesión.</div>
+      <div class="pr-incog__cols">
+        <div class="pr-incog__col"><div class="pr-incog__head">${Icons.svg('ghost')}No se guarda</div>
+          <ul class="pr-incog__list"><li>El historial</li><li>Cookies y datos de los sitios</li><li>Los permisos que des</li><li>Contraseñas nuevas</li></ul></div>
+        <div class="pr-incog__col"><div class="pr-incog__head">${Icons.svg('star')}Sí queda</div>
+          <ul class="pr-incog__list"><li>Los favoritos que agregues</li><li>Los archivos que bajes</li><li>Las capturas</li></ul></div>
+      </div>
+      <div class="pr-incog__text">Los sitios que visitás, tu proveedor de internet o la red de la facu igual pueden ver lo que hacés.</div>
+    </div>`;
+}
+
 function ntpPage(t) {
+  const priv = !!S.info?.private;
   const el = mount(`
     <div class="pr-ntp" id="ntp">
-      <div class="pr-ntp__mark">${Icons.svg('prism')}</div>
+      ${priv ? `<div class="pr-ntp__ghost">${Icons.svg('ghost')}</div>` : `<div class="pr-ntp__mark">${Icons.svg('prism')}</div>`}
       <label class="pr-fakebox" id="fakebox">${Icons.svg('search')}
         <input class="pr-fakebox__input" id="ntp-input" type="text" spellcheck="false" autocomplete="off"
                placeholder="Buscá o escribí una dirección" aria-label="Buscar o ir a una dirección"></label>
-      <div id="ntp-tiles" style="display:contents"></div>
+      ${priv ? incognitoHTML() : '<div id="ntp-tiles" style="display:contents"></div>'}
     </div>`, 'nueva');
 
   /* La barra grande es un campo de verdad, con sus propias sugerencias
@@ -239,6 +256,7 @@ function ntpPage(t) {
   surf.cleanups.push(() => sugg.detach());
 
   async function fill() {
+    if (priv) return;
     const [bm, top] = await Promise.all([api.bookmarks.list().catch(() => []), api.history.top(12).catch(() => [])]);
     const marks = bm.slice(0, 8);
     const seen = new Set(marks.map((b) => hostOf(b.url)));

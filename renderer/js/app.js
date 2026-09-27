@@ -131,6 +131,8 @@ async function boot() {
   S.update = update || S.update;
   S.info = info;
   S.settings = settings;
+  // La de incógnito lleva su fantasmita en la barra de pestañas.
+  document.getElementById('app').classList.toggle('is-incognito', !!info.private);
   S.downloads = downloads;
   S.downloadsDir = dir;
 

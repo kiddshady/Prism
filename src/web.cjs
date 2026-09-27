@@ -49,8 +49,29 @@ function mediaKeys(details) {
   return keys;
 }
 
-function createWeb(ctx) {
-  const web = session.fromPartition('persist:prism');
+/* Lo que la página lee de sus permisos se contesta desde la sesión a la que
+   pertenece (la normal o la de incógnito). Los canales se registran una sola
+   vez; cada sesión anota acá cómo contestar. */
+const statesBySession = new Map();   // session → (e) → estados
+let permChannels = false;
+function listenPermChannels() {
+  if (permChannels) return;
+  permChannels = true;
+  const statesFor = (e) => statesBySession.get(e.sender?.session)?.(e) ?? null;
+  ipcMain.on('perm:states', (e) => { e.returnValue = statesFor(e); });
+  ipcMain.handle('perm:state', (e, name) => {
+    const st = statesFor(e);
+    return st && Object.hasOwn(st, String(name)) ? st[name] : null;
+  });
+}
+
+/**
+ * La sesión de las páginas de una ventana. La normal persiste en disco; la de
+ * incógnito (`{ private: true }`) vive en memoria, en una partición nueva cada
+ * vez, y no recuerda ninguna respuesta de permisos: pregunta de nuevo.
+ */
+function createWeb(ctx, { partition = 'persist:prism', private: priv = false } = {}) {
+  const web = session.fromPartition(partition);
 
   /* ── Identidad ─────────────────────────────────────────────────────────────
      El user agent por defecto dice "Electron/40…" y "Prism/0.1.0". Varios
@@ -78,9 +99,17 @@ function createWeb(ctx) {
 
   /* ── Permisos ──────────────────────────────────────────────────────────── */
 
-  const decided = (origin, key) => ctx.settings.permissions?.[origin]?.[key] || null;
+  /* En incógnito, lo que se decide vale solo mientras dure la ventana: no se
+     lee ni se escribe en los ajustes. */
+  const mem = {};
+  const decided = (origin, key) => (priv ? mem[origin]?.[key] : ctx.settings.permissions?.[origin]?.[key]) || null;
 
   async function remember(origin, keys, value) {
+    if (priv) {
+      mem[origin] = { ...(mem[origin] || {}) };
+      for (const k of keys) mem[origin][k] = value;
+      return;
+    }
     await ctx.updateSettings((s) => {
       const all = { ...(s.permissions || {}) };
       all[origin] = { ...(all[origin] || {}) };
@@ -167,14 +196,13 @@ function createWeb(ctx) {
      src/permissions-preload.cjs corrige lo que lee la página con el estado
      de verdad, que sale de acá: del documento que pregunta, nunca de otro. */
   const QUERYABLE = ['camera', 'microphone', 'geolocation', 'notifications'];
-  const statesFor = (e) => {
+  statesBySession.set(web, (e) => {
     const wc = e.sender;
     if (!wc || wc.session !== web || e.senderFrame?.parent) return null;
     const origin = omni.originOf(e.senderFrame?.url);
     return origin ? Object.fromEntries(QUERYABLE.map((k) => [k, stateOf(wc, origin, k)])) : null;
-  };
-  ipcMain.on('perm:states', (e) => { e.returnValue = statesFor(e); });
-  ipcMain.handle('perm:state', (e, name) => (QUERYABLE.includes(name) ? statesFor(e)?.[name] ?? null : null));
+  });
+  listenPermChannels();
   web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'permissions-preload.cjs') });
 
   /* ── Compartir pantalla ────────────────────────────────────────────────────
@@ -209,7 +237,9 @@ function createWeb(ctx) {
     }
   }, { useSystemPicker: false });
 
-  return { session: web, userAgent: ua };
+  // Al cerrar la ventana de incógnito, su sesión deja de contestar.
+  const dispose = () => statesBySession.delete(web);
+  return { session: web, userAgent: ua, dispose };
 }
 
 module.exports = { createWeb, ASK, ALLOW };

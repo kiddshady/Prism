@@ -329,3 +329,30 @@
 .pr-internal > .pr-view { position: absolute; inset: 0; }
 .pr-list.is-settled .pr-row,
 .pr-list.is-settled .pr-dlrow { animation: none; }
+
+/* ── La pestaña nueva de incógnito ─────────────────────────────────────────
+   En vez de la marca, el fantasma: flota despacio y pestañea cada tanto. Y
+   en vez de los accesos (que mostrarían el historial), qué se guarda y qué no. */
+.pr-ntp__ghost { color: var(--op-text-2); margin-bottom: var(--op-2); }
+.pr-ntp__ghost .op-icon { width: 76px; height: 76px; stroke-width: 1.1; animation: pr-ghost-float 3.6s var(--op-ease-both) infinite alternate; }
+.pr-ntp__ghost .pr-ghost__eye { transform-box: fill-box; transform-origin: center; animation: pr-ghost-blink 5s linear infinite; }
+@keyframes pr-ghost-float { from { transform: translateY(0) } to { transform: translateY(-5px) } }
+@keyframes pr-ghost-blink { 0%, 93%, 100% { transform: scaleY(1) } 95% { transform: scaleY(.12) } }
+
+.pr-incog {
+  width: min(560px, 100%);
+  margin-top: var(--op-5);
+  animation: op-rise-in var(--op-t-3) var(--op-ease) .06s both;
+}
+.pr-incog__title { font-size: 17px; font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); text-align: center; color: var(--op-text); }
+.pr-incog__text { margin-top: var(--op-2); font-size: var(--op-fs-13); line-height: var(--op-lh); color: var(--op-text-3); text-align: center; user-select: text; }
+.pr-incog__cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--op-3); margin-top: var(--op-5); }
+.pr-incog__col {
+  padding: var(--op-3) var(--op-4);
+  border-radius: var(--op-r-lg);
+  background: var(--op-s1);
+  box-shadow: var(--op-sheet);
+}
+.pr-incog__head { display: flex; align-items: center; gap: var(--op-2); font-size: var(--op-fs-12); font-weight: var(--op-w-medium); color: var(--op-text-2); }
+.pr-incog__head .op-icon { width: 14px; height: 14px; }
+.pr-incog__list { margin: var(--op-2) 0 0; padding: 0; list-style: none; font-size: var(--op-fs-12); line-height: 1.7; color: var(--op-text-3); user-select: text; }

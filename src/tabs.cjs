@@ -52,6 +52,15 @@ const GAP = 8;
 const clampRatio = (r) => Math.max(0.2, Math.min(0.8, Number(r) || 0.5));
 
 function createTabs(ctx) {
+  /* En incógnito (ctx.private) no se anota nada: ni visitas, ni títulos, ni
+     favicons. Se lee igual: la estrella de un favorito, los íconos que ya se
+     conocían. */
+  const library = ctx.private
+    ? Object.assign(Object.create(ctx.library), { visit() {}, setTitle() {}, setFavicon() {} })
+    : ctx.library;
+  /** Las páginas propias que no son la pestaña nueva (historial, ajustes…)
+      son de la ventana normal: desde incógnito se abren allá, como en Chrome. */
+  const elsewhere = (page) => ctx.private && page && page !== 'nueva';
   const tabs = [];
   let activeId = null;
   let seq = 0;
@@ -136,7 +145,7 @@ function createTabs(ctx) {
       dormant: !t.view && !t.internal,
       canGoBack: !!(nav?.canGoBack() || t.backTo),
       canGoForward: !!nav?.canGoForward(),
-      bookmarked: ctx.library.isBookmarked(t.url),
+      bookmarked: library.isBookmarked(t.url),
       adblockOff: !ctx.settings.adblock || ctx.adblock?.isAllowed(t.url),
     };
   }
@@ -159,7 +168,8 @@ function createTabs(ctx) {
       ctx.send('tabs:state', snapshot());
       persist();
       const t = active();
-      if (ctx.win && !ctx.win.isDestroyed()) ctx.win.setTitle(t ? `${publicTab(t).title} — Prism` : 'Prism');
+      const app = ctx.private ? 'Prism · Incógnito' : 'Prism';
+      if (ctx.win && !ctx.win.isDestroyed()) ctx.win.setTitle(t ? `${publicTab(t).title} — ${app}` : app);
     }, 16);
   }
 
@@ -178,6 +188,8 @@ function createTabs(ctx) {
   }
   function writeSession() {
     clearTimeout(persistTimer);
+    // Incógnito no vuelve al reiniciar: sus pestañas no se escriben nunca.
+    if (ctx.private) return Promise.resolve();
     return ctx.sessionDoc.write(sessionData()).catch((err) => console.error('[session]', err.message));
   }
 
@@ -332,12 +344,12 @@ function createTabs(ctx) {
       t.blocked = t.pendingBlocked || 0;
       t.pendingBlocked = 0;
       t.navPending = false;
-      t.favicon = ctx.library.faviconFor(url);
+      t.favicon = library.faviconFor(url);
       t.everCommitted = true;
       if (!t.shown) { t.shown = true; syncAttached(); }
       // Despertar no es visitar: la página ya estaba abierta.
       if (t.waking) t.waking = false;
-      else ctx.library.visit(url, wc.getTitle() === url ? '' : wc.getTitle());
+      else library.visit(url, wc.getTitle() === url ? '' : wc.getTitle());
       t.zoom = wc.getZoomFactor();
       touch();
     });
@@ -345,7 +357,7 @@ function createTabs(ctx) {
     wc.on('did-navigate-in-page', (_e, url, isMainFrame) => {
       if (!isMainFrame || url === t.url) return;
       t.url = url;
-      ctx.library.visit(url, t.title);
+      library.visit(url, t.title);
       touch();
     });
 
@@ -356,7 +368,7 @@ function createTabs(ctx) {
 
     wc.on('page-title-updated', (_e, title) => {
       t.title = title;
-      ctx.library.setTitle(t.url, title);
+      library.setTitle(t.url, title);
       touch();
     });
 
@@ -364,7 +376,7 @@ function createTabs(ctx) {
       const icon = (icons || []).find((u) => /^(https?|data):/i.test(u));
       if (!icon) return;
       t.favicon = icon;
-      ctx.library.setFavicon(t.url, icon);
+      library.setFavicon(t.url, icon);
       touch();
     });
 
@@ -528,6 +540,7 @@ function createTabs(ctx) {
    * diez procesos de golpe — cada una carga recién cuando la mirás.
    */
   function create({ url = '', active: activate = true, index, openerId = null, dormant = false, title = '', favicon = null, pinned = false } = {}) {
+    if (elsewhere(omni.internalPage(url))) { ctx.openPage(omni.internalPage(url)); return null; }
     const t = blank(url);
     t.openerId = openerId;
     t.pinned = !!pinned;
@@ -550,6 +563,7 @@ function createTabs(ctx) {
 
   function load(t, url) {
     const page = omni.internalPage(url);
+    if (elsewhere(page)) { ctx.openPage(page); return; }
     if (page) { toInternal(t, page); return; }
     if (t.internal) t.backTo = t.internal;
     t.internal = null;
@@ -951,6 +965,7 @@ function createTabs(ctx) {
         if (other) { load(other, p.url); activateTab(other.id); return other.id; }
         return split(t.id, create({ url: p.url, index: indexOf(t.id) + 1, active: false, openerId: t.id }));
       }
+      case 'link-incognito': return p.url && ctx.openIncognito?.(p.url);
       case 'link-copy': return p.url && clipboard.writeText(p.url);
       case 'link-save': return p.url && ctx.web.downloadURL(p.url);
       case 'image-tab': return p.url && create({ url: p.url, active: false, index: indexOf(activeId) + 1 });
@@ -1028,7 +1043,15 @@ function createTabs(ctx) {
     get fullscreen() { return fullscreen; },
     setFullscreen,
     reloadAll: () => tabs.forEach((t) => t.view?.webContents.reload()),
+    /** Cierra el proceso de cada pestaña (la ventana de incógnito que se va:
+        una vista no muere sola con su ventana y seguiría sonando). */
+    destroyAll() {
+      clearTimeout(persistTimer);
+      for (const t of tabs) destroyView(t);
+      tabs.length = 0;
+    },
     openInternal(page) {
+      if (elsewhere(page)) { ctx.openPage(page); return; }
       // Si ya hay una pestaña con esa página, se va a esa en vez de abrir otra.
       const t = tabs.find((x) => x.internal === page);
       if (t) activateTab(t.id);

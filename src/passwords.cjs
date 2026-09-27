@@ -25,7 +25,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const store = require('./store.cjs');
 const V = require('./vault.cjs');
-const { fromChrome } = require('./ipc.cjs');
+const windows = require('./windows.cjs');
 
 /** Cuánto vive una contraseña copiada en el portapapeles. */
 const CLIPBOARD_MS = 45 * 1000;
@@ -44,25 +44,35 @@ function createPasswords(ctx) {
 
   const enabled = () => ctx.settings.passwords !== false;
   const never = () => new Set(ctx.settings.passNever || []);
-  const changed = () => ctx.send('pass:changed');
+  const changed = () => windows.broadcast('pass:changed');
 
-  /* ── El preload de las páginas ─────────────────────────────────────────── */
-  let preloadId = null;
-  function setEnabled(on) {
-    if (on && !preloadId) {
-      preloadId = ctx.web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'pass-preload.cjs') });
-    } else if (!on && preloadId) {
-      ctx.web.unregisterPreloadScript(preloadId);
-      preloadId = null;
-    }
+  /* ── El preload de las páginas ─────────────────────────────────────────────
+     En cada sesión de páginas: la normal y, si está abierta, la de incógnito
+     (que completa pero nunca ofrece guardar: ver pass:page-capture). */
+  const sessions = new Map();   // session → id del preload (o null, apagado)
+  let on = false;
+  const PRELOAD = path.join(__dirname, 'pass-preload.cjs');
+  function sync(session) {
+    const id = sessions.get(session);
+    if (on && !id) sessions.set(session, session.registerPreloadScript({ type: 'frame', filePath: PRELOAD }));
+    else if (!on && id) { session.unregisterPreloadScript(id); sessions.set(session, null); }
   }
+  function setEnabled(value) {
+    on = !!value;
+    for (const s of sessions.keys()) sync(s);
+  }
+  function addSession(session) {
+    if (!sessions.has(session)) sessions.set(session, null);
+    sync(session);
+  }
+  addSession(ctx.web);
 
   /* ── Puerta de las páginas ─────────────────────────────────────────────── */
 
   /** La dirección del frame que habla, si es una página de verdad. */
   function pageUrl(e) {
     const wc = e.sender;
-    if (!enabled() || !ctx.win || wc === ctx.win.webContents || wc.session !== ctx.web) return null;
+    if (!enabled() || windows.ofSender(e) || !windows.ofSession(wc.session)) return null;
     const frame = e.senderFrame;
     if (!frame || frame.parent) return null;          // solo el documento principal
     return V.hostOf(frame.url) ? frame.url : null;
@@ -102,6 +112,8 @@ function createPasswords(ctx) {
     const url = pageUrl(e);
     const password = String(data.password || '').slice(0, 4000);
     if (!url || !password) return;
+    // En incógnito se completa, pero nunca se ofrece guardar: no deja rastro.
+    if (windows.ofSession(e.sender.session)?.private) return;
     const host = V.hostOf(url);
     const site = V.siteOf(host);
     if (never().has(site)) return;
@@ -130,7 +142,7 @@ function createPasswords(ctx) {
 
   function chrome(channel, fn) {
     ipcMain.handle(channel, async (e, ...args) => {
-      if (!fromChrome(ctx, e)) return { ok: false, error: 'No autorizado.' };
+      if (!windows.ofSender(e)) return { ok: false, error: 'No autorizado.' };
       try {
         return { ok: true, data: await fn(...args) };
       } catch (err) {
@@ -232,6 +244,8 @@ function createPasswords(ctx) {
       setEnabled(enabled());
     },
     setEnabled,
+    addSession,
+    forgetSession: (session) => sessions.delete(session),
     forgetTab: (wcId) => steps.delete(wcId),
     vault,
   };

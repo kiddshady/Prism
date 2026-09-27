@@ -105,7 +105,8 @@ function paintIcon(slot, t, key) {
   if (key === 'loading') slot.innerHTML = Icons.spinner('op-icon--sm');
   else if (key === 'crashed') slot.innerHTML = Icons.svg('broken');
   else if (key === 'error') slot.innerHTML = Icons.svg('alert');
-  else if (key.startsWith('internal:')) slot.innerHTML = Icons.svg(INTERNAL_ICON[t.internal] || 'globe');
+  // En incógnito, la pestaña nueva lleva el fantasmita en vez del prisma.
+  else if (key.startsWith('internal:')) slot.innerHTML = Icons.svg(t.internal === 'nueva' && S.info?.private ? 'ghost' : INTERNAL_ICON[t.internal] || 'globe');
   else if (key.startsWith('fav:')) {
     const img = document.createElement('img');
     img.alt = '';

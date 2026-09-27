@@ -36,6 +36,7 @@ const { createPasswords } = require('./src/passwords.cjs');
 const { createCerts } = require('./src/certs.cjs');
 const { createCapture } = require('./src/capture.cjs');
 const { createCard } = require('./src/card.cjs');
+const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
@@ -99,7 +100,12 @@ function urlsFromArgv(argv) {
 /** La fila de los guardados de ajustes (ver ctx.updateSettings). */
 let settingsQueue = Promise.resolve();
 
+/* El contexto de la ventana normal, que es también la raíz: lo que se comparte
+   (favoritos, ajustes, bloqueador, contraseñas) vive acá, y la ventana de
+   incógnito lo hereda (ver openIncognito). Lo que es de cada ventana —enviarle
+   algo, sus atajos— lo arma windowMethods. */
 const ctx = {
+  private: false,
   win: null,
   web: null,
   settings: {},
@@ -112,11 +118,6 @@ const ctx = {
   prompts: null,
   passwords: null,
   certs: null,
-
-  send(channel, payload) {
-    const w = ctx.win;
-    if (w && !w.isDestroyed() && !w.webContents.isDestroyed()) w.webContents.send(channel, payload);
-  },
 
   saveSettings(patch) {
     return ctx.updateSettings(() => patch);
@@ -135,69 +136,78 @@ const ctx = {
       const patch = fn(before);
       if (!patch) return ctx.settings;
       ctx.settings = await store.saveSettings(patch);
-      ctx.send('settings:changed', ctx.settings);
-      // Lo que tiene efecto inmediato sobre las pestañas abiertas.
-      if (before.adblock !== ctx.settings.adblock) ctx.tabs?.reload();
+      windows.broadcast('settings:changed', ctx.settings);
+      // Lo que tiene efecto inmediato sobre las pestañas abiertas (de todas las ventanas).
+      if (before.adblock !== ctx.settings.adblock) windows.all().forEach((w) => w.tabs?.reload());
       if (before.passwords !== ctx.settings.passwords) ctx.passwords?.setEnabled(ctx.settings.passwords !== false);
-      ctx.tabs?.emit();
+      windows.all().forEach((w) => w.tabs?.emit());
       return ctx.settings;
     });
     settingsQueue = run.catch(() => {});
     return run;
   },
-
-  /** Enfoca la ventana (el cromo) para que la interfaz reciba el teclado. */
-  focusChrome() {
-    if (ctx.win && !ctx.win.isDestroyed()) ctx.win.webContents.focus();
-  },
-
-  /* Los atajos llegan acá desde los dos lados (ver shortcuts.cjs). Lo que es
-     de las pestañas se resuelve en el acto; lo que es de la interfaz se le
-     pasa al renderer como comando. */
-  command(name) {
-    const T = ctx.tabs;
-    const list = T.list;
-    const i = list.findIndex((t) => t.id === T.active?.id);
-    const ui = (cmd, focus = true) => { if (focus) ctx.focusChrome(); ctx.send('cmd', cmd); };
-
-    if (name === 'tab:new') { T.create({}); return ui('omni:focus'); }
-    // Una fijada no se va con Ctrl+W: se cierra desde su menú, a propósito.
-    if (name === 'tab:close') return T.active && !T.active.pinned && T.close(T.active.id);
-    if (name === 'tab:reopen') return T.reopen();
-    if (name === 'tab:next') return list.length > 1 && T.activate(list[(i + 1) % list.length].id);
-    if (name === 'tab:prev') return list.length > 1 && T.activate(list[(i - 1 + list.length) % list.length].id);
-    if (name === 'tab:last') return list.length && T.activate(list[list.length - 1].id);
-    if (name.startsWith('tab:goto:')) {
-      const t = list[Number(name.slice(9)) - 1];
-      return t && T.activate(t.id);
-    }
-    if (name === 'nav:back') return T.back();
-    if (name === 'nav:forward') return T.forward();
-    if (name === 'nav:home') return T.active && T.navigate(T.active.id, 'prism://nueva');
-    if (name === 'page:reload') return T.reload(false);
-    if (name === 'page:hard-reload') return T.reload(true);
-    if (name === 'page:print') return T.contextAction('print');
-    if (name === 'page:capture-full') return ctx.capture.run('full');
-    if (name === 'page:source') return T.contextAction('source');
-    if (name === 'page:devtools') return T.devtools();
-    if (name.startsWith('zoom:')) return T.zoom(name.slice(5));
-    if (name.startsWith('open:')) return T.openInternal(name.slice(5));
-    if (name === 'app:quit') return ctx.quit();
-    if (name === 'win:fullscreen') return ctx.win.setFullScreen(!ctx.win.isFullScreen());
-    if (name === 'bookmark:toggle') {
-      const t = T.active;
-      if (!t || t.internal) return null;
-      ctx.library.toggleBookmark({ url: t.url, title: t.title, favicon: t.favicon });
-      ctx.send('library:changed');
-      return T.emit();
-    }
-    if (name === 'bookmarks:bar') return ctx.updateSettings((s) => ({ bookmarksBar: s.bookmarksBar === false }));
-    if (name === 'omni:focus') return ui('omni:focus');
-    if (name === 'find:open') return T.active?.view && ui('find:open');
-    if (name === 'find:next' || name === 'find:prev') return ui(name, false);
-    return null;
-  },
 };
+
+/** Lo que es de cada ventana: mandarle algo a su cromo, darle el teclado, sus atajos. */
+function windowMethods(w) {
+  w.send = (channel, payload) => {
+    const win = w.win;
+    if (win && !win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, payload);
+  };
+  /** Enfoca la ventana (el cromo) para que la interfaz reciba el teclado. */
+  w.focusChrome = () => { if (w.win && !w.win.isDestroyed()) w.win.webContents.focus(); };
+  w.command = (name) => command(w, name);
+  return w;
+}
+
+/* Los atajos llegan acá desde los dos lados (ver shortcuts.cjs), de la
+   ventana que sea. Lo que es de las pestañas se resuelve en el acto; lo que
+   es de la interfaz se le pasa al renderer como comando. */
+function command(w, name) {
+  const T = w.tabs;
+  const list = T.list;
+  const i = list.findIndex((t) => t.id === T.active?.id);
+  const ui = (cmd, focus = true) => { if (focus) w.focusChrome(); w.send('cmd', cmd); };
+
+  if (name === 'tab:new') { T.create({}); return ui('omni:focus'); }
+  // Una fijada no se va con Ctrl+W: se cierra desde su menú, a propósito.
+  if (name === 'tab:close') return T.active && !T.active.pinned && T.close(T.active.id);
+  if (name === 'tab:reopen') return T.reopen();
+  if (name === 'tab:next') return list.length > 1 && T.activate(list[(i + 1) % list.length].id);
+  if (name === 'tab:prev') return list.length > 1 && T.activate(list[(i - 1 + list.length) % list.length].id);
+  if (name === 'tab:last') return list.length && T.activate(list[list.length - 1].id);
+  if (name.startsWith('tab:goto:')) {
+    const t = list[Number(name.slice(9)) - 1];
+    return t && T.activate(t.id);
+  }
+  if (name === 'nav:back') return T.back();
+  if (name === 'nav:forward') return T.forward();
+  if (name === 'nav:home') return T.active && T.navigate(T.active.id, 'prism://nueva');
+  if (name === 'page:reload') return T.reload(false);
+  if (name === 'page:hard-reload') return T.reload(true);
+  if (name === 'page:print') return T.contextAction('print');
+  if (name === 'page:capture-full') return w.capture.run('full');
+  if (name === 'page:source') return T.contextAction('source');
+  if (name === 'page:devtools') return T.devtools();
+  if (name.startsWith('zoom:')) return T.zoom(name.slice(5));
+  if (name.startsWith('open:')) return T.openInternal(name.slice(5));
+  if (name === 'app:quit') return quit();
+  if (name === 'win:incognito') return openIncognito();
+  if (name === 'win:fullscreen') return w.win.setFullScreen(!w.win.isFullScreen());
+  if (name === 'bookmark:toggle') {
+    const t = T.active;
+    if (!t || t.internal) return null;
+    ctx.library.toggleBookmark({ url: t.url, title: t.title, favicon: t.favicon });
+    windows.broadcast('library:changed');
+    return windows.all().forEach((x) => x.tabs?.emit());
+  }
+  if (name === 'bookmarks:bar') return ctx.updateSettings((s) => ({ bookmarksBar: s.bookmarksBar === false }));
+  if (name === 'omni:focus') return ui('omni:focus');
+  if (name === 'find:open') return T.active?.view && ui('find:open');
+  if (name === 'find:next' || name === 'find:prev') return ui(name, false);
+  return null;
+}
+windowMethods(ctx);
 
 /* ── Estado de la ventana ────────────────────────────────────────────────────
    Tamaño y posición entre sesiones, validados contra las pantallas de hoy:
@@ -237,7 +247,10 @@ function saveWindowState() {
   }, 400);
 }
 
-function createWindow(state) {
+/* La misma ventana para las dos: la normal (que recuerda dónde estaba y se va
+   a la bandeja al cerrarla) y la de incógnito (que se cierra de verdad). */
+function createWindow(w, state) {
+  const main = !w.private;
   const win = new BrowserWindow({
     x: -20000,
     y: -20000,
@@ -249,7 +262,7 @@ function createWindow(state) {
     show: false,
     paintWhenInitiallyHidden: true,
     backgroundColor: BG,
-    title: 'Prism',
+    title: main ? 'Prism' : 'Prism · Incógnito',
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -258,7 +271,8 @@ function createWindow(state) {
       spellcheck: false,
     },
   });
-  ctx.win = win;
+  w.win = win;
+  const offList = windows.add(w);
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -282,25 +296,30 @@ function createWindow(state) {
     });
   }
 
+  // El título lo pone tabs.cjs (la pestaña activa): el <title> del cromo no lo pisa.
+  win.on('page-title-updated', (e) => e.preventDefault());
+
   // El cromo no hace zoom: Ctrl+rueda o Ctrl++ son de la página.
   win.webContents.setVisualZoomLevelLimits(1, 1);
 
-  const pushMaximized = () => ctx.send('win:maximized', win.isMaximized());
-  win.on('maximize', () => { pushMaximized(); saveWindowState(); });
-  win.on('unmaximize', () => { pushMaximized(); saveWindowState(); });
-  win.on('resize', () => { ctx.tabs?.layout(); saveWindowState(); });
-  win.on('move', saveWindowState);
-  win.on('leave-full-screen', () => { if (ctx.tabs?.fullscreen) ctx.tabs.setFullscreen(false); });
+  // Solo la normal recuerda su tamaño y su lugar.
+  const saveState = () => { if (main) saveWindowState(); };
+  const pushMaximized = () => w.send('win:maximized', win.isMaximized());
+  win.on('maximize', () => { pushMaximized(); saveState(); });
+  win.on('unmaximize', () => { pushMaximized(); saveState(); });
+  win.on('resize', () => { w.tabs?.layout(); saveState(); });
+  win.on('move', saveState);
+  win.on('leave-full-screen', () => { if (w.tabs?.fullscreen) w.tabs.setFullscreen(false); });
 
   // Los botones de atrás/adelante del mouse llegan como app-command en Windows.
   win.on('app-command', (_e, cmd) => {
-    if (cmd === 'browser-backward') ctx.tabs?.back();
-    if (cmd === 'browser-forward') ctx.tabs?.forward();
+    if (cmd === 'browser-backward') w.tabs?.back();
+    if (cmd === 'browser-forward') w.tabs?.forward();
   });
 
   // La ventana misma nunca navega ni abre nada: es el cromo, no una página.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//i.test(url)) ctx.tabs?.create({ url });
+    if (/^https?:\/\//i.test(url)) w.tabs?.create({ url });
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
@@ -312,33 +331,38 @@ function createWindow(state) {
      El último que tuvo el foco se anota al perderlo la ventana. */
   let focusWas = 'chrome';
   let focusAtBlur = 'chrome';
-  ctx.notePageFocus = () => { focusWas = 'page'; };
+  w.notePageFocus = () => { focusWas = 'page'; };
   win.webContents.on('focus', () => { focusWas = 'chrome'; });
   win.on('blur', () => { focusAtBlur = focusWas; });
-  win.on('focus', () => { if (focusAtBlur === 'page') ctx.tabs?.focusPage(); });
+  win.on('focus', () => { if (focusAtBlur === 'page') w.tabs?.focusPage(); });
 
   win.webContents.on('before-input-event', (e, input) => {
     const cmd = shortcuts.match(input);
     if (!cmd) return;
     e.preventDefault();
-    ctx.command(cmd);
+    w.command(cmd);
   });
 
   // Si la interfaz se recarga, lo que esperaba respuesta se niega.
-  win.webContents.on('did-start-loading', () => ctx.prompts?.cancelAll());
+  win.webContents.on('did-start-loading', () => w.prompts?.cancelAll());
 
-  /* Cerrar no cierra: Prism se va a la bandeja con sus pestañas vivas (la
-     música sigue sonando, las descargas siguen bajando). Salir de verdad es
-     "Salir de Prism" — en la bandeja, en el menú, o Ctrl+Mayús+Q. */
+  /* Cerrar la normal no cierra: Prism se va a la bandeja con sus pestañas
+     vivas (la música sigue sonando, las descargas siguen bajando). Salir de
+     verdad es "Salir de Prism" — en la bandeja, en el menú, o Ctrl+Mayús+Q.
+     La de incógnito sí se cierra: cerrarla es terminar la sesión. */
   win.on('close', (e) => {
-    if (quitting || !tray) return;
+    if (!main || quitting || !tray) return;
     e.preventDefault();
     if (win.isFullScreen()) win.setFullScreen(false);
     win.hide();
-    ctx.tabs?.writeSession();
+    w.tabs?.writeSession();
   });
 
-  win.on('closed', () => { ctx.win = null; });
+  win.on('closed', () => {
+    offList();
+    w.win = null;
+    w.onClosed?.();
+  });
   return win;
 }
 
@@ -362,6 +386,74 @@ function quit() {
 ctx.quit = quit;
 ctx.showMain = showMain;
 
+/** Una página propia (historial, ajustes…) en la ventana normal, al frente. */
+ctx.openPage = (page) => {
+  showMain();
+  ctx.tabs?.openInternal(page);
+};
+
+/* ── Incógnito ───────────────────────────────────────────────────────────────
+   Una sola ventana de incógnito a la vez: Ctrl+Mayús+N la abre, o la trae si
+   ya está. Es un contexto que hereda del normal (favoritos, ajustes,
+   bloqueador, contraseñas) y tiene lo suyo:
+   · Su sesión de páginas, en memoria y en una partición NUEVA cada vez: las
+     cookies y los logins de la ventana anterior no existen para esta.
+   · Sus pestañas, que no anotan historial ni se guardan para el reinicio
+     (tabs.cjs), y sus permisos, que no se recuerdan (web.cjs).
+   · Su lista de descargas, que no se escribe nunca: los archivos quedan en la
+     carpeta, pero la lista se olvida al cerrar.
+   · El gestor completa, pero nunca ofrece guardar (passwords.cjs).
+   Cerrarla la termina: se cierran sus pestañas y se borra su sesión. */
+let ghost = null;
+let ghostSeq = 0;
+const memoryDoc = () => ({ read: async () => null, write: async () => {}, remove: async () => {} });
+
+function openIncognito(url = '') {
+  if (ghost?.win && !ghost.win.isDestroyed()) {
+    const win = ghost.win;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    if (url) ghost.tabs.create({ url });
+    return ghost;
+  }
+
+  const g = windowMethods(Object.create(ctx));
+  g.private = true;
+  g.prompts = createPrompts(g);
+  const web = createWeb(g, { partition: `prism-incognito-${Date.now()}-${++ghostSeq}`, private: true });
+  g.web = web.session;
+  g.downloads = createDownloads(g, { doc: memoryDoc() });
+  g.downloads.attach(g.web);
+  ctx.adblock.addSession(g.web);
+  ctx.passwords.addSession(g.web);
+  g.capture = createCapture(g);
+  g.card = createCard(g);
+  g.tabs = createTabs(g);
+
+  g.onClosed = () => {
+    g.tabs.destroyAll();
+    web.dispose();
+    ctx.adblock.removeSession(g.web);
+    ctx.passwords.forgetSession(g.web);
+    // En memoria igual, pero que no quede nada al alcance mientras Prism siga abierto.
+    g.web.clearStorageData().catch(() => {});
+    g.web.clearCache().catch(() => {});
+    if (ghost === g) ghost = null;
+  };
+
+  // Al lado de la normal, un poco corrida, como una ventana nueva de Chrome.
+  const b = ctx.win && !ctx.win.isDestroyed() ? ctx.win.getNormalBounds() : null;
+  const width = b?.width || DEFAULT_W;
+  const height = b?.height || DEFAULT_H;
+  const pos = b && visibleOn(b.x + 32, b.y + 32, width, height) ? { x: b.x + 32, y: b.y + 32 } : centered(width, height);
+  createWindow(g, { width, height, ...pos, maximized: false });
+  g.tabs.create({ url });
+  ghost = g;
+  return g;
+}
+ctx.openIncognito = openIncognito;
+
 /* El ítem de actualización cambia con el estado: con Prism en la bandeja,
    ese menú puede ser lo único que se ve de él. */
 function updateMenuItem() {
@@ -383,6 +475,7 @@ function refreshTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Abrir Prism', click: showMain },
     { label: 'Nueva pestaña', click: () => { showMain(); ctx.command('tab:new'); } },
+    { label: 'Nueva ventana de incógnito', click: () => openIncognito() },
     ...(item ? [{ type: 'separator' }, item] : []),
     { type: 'separator' },
     { label: 'Salir de Prism', click: quit },
@@ -399,30 +492,33 @@ function createTray() {
 }
 
 /* ── Controles de ventana ──────────────────────────────────────────────────
-   Como en src/ipc.cjs: solo la ventana de Prism manda esto, nunca una página. */
-const chromeOn = (channel, fn) => ipcMain.on(channel, (e, ...args) => { if (ipc.fromChrome(ctx, e)) fn(...args); });
+   Como en src/ipc.cjs: solo el cromo de una ventana de Prism manda esto, nunca
+   una página, y cada pedido es sobre la ventana que lo mandó. */
+const chromeOn = (channel, fn) => ipcMain.on(channel, (e, ...args) => { const w = windows.ofSender(e); if (w) fn(w, ...args); });
 const chromeHandle = (channel, fn) => ipcMain.handle(channel, (e, ...args) => {
-  if (!ipc.fromChrome(ctx, e)) throw new Error('No autorizado.');
-  return fn(...args);
+  const w = windows.ofSender(e);
+  if (!w) throw new Error('No autorizado.');
+  return fn(w, ...args);
 });
 
-chromeOn('win:minimize', () => ctx.win?.minimize());
-chromeOn('win:toggle-maximize', () => {
-  const win = ctx.win;
+chromeOn('win:minimize', (w) => w.win?.minimize());
+chromeOn('win:toggle-maximize', (w) => {
+  const win = w.win;
   if (!win) return;
   if (win.isFullScreen()) win.setFullScreen(false);
   else win.isMaximized() ? win.unmaximize() : win.maximize();
 });
-chromeOn('win:close', () => ctx.win?.close());
+chromeOn('win:close', (w) => w.win?.close());
+chromeOn('win:incognito', () => openIncognito());
 chromeOn('app:quit', () => quit());
 
 chromeHandle('update:state', () => updater.get());
 chromeHandle('update:check', () => updater.check({ manual: true }));
 chromeHandle('update:download', () => updater.download());
 chromeHandle('update:install', () => updater.install(() => { quitting = true; }));
-chromeHandle('win:is-maximized', () => !!ctx.win?.isMaximized());
-chromeOn('win:set-bg', (hex) => {
-  if (ctx.win && !ctx.win.isDestroyed() && /^#[0-9a-f]{6}$/i.test(String(hex))) ctx.win.setBackgroundColor(hex);
+chromeHandle('win:is-maximized', (w) => !!w.win?.isMaximized());
+chromeOn('win:set-bg', (w, hex) => {
+  if (w.win && !w.win.isDestroyed() && /^#[0-9a-f]{6}$/i.test(String(hex))) w.win.setBackgroundColor(hex);
 });
 
 /* ── Arranque ────────────────────────────────────────────────────────────── */
@@ -447,13 +543,13 @@ app.whenReady().then(async () => {
     ctx.passwords.load().catch((err) => console.error('[pass]', err.message)),
   ]);
 
-  ipc.register(ctx);
+  ipc.register();
   ctx.tabs = createTabs(ctx);
-  createWindow(await loadWindowState());
+  createWindow(ctx, await loadWindowState());
   // La bandeja no se crea en modo verificación: no tiene por qué aparecer un
   // ícono en la barra de la persona mientras corren las pruebas.
   if (!SHOTS || process.env.PRISM_TRAY) createTray();
-  updater.init({ onChange: (u) => { ctx.send('update:state', u); refreshTray(); } });
+  updater.init({ onChange: (u) => { windows.broadcast('update:state', u); refreshTray(); } });
 
   // El bloqueador baja listas la primera vez: no puede demorar la ventana.
   ctx.adblock.load().catch((err) => console.error('[adblock] no cargó:', err.message));
@@ -495,6 +591,7 @@ app.on('window-all-closed', () => app.quit());
    composición vieja de DWM para las zonas que la vista nativa no repintó.) */
 if (SHOTS) {
   globalThis.__prismCtx = ctx;
+  globalThis.__prismGhost = () => ghost;
   globalThis.__prismShot = async (dir) => {
     const fsp = require('fs/promises');
     await fsp.mkdir(dir, { recursive: true });
@@ -523,7 +620,7 @@ app.on('web-contents-created', (_e, wc) => {
     ctx.passwords?.forgetTab(id);
     // Lo que esa pestaña preguntaba (la cámara, la ubicación) ya no tiene a quién
     // concedérselo: se niega y el diálogo se cierra, en vez de quedar esperando.
-    ctx.prompts?.cancelAll(id);
+    windows.all().forEach((w) => w.prompts?.cancelAll(id));
   });
 });
 

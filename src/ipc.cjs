@@ -11,7 +11,11 @@
 
    Las páginas web tienen ipcRenderer en el mundo aislado de sus preloads de
    sesión (scrollbars, contraseñas, bloqueador): cada canal de acá verifica que
-   quien habla sea la ventana y no una página.
+   quien habla sea una ventana de Prism y no una página.
+
+   Hay más de una ventana (la normal y la de incógnito): cada handler recibe
+   el contexto de la que preguntó (windows.cjs), con sus pestañas y su sesión.
+   Lo que es de todas (favoritos, ajustes) se avisa a todas.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const fsp = require('fs/promises');
@@ -19,19 +23,21 @@ const { ipcMain, app, dialog, shell, net } = require('electron');
 const store = require('./store.cjs');
 const omni = require('./omni.cjs');
 const { TABLE } = require('./shortcuts.cjs');
+const windows = require('./windows.cjs');
 const importer = require('./bookmarks-import.cjs');
 
-/** La ventana de Prism es la única que puede hablarle a estos canales. */
-const fromChrome = (ctx, e) => !!ctx.win && !ctx.win.isDestroyed() && e.sender === ctx.win.webContents;
+/** La ventana que habla, si es una ventana de Prism (y no una página). */
+const fromChrome = (e) => windows.ofSender(e);
 
 /** Envuelve un handler para que un throw viaje como error y no como crash.
-    Solo contesta a la ventana: una página (que tiene ipcRenderer en el mundo
+    Solo contesta a una ventana: una página (que tiene ipcRenderer en el mundo
     aislado de sus preloads) recibe "No autorizado." sin que corra nada. */
-function handle(ctx, channel, fn) {
+function handle(channel, fn) {
   ipcMain.handle(channel, async (e, ...args) => {
-    if (!fromChrome(ctx, e)) return { ok: false, error: 'No autorizado.' };
+    const ctx = fromChrome(e);
+    if (!ctx) return { ok: false, error: 'No autorizado.' };
     try {
-      return { ok: true, data: await fn(...args) };
+      return { ok: true, data: await fn(ctx, ...args) };
     } catch (err) {
       console.error(`[ipc] ${channel}:`, err);
       return { ok: false, error: err?.message || String(err) };
@@ -39,11 +45,12 @@ function handle(ctx, channel, fn) {
   });
 }
 
-/** Solo el renderer de la ventana manda comandos. Una página no puede. */
-function on(ctx, channel, fn) {
+/** Solo el renderer de una ventana manda comandos. Una página no puede. */
+function on(channel, fn) {
   ipcMain.on(channel, (e, ...args) => {
-    if (!fromChrome(ctx, e)) return;
-    try { fn(...args); } catch (err) { console.error(`[ipc] ${channel}:`, err); }
+    const ctx = fromChrome(e);
+    if (!ctx) return;
+    try { fn(ctx, ...args); } catch (err) { console.error(`[ipc] ${channel}:`, err); }
   });
 }
 
@@ -54,60 +61,59 @@ const str = (v, max = 8192) => String(v ?? '').slice(0, max);
    que llega tarde pisaría a la nueva y la lista "saltaría" hacia atrás. */
 let suggestAbort = null;
 
-function register(ctx) {
-  const T = () => ctx.tabs;
+function register() {
 
   /* ── Pestañas ──────────────────────────────────────────────────────────── */
-  handle(ctx, 'tabs:state', () => T().snapshot());
-  on(ctx, 'tabs:new', (url, opts = {}) => T().create({ url: str(url), active: opts.active !== false, index: Number.isInteger(opts.index) ? opts.index : undefined }));
-  on(ctx, 'tabs:close', (id) => T().close(num(id)));
-  on(ctx, 'tabs:activate', (id) => T().activate(num(id)));
-  on(ctx, 'tabs:move', (id, to) => T().move(num(id), num(to)));
-  on(ctx, 'tabs:duplicate', (id) => T().duplicate(num(id)));
-  on(ctx, 'tabs:mute', (id) => T().mute(num(id)));
-  on(ctx, 'tabs:pin', (id, pinned) => T().pin(num(id), !!pinned));
-  on(ctx, 'tabs:split', (id, other) => T().split(num(id), other == null ? null : num(other)));
-  on(ctx, 'tabs:unsplit', (id) => T().unsplit(num(id)));
-  on(ctx, 'tabs:swap-split', (id) => T().swapSplit(num(id)));
-  on(ctx, 'tabs:split-ratio', (id, ratio) => T().setSplitRatio(num(id), num(ratio)));
-  on(ctx, 'tabs:reopen', () => T().reopen());
-  on(ctx, 'tabs:close-others', (id) => T().closeOthers(num(id)));
-  on(ctx, 'tabs:close-right', (id) => T().closeRight(num(id)));
-  handle(ctx, 'tabs:navigate', (id, input) => T().navigate(id == null ? null : num(id), str(input)));
+  handle('tabs:state', (ctx) => ctx.tabs.snapshot());
+  on('tabs:new', (ctx, url, opts = {}) => ctx.tabs.create({ url: str(url), active: opts.active !== false, index: Number.isInteger(opts.index) ? opts.index : undefined }));
+  on('tabs:close', (ctx, id) => ctx.tabs.close(num(id)));
+  on('tabs:activate', (ctx, id) => ctx.tabs.activate(num(id)));
+  on('tabs:move', (ctx, id, to) => ctx.tabs.move(num(id), num(to)));
+  on('tabs:duplicate', (ctx, id) => ctx.tabs.duplicate(num(id)));
+  on('tabs:mute', (ctx, id) => ctx.tabs.mute(num(id)));
+  on('tabs:pin', (ctx, id, pinned) => ctx.tabs.pin(num(id), !!pinned));
+  on('tabs:split', (ctx, id, other) => ctx.tabs.split(num(id), other == null ? null : num(other)));
+  on('tabs:unsplit', (ctx, id) => ctx.tabs.unsplit(num(id)));
+  on('tabs:swap-split', (ctx, id) => ctx.tabs.swapSplit(num(id)));
+  on('tabs:split-ratio', (ctx, id, ratio) => ctx.tabs.setSplitRatio(num(id), num(ratio)));
+  on('tabs:reopen', (ctx) => ctx.tabs.reopen());
+  on('tabs:close-others', (ctx, id) => ctx.tabs.closeOthers(num(id)));
+  on('tabs:close-right', (ctx, id) => ctx.tabs.closeRight(num(id)));
+  handle('tabs:navigate', (ctx, id, input) => ctx.tabs.navigate(id == null ? null : num(id), str(input)));
 
-  on(ctx, 'nav:back', () => T().back());
-  on(ctx, 'nav:forward', () => T().forward());
-  on(ctx, 'nav:reload', (hard) => T().reload(!!hard));
-  on(ctx, 'nav:stop', () => T().stop());
-  on(ctx, 'page:zoom', (dir) => T().zoom(['in', 'out', 'reset'].includes(dir) ? dir : 'reset'));
-  on(ctx, 'page:devtools', () => T().devtools());
-  on(ctx, 'page:print', () => T().contextAction('print'));
-  on(ctx, 'page:capture', (kind) => ctx.capture.run(kind === 'full' ? 'full' : 'visible'));
+  on('nav:back', (ctx) => ctx.tabs.back());
+  on('nav:forward', (ctx) => ctx.tabs.forward());
+  on('nav:reload', (ctx, hard) => ctx.tabs.reload(!!hard));
+  on('nav:stop', (ctx) => ctx.tabs.stop());
+  on('page:zoom', (ctx, dir) => ctx.tabs.zoom(['in', 'out', 'reset'].includes(dir) ? dir : 'reset'));
+  on('page:devtools', (ctx) => ctx.tabs.devtools());
+  on('page:print', (ctx) => ctx.tabs.contextAction('print'));
+  on('page:capture', (ctx, kind) => ctx.capture.run(kind === 'full' ? 'full' : 'visible'));
 
   /* ── La página y los overlays ──────────────────────────────────────────── */
-  on(ctx, 'page:insets', (i) => T().setInsets(i));
-  handle(ctx, 'page:snapshot', () => T().snapshotPage());
-  handle(ctx, 'page:hold', (onOff) => { T().hold(!!onOff); return true; });
-  on(ctx, 'page:focus', () => T().focusPage());
-  on(ctx, 'page:find', (text, opts = {}) => T().find(str(text, 500), { forward: opts.forward !== false, newSession: !!opts.newSession }));
-  on(ctx, 'page:find-stop', () => T().stopFind());
-  on(ctx, 'page:context', (action, p = {}) => T().contextAction(str(action, 40), {
+  on('page:insets', (ctx, i) => ctx.tabs.setInsets(i));
+  handle('page:snapshot', (ctx) => ctx.tabs.snapshotPage());
+  handle('page:hold', (ctx, onOff) => { ctx.tabs.hold(!!onOff); return true; });
+  on('page:focus', (ctx) => ctx.tabs.focusPage());
+  on('page:find', (ctx, text, opts = {}) => ctx.tabs.find(str(text, 500), { forward: opts.forward !== false, newSession: !!opts.newSession }));
+  on('page:find-stop', (ctx) => ctx.tabs.stopFind());
+  on('page:context', (ctx, action, p = {}) => ctx.tabs.contextAction(str(action, 40), {
     url: p.url ? str(p.url) : '', text: p.text ? str(p.text, 2000) : '', word: p.word ? str(p.word, 200) : '',
     x: Number(p.x) || 0, y: Number(p.y) || 0,
   }));
-  on(ctx, 'page:exit-fullscreen', () => {
-    const wc = T().active?.view?.webContents;
+  on('page:exit-fullscreen', (ctx) => {
+    const wc = ctx.tabs.active?.view?.webContents;
     if (wc) wc.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
-    T().setFullscreen(false);
+    ctx.tabs.setFullscreen(false);
   });
 
   /* ── Omnibox ───────────────────────────────────────────────────────────── */
-  handle(ctx, 'omni:suggest', (q) => {
+  handle('omni:suggest', (ctx, q) => {
     const r = ctx.library.suggest(str(q, 500), 6, { history: ctx.settings.historySuggest !== false });
     return { ...r, classified: omni.classify(str(q, 500), ctx.settings.searchEngine) };
   });
 
-  handle(ctx, 'omni:remote', async (q) => {
+  handle('omni:remote', async (ctx, q) => {
     const query = str(q, 300).trim();
     if (!query || !ctx.settings.remoteSuggest) return [];
     suggestAbort?.abort();
@@ -129,55 +135,55 @@ function register(ctx) {
   });
 
   /* ── Historial y favoritos ─────────────────────────────────────────────── */
-  const L = () => ctx.library;
-  const changed = () => { T().emit(); ctx.send('library:changed'); };
+  // Los favoritos son de todas las ventanas: la estrella y la barra de cada una.
+  const changed = () => { windows.all().forEach((w) => w.tabs?.emit()); windows.broadcast('library:changed'); };
 
-  handle(ctx, 'history:list', (opts = {}) => L().listVisits({
+  handle('history:list', (ctx, opts = {}) => ctx.library.listVisits({
     query: str(opts.query, 300),
     before: Number(opts.before) || Infinity,
     limit: Math.min(500, Number(opts.limit) || 200),
   }));
-  handle(ctx, 'history:remove', (ids) => { const n = L().removeVisits((ids || []).map(Number)); changed(); return n; });
-  handle(ctx, 'history:clear', (since) => { const n = L().clearHistory(Number(since) || 0); changed(); return n; });
-  handle(ctx, 'history:top', (n) => L().topSites(Math.min(24, Number(n) || 8)));
+  handle('history:remove', (ctx, ids) => { const n = ctx.library.removeVisits((ids || []).map(Number)); changed(); return n; });
+  handle('history:clear', (ctx, since) => { const n = ctx.library.clearHistory(Number(since) || 0); changed(); return n; });
+  handle('history:top', (ctx, n) => ctx.library.topSites(Math.min(24, Number(n) || 8)));
 
-  handle(ctx, 'bookmarks:list', () => L().listBookmarks());
-  handle(ctx, 'bookmarks:toggle', (info = {}) => {
-    const t = T().active;
+  handle('bookmarks:list', (ctx) => ctx.library.listBookmarks());
+  handle('bookmarks:toggle', (ctx, info = {}) => {
+    const t = ctx.tabs.active;
     const url = str(info.url || t?.url);
     if (!/^(https?|file):/i.test(url)) return false;
-    const on = L().toggleBookmark({ url, title: str(info.title ?? t?.title, 300), favicon: info.favicon ?? t?.favicon ?? null });
+    const on = ctx.library.toggleBookmark({ url, title: str(info.title ?? t?.title, 300), favicon: info.favicon ?? t?.favicon ?? null });
     changed();
     return on;
   });
-  handle(ctx, 'bookmarks:add', (info = {}) => { const b = L().addBookmark({ url: str(info.url), title: str(info.title, 300), favicon: info.favicon || null }); changed(); return b; });
+  handle('bookmarks:add', (ctx, info = {}) => { const b = ctx.library.addBookmark({ url: str(info.url), title: str(info.title, 300), favicon: info.favicon || null }); changed(); return b; });
   /* La dirección editada a mano pasa por la omnibox: "google.com" se guarda
      como https://google.com (abierta en una pestaña nueva va directo a
      Chromium, que sin esquema no la entiende), y lo que no es una dirección
      que se pueda visitar no se guarda. */
-  const bookmarkUrl = (raw) => {
+  const bookmarkUrl = (ctx, raw) => {
     const r = omni.classify(str(raw), ctx.settings.searchEngine);
     if (r?.type !== 'url' || !/^(https?|file):/i.test(r.url)) throw new Error('Esa dirección no es válida.');
     return r.url;
   };
-  handle(ctx, 'bookmarks:update', (id, patch = {}) => {
-    const url = patch.url != null && str(patch.url).trim() ? bookmarkUrl(patch.url) : undefined;
-    const b = L().updateBookmark(str(id, 64), { title: patch.title != null ? str(patch.title, 300) : undefined, url });
+  handle('bookmarks:update', (ctx, id, patch = {}) => {
+    const url = patch.url != null && str(patch.url).trim() ? bookmarkUrl(ctx, patch.url) : undefined;
+    const b = ctx.library.updateBookmark(str(id, 64), { title: patch.title != null ? str(patch.title, 300) : undefined, url });
     changed();
     return b;
   });
-  handle(ctx, 'bookmarks:remove', (id) => { const r = L().removeBookmark(str(id)); changed(); return r; });
-  handle(ctx, 'bookmarks:move', (id, to) => { const r = L().moveBookmark(str(id, 64), Number(to)); changed(); return r; });
+  handle('bookmarks:remove', (ctx, id) => { const r = ctx.library.removeBookmark(str(id)); changed(); return r; });
+  handle('bookmarks:move', (ctx, id, to) => { const r = ctx.library.moveBookmark(str(id, 64), Number(to)); changed(); return r; });
 
   /* Importar: la ventana elige una fuente de la lista (no manda rutas), o un
      archivo HTML que elige la persona en el diálogo. */
-  handle(ctx, 'bookmarks:sources', () => importer.findSources());
-  handle(ctx, 'bookmarks:import', async (id) => {
-    const r = L().importBookmarks(await importer.readSource(str(id, 200)));
+  handle('bookmarks:sources', (ctx) => importer.findSources());
+  handle('bookmarks:import', async (ctx, id) => {
+    const r = ctx.library.importBookmarks(await importer.readSource(str(id, 200)));
     changed();
     return r;
   });
-  handle(ctx, 'bookmarks:import-file', async () => {
+  handle('bookmarks:import-file', async (ctx) => {
     const r = await dialog.showOpenDialog(ctx.win, {
       title: 'Importar favoritos',
       buttonLabel: 'Importar',
@@ -186,36 +192,35 @@ function register(ctx) {
     });
     if (r.canceled || !r.filePaths[0]) return null;
     const list = importer.parseNetscape(await fsp.readFile(r.filePaths[0], 'utf8'));
-    const res = L().importBookmarks(list);
+    const res = ctx.library.importBookmarks(list);
     changed();
     return { ...res, found: list.length };
   });
 
   /* ── Descargas ─────────────────────────────────────────────────────────── */
-  const D = () => ctx.downloads;
-  handle(ctx, 'downloads:list', () => D().list());
+  handle('downloads:list', (ctx) => ctx.downloads.list());
   for (const a of ['open', 'show', 'cancel', 'pause', 'resume', 'retry', 'remove']) {
-    handle(ctx, `downloads:${a}`, (id) => D()[a](num(id)));
+    handle(`downloads:${a}`, (ctx, id) => ctx.downloads[a](num(id)));
   }
-  handle(ctx, 'downloads:clear', () => D().clear());
-  handle(ctx, 'downloads:folder', () => D().openFolder());
-  handle(ctx, 'downloads:dir', () => D().dir());
+  handle('downloads:clear', (ctx) => ctx.downloads.clear());
+  handle('downloads:folder', (ctx) => ctx.downloads.openFolder());
+  handle('downloads:dir', (ctx) => ctx.downloads.dir());
 
   /* ── Ajustes ───────────────────────────────────────────────────────────── */
-  handle(ctx, 'settings:get', () => ctx.settings);
-  handle(ctx, 'settings:save', (patch) => ctx.saveSettings(patch || {}));
+  handle('settings:get', (ctx) => ctx.settings);
+  handle('settings:save', (ctx, patch) => ctx.saveSettings(patch || {}));
   /* Sacar uno de una lista se calcula en la fila de guardados, no con la copia
      de la ventana: dos chips quitados rápido no se pisan. */
   const LISTS = new Set(['adblockAllow', 'passNever']);
-  handle(ctx, 'settings:remove', (key, value) => {
+  handle('settings:remove', (ctx, key, value) => {
     const k = str(key, 40);
     if (!LISTS.has(k)) throw new Error('Esa lista no existe.');
     const v = str(value, 400);
     return ctx.updateSettings((s) => ({ [k]: (s[k] || []).filter((x) => x !== v) }));
   });
 
-  handle(ctx, 'adblock:toggle-site', (url) => {
-    const host = ctx.adblock.hostOf(str(url || T().active?.url));
+  handle('adblock:toggle-site', (ctx, url) => {
+    const host = ctx.adblock.hostOf(str(url || ctx.tabs.active?.url));
     if (!host) return null;
     let allowed = false;
     return ctx.updateSettings((s) => {
@@ -224,25 +229,25 @@ function register(ctx) {
       allowed ? list.add(host) : list.delete(host);
       return { adblockAllow: [...list] };
     }).then(() => {
-      T().reload();
+      ctx.tabs.reload();
       return { host, allowed };
     });
   });
-  handle(ctx, 'adblock:stats', () => ({ ready: ctx.adblock.ready, total: ctx.adblock.total }));
+  handle('adblock:stats', (ctx) => ({ ready: ctx.adblock.ready, total: ctx.adblock.total }));
 
   /* Certificados de la red local (certs.cjs). Aceptar es aceptar el que se
      rechazó en ESA pestaña: la ventana no manda huellas, solo dice cuál. */
-  handle(ctx, 'certs:allow', async (id) => {
-    const t = T().list.find((x) => x.id === num(id));
+  handle('certs:allow', async (ctx, id) => {
+    const t = ctx.tabs.list.find((x) => x.id === num(id));
     if (!t?.view || !t.error) throw new Error('Esa pestaña no tiene un certificado para aceptar.');
     const url = t.error.url || t.url;
     const host = await ctx.certs.allow(t.view.webContents.id, url);
-    T().navigate(t.id, url);
+    ctx.tabs.navigate(t.id, url);
     return host;
   });
-  handle(ctx, 'certs:forget', (host) => ctx.certs.forget(str(host, 300)));
+  handle('certs:forget', (ctx, host) => ctx.certs.forget(str(host, 300)));
 
-  handle(ctx, 'permissions:revoke', async (origin, key) => {
+  handle('permissions:revoke', async (ctx, origin, key) => {
     const o = str(origin, 400);
     ctx.forgetOnce?.(o);
     let had = false;
@@ -256,9 +261,9 @@ function register(ctx) {
     return had;
   });
 
-  handle(ctx, 'data:clear', async (what = {}) => {
+  handle('data:clear', async (ctx, what = {}) => {
     const done = [];
-    if (what.history) { L().clearHistory(Number(what.since) || 0); done.push('historial'); changed(); }
+    if (what.history) { ctx.library.clearHistory(Number(what.since) || 0); done.push('historial'); changed(); }
     if (what.cookies) {
       await ctx.web.clearStorageData({ storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'filesystem', 'websql', 'shadercache'] });
       done.push('cookies y datos de sitios');
@@ -267,7 +272,7 @@ function register(ctx) {
     return done;
   });
 
-  handle(ctx, 'dialog:folder', async (current) => {
+  handle('dialog:folder', async (ctx, current) => {
     const r = await dialog.showOpenDialog(ctx.win, {
       title: 'Carpeta de descargas',
       defaultPath: current ? str(current, 1000) : app.getPath('downloads'),
@@ -276,7 +281,8 @@ function register(ctx) {
     return r.canceled ? null : r.filePaths[0];
   });
 
-  handle(ctx, 'app:info', () => ({
+  handle('app:info', (ctx) => ({
+    private: !!ctx.private,
     name: app.getName(),
     version: app.getVersion(),
     dataDir: store.ROOT,
@@ -287,10 +293,10 @@ function register(ctx) {
     engines: Object.fromEntries(Object.entries(omni.ENGINES).map(([k, v]) => [k, v.label])),
     shortcuts: TABLE,
   }));
-  handle(ctx, 'app:relaunch', () => { app.relaunch(); app.quit(); return true; });
-  handle(ctx, 'app:open-data', () => shell.openPath(store.ROOT));
+  handle('app:relaunch', (ctx) => { app.relaunch(); app.quit(); return true; });
+  handle('app:open-data', (ctx) => shell.openPath(store.ROOT));
 
-  handle(ctx, 'net:online', () => net.isOnline());
+  handle('net:online', (ctx) => net.isOnline());
 }
 
 module.exports = { register, fromChrome };
