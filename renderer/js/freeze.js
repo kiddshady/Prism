@@ -98,5 +98,38 @@ export function reset() {
   imgs().forEach((el) => el.classList.remove('is-on'));
 }
 
+/* ── La foto de la ventanita ───────────────────────────────────────────────
+   Cuando el video se va a la ventanita (src/pip.cjs), la vista se muda y en
+   su lugar queda una foto de la página que se desvanece sobre el aviso de
+   abajo. Al volver, al revés: la foto aparece sobre el aviso, la vista vuelve
+   encima, y la foto se saca. Es otra foto, no la del congelado: con un menú
+   abierto a la vez, no se pisan. */
+const photos = () => [...document.querySelectorAll('.pr-photo')];
+
+api.page.onPhoto(async ({ nonce, slot, url, fade }) => {
+  const els = slot === 'all' ? photos() : [photos()[slot]].filter(Boolean);
+  if (!url) {
+    for (const el of els) {
+      el.classList.toggle('is-instant', !fade);
+      el.classList.remove('is-on');
+      setTimeout(() => { if (!el.classList.contains('is-on')) el.removeAttribute('src'); }, 400);
+    }
+    return;
+  }
+  const el = els[0];
+  if (el) {
+    el.src = url;
+    try { await el.decode(); } catch { /* una foto rota no frena nada */ }
+    el.classList.toggle('is-instant', !fade);
+    void el.offsetWidth;
+    el.classList.add('is-on');
+    // Sin fundido, alcanza con que esté pintada; con fundido, que haya terminado de aparecer.
+    await (fade
+      ? new Promise((r) => setTimeout(r, 300))
+      : Promise.race([new Promise((r) => raf2(r)), new Promise((r) => setTimeout(r, 80))]));
+  }
+  api.page.photoReady(nonce);
+});
+
 /** Para depurar desde la consola (o por CDP): cuántos overlays lo sostienen. */
 export const debug = () => ({ count, frozen, img: imgs().some((el) => el.classList.contains('is-on')) });

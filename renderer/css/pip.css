@@ -1,0 +1,218 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRISM — los controles de la ventanita (renderer/pip.html, src/pip.cjs)
+   Viven en una vista transparente encima del video. Aparecen con el mouse
+   encima o con el video en pausa, y se van solos al rato de no moverlo.
+   Nada acá tiene blur: debajo hay un video que se mueve todo el tiempo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html, body { background: transparent; }
+
+.pip {
+  position: fixed;
+  inset: 0;
+  color: rgb(255 255 255 / .94);
+  overflow: hidden;
+}
+.pip.is-idle, .pip.is-idle * { cursor: none; }
+
+/* Oscuro arriba y abajo, donde van los controles: se leen sobre un video blanco. */
+.pip__shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgb(0 0 0 / .52), rgb(0 0 0 / 0) 38%),
+    linear-gradient(to top, rgb(0 0 0 / .66), rgb(0 0 0 / 0) 44%);
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-both);
+}
+.pip.is-shown .pip__shade { opacity: 1; }
+
+/* Lo que aparece y se va. Escondido, tampoco se puede tocar (visibility
+   espera a que termine el desvanecido). */
+.pip-fade {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(var(--dy, 0));
+  transition:
+    opacity var(--op-t-2) var(--op-ease-both),
+    transform var(--op-t-2) var(--op-ease),
+    visibility 0s linear var(--op-t-2);
+}
+.pip.is-shown .pip-fade {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+.pip__top {
+  --dy: -4px;
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.pip__mid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+}
+.pip__mid > * { pointer-events: auto; }
+
+.pip__bottom {
+  --dy: 4px;
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 4px;
+}
+.pip__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+}
+
+/* ── Botones ──────────────────────────────────────────────────────────────── */
+
+.pip-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--op-r-md);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  transition: var(--tr-color), transform var(--op-t-1) var(--op-ease-soft);
+}
+.pip-btn:hover { background: rgb(255 255 255 / .14); }
+.pip-btn:active { background: rgb(255 255 255 / .2); transform: scale(.94); }
+.pip-btn:focus-visible { box-shadow: 0 0 0 2px rgb(0 0 0 / .6), 0 0 0 3.5px var(--op-ring); }
+.pip-btn .op-icon { width: 16px; height: 16px; stroke-width: 1.6; }
+.pip-btn--sm { width: 28px; height: 28px; margin-left: auto; }
+
+/* El del medio, más grande y con su disco oscuro: se ve sobre cualquier cuadro. */
+.pip-play {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / .44);
+}
+.pip-play:hover { background: rgb(28 28 30 / .66); }
+.pip-play .op-icon { width: 22px; height: 22px; stroke-width: 1.7; }
+.pip-play .is-play path { fill: currentColor; }
+
+/* Diez segundos: la vuelta y el número adentro. */
+.pip-skip { width: 34px; height: 34px; border-radius: 50%; }
+.pip-skip .op-icon { width: 24px; height: 24px; stroke-width: 1.25; grid-area: 1 / 1; }
+.pip-skip b {
+  grid-area: 1 / 1;
+  font-size: 8.5px;
+  font-weight: var(--op-w-semi);
+  letter-spacing: -.02em;
+  transform: translateY(.5px);
+}
+
+/* Dos íconos en la misma celda: se relevan (el que se va achica y se desvanece). */
+.pip-swap { display: grid; }
+.pip-swap > .op-icon {
+  grid-area: 1 / 1;
+  transition: opacity var(--op-t-1) var(--op-ease-both), transform var(--op-t-2) var(--op-ease);
+}
+.pip:not(.is-paused) .is-play,
+.pip.is-paused .is-pause,
+.pip:not(.is-muted) .is-off,
+.pip.is-muted .is-on { opacity: 0; transform: scale(.6); }
+
+/* ── Tiempo y barra ───────────────────────────────────────────────────────── */
+
+.pip-time {
+  font-family: var(--op-mono);
+  font-size: 11.5px;
+  color: rgb(255 255 255 / .86);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pip-live {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--op-fs-12);
+  font-weight: var(--op-w-medium);
+}
+.pip-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--op-danger); }
+.pip.is-live .pip-live { display: inline-flex; }
+.pip.is-live .pip-bar,
+.pip.is-live .pip-time,
+.pip.is-live .pip-skip { display: none; }
+
+.pip-bar {
+  --p: 0;
+  position: relative;
+  height: 14px;
+  cursor: pointer;
+}
+.pip-bar__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 5.5px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / .28);
+  overflow: hidden;
+  transition: transform var(--op-t-1) var(--op-ease-soft);
+}
+.pip-bar__fill {
+  position: absolute;
+  inset: 0;
+  background: var(--op-accent);
+  transform-origin: left;
+  transform: scaleX(var(--p));
+}
+/* La cabeza es una caja del ancho de la barra corrida `p`: la perilla se
+   mueve con transform, sin remaquetar. */
+.pip-bar__head {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translateX(calc(var(--p) * 100%));
+}
+.pip-bar__knob {
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / .45);
+  transform: scale(0);
+  transition: transform var(--op-t-1) var(--op-ease);
+}
+.pip-bar:hover .pip-bar__track,
+.pip.is-scrubbing .pip-bar__track { transform: scaleY(1.6); }
+.pip-bar:hover .pip-bar__knob,
+.pip.is-scrubbing .pip-bar__knob { transform: scale(1); }
+
+/* Chiquita, lo esencial: sin los saltos de diez segundos. */
+@media (max-width: 300px) {
+  .pip-skip { display: none; }
+}
+@media (max-height: 150px) {
+  .pip__mid { transform: translateY(-6px); }
+  .pip-play { width: 40px; height: 40px; }
+}

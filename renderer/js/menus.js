@@ -89,7 +89,12 @@ export function pageMenu(p) {
       { label: 'Guardar la imagen', icon: 'download', onSelect: act('image-save', { url: p.srcURL }) },
       { sep: true },
     );
-  } else if ((p.mediaType === 'video' || p.mediaType === 'audio') && p.srcURL && !p.srcURL.startsWith('blob:')) {
+  }
+  if (p.mediaType === 'video') {
+    items.push({ label: 'Ver en una ventanita', icon: 'pip', key: 'Ctrl+Mayús+P', onSelect: act('video-pip') });
+    if (!p.srcURL || p.srcURL.startsWith('blob:')) items.push({ sep: true });
+  }
+  if ((p.mediaType === 'video' || p.mediaType === 'audio') && p.srcURL && !p.srcURL.startsWith('blob:')) {
     items.push(
       { label: `Abrir ${p.mediaType === 'video' ? 'el video' : 'el audio'} en una pestaña nueva`, icon: p.mediaType === 'video' ? 'video' : 'music', onSelect: act('image-tab', { url: p.srcURL }) },
       { label: 'Guardar', icon: 'download', onSelect: act('image-save', { url: p.srcURL }) },
@@ -169,6 +174,9 @@ export function mainMenu(anchor, { openFind } = {}) {
     { label: 'Imprimir', icon: 'printer', key: 'Ctrl+P', disabled: !web, onSelect: () => api.page.print() },
     { label: 'Capturar lo visible', icon: 'capture', disabled: !web, onSelect: () => api.page.capture('visible') },
     { label: 'Capturar la página entera', icon: 'captureFull', key: 'Ctrl+Mayús+S', disabled: !web, onSelect: () => api.page.capture('full') },
+    t?.pip
+      ? { label: 'Traer el video de vuelta', icon: 'pipBack', key: 'Ctrl+Mayús+P', onSelect: () => api.page.pip() }
+      : { label: 'Ver el video en una ventanita', icon: 'pip', key: 'Ctrl+Mayús+P', disabled: !web, onSelect: () => api.page.pip() },
     { sep: true },
     { label: 'Herramientas de desarrollo', icon: 'terminal', key: 'F12', disabled: !web, onSelect: () => api.page.devtools() },
     { label: 'Ver el código fuente', icon: 'code', key: 'Ctrl+U', disabled: !web, onSelect: () => api.page.context('source') },

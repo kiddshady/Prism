@@ -3,7 +3,8 @@
    Lo que se dibuja ADENTRO de la hoja de la página cuando la pestaña activa
    no es un sitio: la nueva pestaña, el historial, los favoritos, las
    descargas, los ajustes, y los avisos (no se pudo cargar, la pestaña se
-   cayó). También la espera de una pestaña web que todavía no pintó.
+   cayó, el video está en la ventanita). También la espera de una pestaña
+   web que todavía no pintó.
 
    Cada página se monta una vez por pestaña y se re-dibuja solo cuando cambian
    SUS datos — no con cada foto de estado que llega mientras otra pestaña
@@ -82,6 +83,7 @@ function mount(html, name) {
 function pageKey(t) {
   if (!t) return 'none';
   if (t.internal) return `internal:${t.internal}:${t.id}`;
+  if (t.pip) return `pip:${t.id}`;
   if (t.crashed) return `crashed:${t.id}`;
   if (t.error) return `error:${t.id}:${t.error.code}:${t.error.url}`;
   return `web:${t.id}`;
@@ -107,6 +109,7 @@ function renderSurface(t) {
   surf.cleanups = [];
   if (!t) { mount('', 'none'); surf.current = null; return; }
   if (t.internal) { surf.current = PAGES[t.internal]?.(t) || null; return; }
+  if (t.pip) { surf.current = pipPage(t); return; }
   if (t.crashed) { surf.current = crashedPage(t); return; }
   if (t.error) { surf.current = errorPage(t); return; }
   surf.current = waitingPage(t);
@@ -178,6 +181,19 @@ function errorPage(t) {
     if (a === 'trust') api.certs.allow(t.id).catch((err) => console.error('[certs]', err?.message || err));
   });
   return { name: 'error', el };
+}
+
+/* La página se mudó a la ventanita (src/pip.cjs): su lugar lo dice, y la trae. */
+function pipPage(t) {
+  const el = mount(`
+    <div class="pr-notice"><div class="pr-notice__box">
+      ${Icons.svg('pip', 'pr-notice__icon')}
+      <div class="pr-notice__title">El video está en la ventanita</div>
+      <div class="pr-notice__text">Sigue a la vista, encima de todo, mientras usás otra cosa. Traelo de vuelta para seguir con la página.</div>
+      <div class="pr-notice__actions"><button class="op-btn op-btn--primary op-flashable" data-a="back"><i data-icon="pipBack"></i> Traer de vuelta</button></div>
+    </div></div>`, 'pip');
+  el.querySelector('[data-a]').addEventListener('click', () => api.page.pipBack(t.id));
+  return { name: 'pip', el };
 }
 
 function crashedPage() {

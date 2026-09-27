@@ -89,6 +89,9 @@ function register() {
   on('page:devtools', (ctx) => ctx.tabs.devtools());
   on('page:print', (ctx) => ctx.tabs.contextAction('print'));
   on('page:capture', (ctx, kind) => ctx.capture.run(kind === 'full' ? 'full' : 'visible'));
+  on('page:pip', (ctx) => ctx.pip.toggle(ctx));
+  on('pip:back', (ctx, id) => ctx.pip.back(ctx, id == null ? null : num(id)));
+  on('page:photo-ready', (ctx, nonce) => ctx.tabs.photoReady(num(nonce)));
 
   /* ── La página y los overlays ──────────────────────────────────────────── */
   on('page:insets', (ctx, i) => ctx.tabs.setInsets(i));

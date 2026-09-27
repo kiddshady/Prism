@@ -39,6 +39,8 @@ is('Ctrl+Mayús+Q sale de verdad', key('Q', { control: true, shift: true }), 'ap
 is('Ctrl+Mayús+S captura la página entera', key('S', { control: true, shift: true }), 'page:capture-full');
 is('Ctrl+Mayús+B muestra u oculta la barra de favoritos', key('B', { control: true, shift: true }), 'bookmarks:bar');
 is('Ctrl+Mayús+N abre la ventana de incógnito', key('N', { control: true, shift: true }), 'win:incognito');
+is('Ctrl+Mayús+P saca el video a la ventanita', key('P', { control: true, shift: true }), 'page:pip');
+is('Ctrl+P sigue imprimiendo', key('p', { control: true }), 'page:print');
 is('Ctrl+N solo no hace nada', key('n', { control: true }), null);
 is('Ctrl+B solo no hace nada (negrita en un editor)', key('b', { control: true }), null);
 is('Ctrl+S solo no hace nada (es de la página)', key('s', { control: true }), null);

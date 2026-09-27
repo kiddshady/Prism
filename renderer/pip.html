@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- Los controles de la ventanita (src/pip.cjs): una vista propia,
+     transparente, encima de la página del video. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<title>Prism · Ventanita</title>
+<link rel="stylesheet" href="./css/fonts.css">
+<link rel="stylesheet" href="./css/tokens.css">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/pip.css">
+<body>
+  <div class="pip is-shown" id="pip">
+    <div class="pip__shade"></div>
+
+    <div class="pip__top pip-fade">
+      <button class="pip-btn" data-act="back" aria-label="Volver a la pestaña"><i data-icon="pipBack"></i></button>
+      <button class="pip-btn" data-act="close" aria-label="Cerrar la ventanita"><i data-icon="close"></i></button>
+    </div>
+
+    <div class="pip__mid">
+      <button class="pip-btn pip-skip pip-fade" data-act="skip" data-arg="-10" aria-label="Diez segundos atrás"><i data-icon="skipBack"></i><b>10</b></button>
+      <button class="pip-btn pip-play pip-fade" data-act="toggle" aria-label="Pausar">
+        <span class="pip-swap"><i data-icon="play" data-icon-class="is-play"></i><i data-icon="pause" data-icon-class="is-pause"></i></span>
+      </button>
+      <button class="pip-btn pip-skip pip-fade" data-act="skip" data-arg="10" aria-label="Diez segundos adelante"><i data-icon="skipFwd"></i><b>10</b></button>
+    </div>
+
+    <div class="pip__bottom pip-fade">
+      <div class="pip-bar" id="bar">
+        <div class="pip-bar__track"><div class="pip-bar__fill"></div></div>
+        <div class="pip-bar__head"><div class="pip-bar__knob"></div></div>
+      </div>
+      <div class="pip__row">
+        <span class="pip-time" id="time"></span>
+        <span class="pip-live"><i></i>En vivo</span>
+        <button class="pip-btn pip-btn--sm" data-act="mute" aria-label="Silenciar">
+          <span class="pip-swap"><i data-icon="speaker" data-icon-class="is-on"></i><i data-icon="speakerOff" data-icon-class="is-off"></i></span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./js/pip.js"></script>
+</body>

@@ -39,7 +39,7 @@ function match(i) {
     if (k === '=' || k === '+' || code === 'NumpadAdd') return 'zoom:in';
     if (k === '-' || code === 'NumpadSubtract') return 'zoom:out';
     if ((k === '0' && code.startsWith('Digit')) || code === 'Numpad0') return 'zoom:reset';
-    if (k === 'p') return 'page:print';
+    if (k === 'p') return shift ? 'page:pip' : 'page:print';
     if (k === 's' && shift) return 'page:capture-full';
     if (k === 'u') return 'page:source';
     if (k === 'i' && shift) return 'page:devtools';
@@ -87,6 +87,7 @@ const TABLE = [
   ['Zoom', 'Ctrl++ · Ctrl+- · Ctrl+0'],
   ['Imprimir', 'Ctrl+P'],
   ['Capturar la página entera', 'Ctrl+Mayús+S'],
+  ['Ver el video en una ventanita (o traerlo de vuelta)', 'Ctrl+Mayús+P'],
   ['Código fuente', 'Ctrl+U'],
   ['Herramientas de desarrollo', 'F12'],
   ['Pantalla completa', 'F11'],

@@ -35,6 +35,12 @@
    sostiene). Mirar una pestaña de un par muestra el par entero; la activa
    es la mitad donde está la persona, y es la que manejan la omnibox, atrás,
    recargar y el zoom. Hacer clic en la otra mitad la vuelve la activa.
+
+   ── La ventanita ───────────────────────────────────────────────────────────
+   Una pestaña cuyo video está en la ventanita (src/pip.cjs) presta su vista:
+   `away` dice que la vista vive allá, y acá no se la toca (no se pega a la
+   ventana, no se le da el teclado, no se duerme). Su hoja muestra que el
+   video está afuera.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { WebContentsView, clipboard, nativeImage, shell } = require('electron');
@@ -140,6 +146,7 @@ function createTabs(ctx) {
       muted: t.muted,
       pinned: t.pinned,
       split: pairOf(t.id) ? (pairOf(t.id).a === t.id ? 'a' : 'b') : null,
+      pip: !!t.pip,
       zoom: t.zoom,
       blocked: t.blocked,
       dormant: !t.view && !t.internal,
@@ -250,7 +257,7 @@ function createTabs(ctx) {
     if (!ctx.win || ctx.win.isDestroyed()) return;
     const want = new Map();
     visible().forEach((t, slot) => {
-      if (t && t.view && t.shown && !t.error && !t.crashed) want.set(t.view, slot);
+      if (t && t.view && t.shown && !t.error && !t.crashed && !t.away) want.set(t.view, slot);
     });
     for (const view of [...attached.keys()]) {
       if (want.has(view)) continue;
@@ -274,6 +281,10 @@ function createTabs(ctx) {
         sandbox: true,
         contextIsolation: true,
         nodeIntegration: false,
+        /* Los preloads de la sesión corren también en los iframes (no Node:
+           con sandbox, solo el preload). El video de YouTube embebido en el
+           aula del campus vive en uno, y la ventanita tiene que encontrarlo. */
+        nodeIntegrationInSubFrames: true,
         spellcheck: true,
         safeDialogs: true,
         // El visor de PDF de Chromium es un plugin: sin esto un PDF se descarga.
@@ -301,6 +312,8 @@ function createTabs(ctx) {
   function destroyView(t) {
     const view = t.view;
     if (!view) return;
+    // Si el video estaba en la ventanita (o yendo), la ventanita se va con la pestaña.
+    ctx.pip?.drop(t);
     if (attached.has(view)) {
       try { ctx.win.contentView.removeChildView(view); } catch { /* nada */ }
       attached.delete(view);
@@ -324,6 +337,8 @@ function createTabs(ctx) {
 
     wc.on('did-start-navigation', (d) => {
       if (!d.isMainFrame || d.isSameDocument) return;
+      // Otra página: el video de la ventanita ya no existe, la pestaña vuelve.
+      if (t.pip) ctx.pip?.lost(t);
       // El contador del escudo es por página: una navegación nueva lo reinicia.
       t.pendingBlocked = 0;
       t.navPending = true;
@@ -402,6 +417,7 @@ function createTabs(ctx) {
 
     wc.on('render-process-gone', (_e, details) => {
       if (details.reason === 'clean-exit') return;
+      if (t.pip) ctx.pip?.lost(t);
       t.crashed = true;
       t.loading = false;
       syncAttached();
@@ -420,6 +436,8 @@ function createTabs(ctx) {
 
     wc.on('context-menu', (_e, p) => {
       if (!isVisible(t.id)) return;
+      // El frame del clic derecho: "Ver en una ventanita" saca el video de ese.
+      t.contextFrame = p.frame || null;
       if (t.id !== activeId) activateTab(t.id, { focusPage: false });
       const b = rectOf(t);
       ctx.send('page:context', {
@@ -443,8 +461,14 @@ function createTabs(ctx) {
       });
     });
 
-    wc.on('enter-html-full-screen', () => setFullscreen(true));
-    wc.on('leave-html-full-screen', () => setFullscreen(false));
+    /* En la ventanita, la pantalla completa es la del video adentro de su
+       ventana chica: la ventana grande no se entera. Si la página sale sola
+       de ella, el video vuelve a su pestaña. */
+    wc.on('enter-html-full-screen', () => { if (!t.pip) setFullscreen(true); });
+    wc.on('leave-html-full-screen', () => {
+      if (t.pip) { if (!ctx.pip?.isClosing(t)) ctx.pip?.lost(t); return; }
+      setFullscreen(false);
+    });
 
     wc.on('zoom-changed', (_e, dir) => { if (t.id === activeId) zoom(dir === 'in' ? 'in' : 'out'); });
 
@@ -600,7 +624,7 @@ function createTabs(ctx) {
     const r = omni.classify(input, ctx.settings.searchEngine);
     if (!r) return null;
     load(t, r.url);
-    if (t.id === activeId && t.view) t.view.webContents.focus();
+    if (t.id === activeId && t.view && !t.away) t.view.webContents.focus();
     return r;
   }
 
@@ -615,7 +639,7 @@ function createTabs(ctx) {
     if (p && !p.internal && !p.view) wake(p);
     syncAttached();
     if (changed) ctx.send('page:hover', '');
-    if (focusPage && t.view && t.shown) t.view.webContents.focus();
+    if (focusPage && t.view && t.shown && !t.away) t.view.webContents.focus();
     emit();
   }
 
@@ -763,7 +787,7 @@ function createTabs(ctx) {
   /** Si esta pestaña se puede dormir ahora sin que la persona pierda nada. */
   function canSleep(t, now = Date.now()) {
     const min = Number(ctx.settings.sleepTabs) || 0;
-    if (!min || !t.view || t.internal || t.pinned || isVisible(t.id)) return false;
+    if (!min || !t.view || t.internal || t.pinned || t.pip || isVisible(t.id)) return false;
     if (t.sleeping || t.loading || !t.shown || t.error || t.crashed || t.audible) return false;
     const wc = t.view.webContents;
     if (wc.isCurrentlyAudible() || wc.isDevToolsOpened() || wc.isBeingCaptured()) return false;
@@ -921,7 +945,7 @@ function createTabs(ctx) {
       for (const done of [...thawWaiters]) done();
       const t = active();
       // Si el foco estaba en la página antes del overlay, vuelve a ella.
-      if (t?.view && ctx.win?.isFocused()) {
+      if (t?.view && !t.away && ctx.win?.isFocused()) {
         const chromeFocused = ctx.win.webContents.isFocused();
         if (!chromeFocused) t.view.webContents.focus();
       }
@@ -930,7 +954,41 @@ function createTabs(ctx) {
 
   function focusPage() {
     const t = active();
-    if (t?.view && attached.has(t.view)) t.view.webContents.focus();
+    if (t?.view && !t.away && attached.has(t.view)) t.view.webContents.focus();
+  }
+
+  /* ── La ventanita (src/pip.cjs) ────────────────────────────────────────── */
+
+  /** La vista se va a la ventanita (o vuelve de ella). */
+  function setAway(t, on) {
+    t.away = !!on;
+    syncAttached();
+    emit();
+  }
+
+  /* Una vista nativa no se desvanece: aparece o no está. Para que irse a la
+     ventanita (y volver) no sea un corte, en su hoja se pone una foto de la
+     página (freeze.js, otra que la del congelado) que se desvanece sola. */
+  const photoWaiters = new Map();
+  let photoSeq = 0;
+  const slotOf = (t) => visible().findIndex((x) => x?.id === t.id);
+
+  /** Pone la foto en la hoja de `t` (si se ve) y espera a que esté en pantalla. */
+  function showPhoto(t, url, { fade = false } = {}) {
+    const slot = slotOf(t);
+    if (slot < 0 || !url) return Promise.resolve(false);
+    const nonce = ++photoSeq;
+    return new Promise((resolve) => {
+      const done = (ok) => { clearTimeout(timer); photoWaiters.delete(nonce); resolve(ok); };
+      const timer = setTimeout(() => done(false), fade ? 900 : 500);
+      photoWaiters.set(nonce, done);
+      ctx.send('page:photo', { nonce, slot, url, fade });
+    });
+  }
+
+  function hidePhoto(t, { fade = false } = {}) {
+    const slot = slotOf(t);
+    ctx.send('page:photo', { slot: slot < 0 ? 'all' : slot, url: null, fade });
   }
 
   /* ── Buscar en la página ───────────────────────────────────────────────── */
@@ -966,6 +1024,7 @@ function createTabs(ctx) {
         return split(t.id, create({ url: p.url, index: indexOf(t.id) + 1, active: false, openerId: t.id }));
       }
       case 'link-incognito': return p.url && ctx.openIncognito?.(p.url);
+      case 'video-pip': return t && ctx.pip?.fromContext(ctx, t, t.contextFrame);
       case 'link-copy': return p.url && clipboard.writeText(p.url);
       case 'link-save': return p.url && ctx.web.downloadURL(p.url);
       case 'image-tab': return p.url && create({ url: p.url, active: false, index: indexOf(activeId) + 1 });
@@ -1035,6 +1094,8 @@ function createTabs(ctx) {
     split, unsplit, swapSplit, setSplitRatio,
     activate: activateTab, back, forward, reload, stop, zoom, find, stopFind, devtools,
     contextAction, snapshotPage, hold, focusPage, setInsets, layout, pageBounds, restore, writeSession,
+    setAway, rectFor: (t) => rectOf(t), showPhoto, hidePhoto,
+    photoReady: (n) => photoWaiters.get(Number(n))?.(true),
     closeIfDownloadOnly, countBlocked,
     snapshot, emit,
     byWebContents: (id) => byWc.get(id) || null,

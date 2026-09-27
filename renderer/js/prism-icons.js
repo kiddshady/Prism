@@ -42,6 +42,14 @@ Icons.add({
        + '<path d="M6.3 6.6v1.6M9.7 6.6v1.6"/>',
   capture: '<path d="M2 5.2V3.6A1.6 1.6 0 0 1 3.6 2h1.6M10.8 2h1.6A1.6 1.6 0 0 1 14 3.6v1.6M14 10.8v1.6a1.6 1.6 0 0 1-1.6 1.6h-1.6M5.2 14H3.6A1.6 1.6 0 0 1 2 12.4v-1.6"/><rect x="5" y="5.4" width="6" height="5.2" rx="1.1"/>',
   captureFull: '<path d="M2 5.2V3.6A1.6 1.6 0 0 1 3.6 2h1.6M10.8 2h1.6A1.6 1.6 0 0 1 14 3.6v1.6M14 10.8v1.6a1.6 1.6 0 0 1-1.6 1.6h-1.6M5.2 14H3.6A1.6 1.6 0 0 1 2 12.4v-1.6"/><path d="M8 4.8v6.2M5.8 8.8 8 11l2.2-2.2"/>',
+  /* La ventanita: la pantalla con una más chica en su esquina, rellena para
+     que se lea a 14 px. Volver a la pestaña: la flecha entra de la esquina
+     hacia la pantalla grande. Los saltos de diez segundos, una vuelta
+     abierta (el número va en HTML, al medio). */
+  pip: '<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><rect x="7.9" y="7.9" width="4.3" height="3.3" rx=".8" fill="currentColor" stroke="none"/>',
+  pipBack: '<rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M11.2 10.6 6.3 5.9M6.1 8.9V5.7h3.2"/>',
+  skipBack: '<path d="M3.1 8a4.9 4.9 0 1 0 1.5-3.5"/><path d="M4.3 1.9v2.8h2.8"/>',
+  skipFwd: '<path d="M12.9 8a4.9 4.9 0 1 1-1.5-3.5"/><path d="M11.7 1.9v2.8H8.9"/>',
   camera: '<rect x="1.6" y="4" width="9.2" height="8" rx="1.8"/><path d="M10.8 7 14.4 4.8v6.4L10.8 9z"/>',
   mic: '<rect x="5.8" y="1.8" width="4.4" height="7.6" rx="2.2"/><path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2"/>',
   location: '<path d="M8 14.2s4.6-4 4.6-7.4a4.6 4.6 0 0 0-9.2 0c0 3.4 4.6 7.4 4.6 7.4z"/><circle cx="8" cy="6.8" r="1.7"/>',

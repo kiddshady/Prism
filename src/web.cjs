@@ -205,6 +205,11 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
   listenPermChannels();
   web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'permissions-preload.cjs') });
 
+  /* ── La ventanita ──────────────────────────────────────────────────────────
+     El botón sobre los videos y el manejo del video que se va a la ventanita
+     (src/pip.cjs). Corre en cada frame: el video puede estar en un iframe. */
+  web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'pip-preload.cjs') });
+
   /* ── Compartir pantalla ────────────────────────────────────────────────────
      Sin este manejador, getDisplayMedia falla directo: Meet dice que no se
      puede presentar. El selector es propio, con miniaturas de cada pantalla y

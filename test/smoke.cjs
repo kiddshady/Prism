@@ -46,7 +46,7 @@ const ok = (n, c, x = '') => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const bail = (w, e) => { console.log(`ABORTADO ${w}`, e?.stack || e || ''); app.exit(3); };
 process.on('unhandledRejection', (e) => bail('rechazo', e));
-setTimeout(() => bail('timeout de 90s'), 90000);
+setTimeout(() => bail('timeout de 120s'), 120000);
 
 /** Espera a que algo sea verdad (o se rinde y devuelve false). */
 async function until(fn, ms = 6000) {
@@ -93,6 +93,22 @@ const PAGES = {
   '/larga': `<title>Larga</title><body style="margin:0"><div style="height:5000px"></div><script>
     window.__sb = innerWidth - document.documentElement.clientWidth;
   </script></body>`,
+  /* Un video sin red: un lienzo que se dibuja solo, como transmisión. Metido
+     en una caja con transform (lo que rompe un position: fixed), y otro en un
+     iframe, como el de YouTube adentro del aula del campus. */
+  '/video': `<title>Video</title><body style="margin:0;font:16px sans-serif">
+    <div style="transform:translateZ(0);overflow:hidden;width:640px;margin:20px"><video id="v" autoplay muted playsinline style="width:640px;height:360px;display:block"></video></div>
+    <iframe id="f" src="/video-solo" width="400" height="240" allowfullscreen style="border:0;margin:20px"></iframe>
+    <script>
+      const c = document.createElement('canvas'); c.width = 640; c.height = 360; const x = c.getContext('2d'); let n = 0;
+      setInterval(() => { x.fillStyle = 'hsl(' + (n++ * 7 % 360) + ',70%,50%)'; x.fillRect(0, 0, 640, 360); }, 40);
+      document.getElementById('v').srcObject = c.captureStream(25);
+    </script></body>`,
+  '/video-solo': `<body style="margin:0;background:#000"><video id="e" muted playsinline style="width:100%;height:100%;display:block"></video><script>
+      const c = document.createElement('canvas'); c.width = 400; c.height = 300; const x = c.getContext('2d'); let n = 0;
+      setInterval(() => { x.fillStyle = 'hsl(' + (n++ * 11 % 360) + ',60%,40%)'; x.fillRect(0, 0, 400, 300); }, 40);
+      document.getElementById('e').srcObject = c.captureStream(25);
+    </script></body>`,
   /* Como Moodle 4 con sesión: el documento no scrollea, scrollea una caja. */
   '/caja': `<title>Caja</title><style>html,body{height:100%;margin:0;overflow:hidden}
     #page{height:calc(100vh - 50px);margin-top:50px;overflow-y:auto}</style>
@@ -815,6 +831,75 @@ app.whenReady().then(async () => {
   ok('sin las cookies de la anterior', !(await g2.tabs.active.view.webContents.executeJavaScript('document.cookie')).includes('fantasma'));
   g2.win.close();
   await until(() => globalThis.__prismGhost() === null);
+
+  console.log('\n11e. La ventanita');
+  const { BaseWindow } = require('electron');
+  const pipWin = () => BaseWindow.getAllWindows().find((w) => w.getTitle() === 'Prism · Ventanita') || null;
+  ctx.tabs.create({ url: `${BASE}/video` });
+  await until(() => ctx.tabs.active.title === 'Video');
+  const vt = ctx.tabs.active;
+  const vwc = vt.view.webContents;
+  await until(() => vwc.executeJavaScript(`!document.getElementById('v').paused && document.getElementById('v').videoWidth > 0`), 8000);
+  // El botón: con el mouse sobre el video aparece en su borde derecho, y tocarlo lo saca.
+  const vr = await vwc.executeJavaScript(`(() => { const r = document.getElementById('v').getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })()`);
+  const vy = Math.round((vr[1] + vr[3]) / 2);
+  vwc.sendInputEvent({ type: 'mouseMove', x: Math.round((vr[0] + vr[2]) / 2), y: vy });
+  await sleep(250);
+  const bx2 = Math.round(vr[2] - 26);
+  vwc.sendInputEvent({ type: 'mouseMove', x: bx2, y: vy });
+  ok('con el mouse sobre el video aparece el botón', await until(() => vwc.executeJavaScript(`document.elementFromPoint(${bx2}, ${vy})?.tagName === 'PRISM-PIP'`)));
+  vwc.sendInputEvent({ type: 'mouseDown', x: bx2, y: vy, button: 'left', clickCount: 1 });
+  vwc.sendInputEvent({ type: 'mouseUp', x: bx2, y: vy, button: 'left', clickCount: 1 });
+  ok('tocarlo abre la ventanita', await until(() => ctx.pip.current?.tabId === vt.id && pipWin()?.isVisible() && pipWin().getOpacity() > 0.99 && pipWin().getBounds().x > -10000, 5000));
+  const pw = pipWin();
+  ok('siempre arriba', pw.isAlwaysOnTop());
+  ok('la página se mudó: no está en la ventana grande', !win.contentView.children.includes(vt.view) && pw.contentView.children[0] === vt.view);
+  const [pcw, pch] = pw.getContentSize();
+  const pvb = vt.view.getBounds();
+  ok('y llena la ventanita, con los controles encima', pvb.width === pcw && pvb.height === pch && pw.contentView.children[1].getBounds().width === pcw, JSON.stringify({ pvb, pcw, pch }));
+  ok('la ventanita tiene la forma del video', Math.abs(pcw / pch - 16 / 9) < 0.02, `${pcw}x${pch}`);
+  ok('el video la llena (pantalla completa adentro de su página)', await vwc.executeJavaScript(`document.fullscreenElement?.id === 'v'`));
+  ok('la ventana grande no se pone en pantalla completa', !win.isFullScreen() && !ctx.tabs.fullscreen);
+  ok('la hoja de la pestaña dice que está en la ventanita', await until(() => js(`!!document.querySelector('#internal .pr-view[data-page="pip"]:not([data-state="closing"])')`)));
+  ok('y la pestaña no se duerme mientras tanto', vt.pip === true);
+  const pui = pw.contentView.children[1].webContents;
+  await until(() => pui.executeJavaScript(`!!document.querySelector('[data-act="toggle"]')`));
+  await pui.executeJavaScript(`document.querySelector('[data-act="toggle"]').click()`);
+  ok('la pausa de la ventanita pausa el video', await until(() => vwc.executeJavaScript(`document.getElementById('v').paused`)));
+  ok('y los controles se enteran', await until(() => pui.executeJavaScript(`document.getElementById('pip').classList.contains('is-paused')`)));
+  await pui.executeJavaScript(`document.querySelector('[data-act="toggle"]').click()`);
+  await until(() => vwc.executeJavaScript(`!document.getElementById('v').paused`));
+  await js(`document.querySelector('#internal .pr-view[data-page="pip"] [data-a="back"]').click()`);
+  ok('"Traer de vuelta" la devuelve a su pestaña', await until(() => !ctx.pip.current && win.contentView.children.includes(vt.view), 5000));
+  ok('en su lugar exacto', JSON.stringify(vt.view.getBounds()) === JSON.stringify(ctx.tabs.rectFor(vt)), JSON.stringify(vt.view.getBounds()));
+  ok('fuera de la pantalla completa y sonando', await vwc.executeJavaScript(`!document.fullscreenElement && !document.getElementById('v').paused`));
+  ok('y la ventanita se fue', await until(() => !pipWin()));
+
+  // Ctrl+Mayús+P: el video que suena. Si suena el del iframe, sale ese.
+  await vwc.executeJavaScript(`document.getElementById('v').pause()`);
+  const marco = vwc.mainFrame.frames[0];
+  await marco.executeJavaScript(`document.getElementById('e').play()`, true);
+  await until(() => marco.executeJavaScript(`!document.getElementById('e').paused`));
+  ctx.command('page:pip');
+  const abrio = await until(() => ctx.pip.current && pipWin()?.getOpacity() > 0.99 && pipWin().getBounds().x > -10000, 5000);
+  const enMarco = await marco.executeJavaScript(`document.fullscreenElement?.id || null`);
+  ok('Ctrl+Mayús+P saca el video que está sonando, aunque esté en un iframe', abrio && enMarco === 'e',
+    JSON.stringify({ abrio, enMarco, cur: ctx.pip.current, arriba: await vwc.executeJavaScript(`document.fullscreenElement?.id || null`) }));
+  ctx.command('page:pip');
+  ok('y otra vez lo trae de vuelta', await until(() => !ctx.pip.current && !pipWin() && win.contentView.children.includes(vt.view), 5000));
+
+  await vwc.executeJavaScript(`document.getElementById('v').play()`);
+  ctx.command('page:pip');
+  await until(() => ctx.pip.current && pipWin()?.getOpacity() > 0.99 && pipWin().getBounds().x > -10000, 5000);
+  ctx.tabs.close(vt.id);
+  ok('cerrar la pestaña se lleva la ventanita', await until(() => !ctx.pip.current && !pipWin()));
+
+  ctx.tabs.create({ url: `${BASE}/dos` });
+  await until(() => ctx.tabs.active.title === 'Página dos');
+  ctx.card.hide();
+  await until(() => !ctx.card.shown);
+  ctx.command('page:pip');
+  ok('en una página sin video no abre nada y lo avisa', await until(() => ctx.card.shown) && !pipWin() && !ctx.pip.current);
 
   console.log('\n12. Bandeja e instancia única');
   win.close();

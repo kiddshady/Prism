@@ -55,6 +55,13 @@ npm run release # publica en GitHub (ver abajo)
   sin mover el scroll, también en las que scrollean una caja adentro (Moodle).
   Van a Imágenes\Prism y quedan copiadas; una tarjeta en la esquina avisa, con
   la miniatura, Abrir y Mostrar en la carpeta.
+- **Ventanita** (picture-in-picture propio): un video sale a una ventana chica
+  que queda siempre arriba mientras usás otra cosa. Con el botón que aparece
+  sobre el video, el clic derecho, el menú o Ctrl+Mayús+P (que también lo trae
+  de vuelta). Tiene sus controles: pausa, diez segundos atrás y adelante,
+  barra de tiempo, silencio, volver a la pestaña y cerrar; se arrastra y se
+  agranda desde los bordes, y recuerda dónde quedó. Encuentra el video aunque
+  esté en un iframe (el de YouTube adentro del aula del campus).
 - **Nueva pestaña** con tus favoritos y los sitios que más visitás.
 - **Permisos** propios: cámara, micrófono, ubicación, notificaciones… se
   preguntan y se recuerdan por sitio. Compartir pantalla con selector propio.
@@ -94,6 +101,22 @@ el link bajo el mouse va a la statusbar, y los avisos también. La excepción es
 la tarjeta de la esquina (`src/card.cjs`): una vista nativa propia, chica y
 transparente, apoyada ENCIMA de las pestañas. Flota sin congelar nada y tapa
 solo su rectángulo.
+
+### La ventanita
+
+No es la de Chromium: la pestaña le presta su vista entera (`src/pip.cjs`). El
+`WebContentsView` se muda a una ventana chica, y adentro de su página el video
+se pone en pantalla completa (`src/pip-preload.cjs`, que corre en cada frame).
+La capa de pantalla completa de Chromium esquiva los transform, overflow y
+z-index de los contenedores, así que el video llena la ventanita en cualquier
+sitio; y como esa ventana no se puede poner en pantalla completa, la ventana
+grande no se entera. Encima va otra vista transparente con los controles
+(`renderer/pip.html`). No se copia ningún cuadro: es el mismo video, con su
+sonido y su reproductor.
+
+Mientras tanto la hoja de la pestaña avisa que el video está afuera. Una vista
+nativa no se desvanece, así que al irse (y al volver) una foto de la página
+cubre el cambio y se funde con el aviso.
 
 Sobre páginas claras, el vidrio de Opal (luz sobre niebla oscura) quedaba gris
 claro con texto gris encima. Los overlays llevan una base oscura debajo de la
@@ -150,6 +173,8 @@ src/
   downloads.cjs       Descargas.
   capture.cjs         Capturas: lo visible y la página entera, por tramos cosidos.
   card.cjs            La tarjeta de la esquina: un aviso que flota sobre la página.
+  pip.cjs             La ventanita: el video afuera, siempre arriba, con sus controles.
+  pip-preload.cjs     En cada frame: el botón sobre los videos y el manejo del que sale.
   bookmarks-import.cjs  Favoritos de Chrome/Edge/Brave o de un HTML. Puro, con tests.
   prompts.cjs         Preguntas que nacen acá y se contestan en el cromo.
   shortcuts.cjs       Atajos. Puro, con tests.

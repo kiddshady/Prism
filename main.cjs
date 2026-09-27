@@ -36,6 +36,7 @@ const { createPasswords } = require('./src/passwords.cjs');
 const { createCerts } = require('./src/certs.cjs');
 const { createCapture } = require('./src/capture.cjs');
 const { createCard } = require('./src/card.cjs');
+const { createPip } = require('./src/pip.cjs');
 const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
 
@@ -187,6 +188,7 @@ function command(w, name) {
   if (name === 'page:hard-reload') return T.reload(true);
   if (name === 'page:print') return T.contextAction('print');
   if (name === 'page:capture-full') return w.capture.run('full');
+  if (name === 'page:pip') return ctx.pip.toggle(w);
   if (name === 'page:source') return T.contextAction('source');
   if (name === 'page:devtools') return T.devtools();
   if (name.startsWith('zoom:')) return T.zoom(name.slice(5));
@@ -536,6 +538,8 @@ app.whenReady().then(async () => {
   ctx.certs = createCerts(ctx);
   ctx.capture = createCapture(ctx);
   ctx.card = createCard(ctx);
+  // Una sola ventanita para todas las ventanas (la de incógnito la hereda).
+  ctx.pip = createPip({ store, icon: path.join(__dirname, 'build', 'icon.png') });
 
   await Promise.all([
     ctx.library.load().catch((err) => console.error('[library]', err.message)),

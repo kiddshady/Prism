@@ -90,6 +90,10 @@ contextBridge.exposeInMainWorld('prism', {
     print: () => send('page:print'),
     /** Captura: 'visible' o 'full' (la página entera). Se guarda y se copia. */
     capture: (kind = 'visible') => send('page:capture', kind),
+    /** La ventanita: saca el video de la pestaña activa, o lo trae de vuelta. */
+    pip: () => send('page:pip'),
+    /** Trae de vuelta el video de la pestaña `id` que está en la ventanita. */
+    pipBack: (id) => send('pip:back', id),
     find: (text, opts) => send('page:find', text, opts),
     findStop: () => send('page:find-stop'),
     context: (action, payload) => send('page:context', action, payload),
@@ -98,6 +102,9 @@ contextBridge.exposeInMainWorld('prism', {
     onFind: listen('page:find'),
     onContext: listen('page:context'),
     onFullscreen: listen('page:fullscreen'),
+    /** La foto de la página que se va a la ventanita (o vuelve): freeze.js. */
+    onPhoto: listen('page:photo'),
+    photoReady: (nonce) => send('page:photo-ready', nonce),
   },
 
   omni: {
