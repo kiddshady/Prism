@@ -158,6 +158,7 @@ export function mainMenu(anchor, { openFind } = {}) {
     { sep: true },
     { label: 'Historial', icon: 'history', key: 'Ctrl+H', onSelect: () => openPage('historial') },
     { label: 'Favoritos', icon: 'star', onSelect: () => openPage('favoritos') },
+    { label: S.settings?.bookmarksBar === false ? 'Mostrar la barra de favoritos' : 'Ocultar la barra de favoritos', icon: 'bookmark', key: 'Ctrl+Mayús+B', onSelect: () => api.settings.save({ bookmarksBar: S.settings?.bookmarksBar === false }) },
     { label: 'Descargas', icon: 'download', key: 'Ctrl+J', onSelect: () => openPage('descargas') },
     { sep: true },
     { label: 'Buscar en la página', icon: 'search', key: 'Ctrl+F', disabled: !web, onSelect: () => openFind?.() },

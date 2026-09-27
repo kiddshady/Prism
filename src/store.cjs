@@ -64,6 +64,8 @@ const DEFAULT_SETTINGS = {
   remoteSuggest: true,
   /** Sugerir sitios del historial al tipear. Apagado, solo los favoritos. */
   historySuggest: true,
+  /** La barra de favoritos debajo de la de direcciones (Ctrl+Mayús+B). */
+  bookmarksBar: true,
   /** Bloqueador de anuncios y rastreadores. */
   adblock: true,
   /** Hosts donde el bloqueador está apagado. */

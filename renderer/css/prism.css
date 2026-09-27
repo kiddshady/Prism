@@ -13,11 +13,15 @@
 .pr-app {
   --op-titlebar: 42px;
   --pr-toolbar: 46px;
+  --pr-bmbar: 0px;
   --pr-gutter: 8px;
   --pr-page-r: 10px;
   --pr-tab-h: 32px;
-  grid-template-rows: var(--op-titlebar) var(--pr-toolbar) 1fr var(--op-statusbar);
+  grid-template-rows: var(--op-titlebar) var(--pr-toolbar) var(--pr-bmbar) 1fr var(--op-statusbar);
 }
+.pr-app.has-bmbar { --pr-bmbar: 30px; }
+/* Solo mientras la barra aparece o se va: la pantalla completa no se anima. */
+.pr-app.is-bmbar-moving { transition: grid-template-rows var(--op-t-3) var(--op-ease); }
 
 /* El marco no lleva hojas: niebla directa. */
 .pr-app > .op-titlebar,
@@ -28,8 +32,8 @@
 }
 
 /* En pantalla completa de un video la página ocupa todo: el cromo se va. */
-.pr-app.is-fullscreen { grid-template-rows: 0 0 1fr 0; }
-.pr-app.is-fullscreen > :is(.op-titlebar, .pr-toolbar, .op-statusbar) { visibility: hidden; }
+.pr-app.is-fullscreen { grid-template-rows: 0 0 0 1fr 0; }
+.pr-app.is-fullscreen > :is(.op-titlebar, .pr-toolbar, .pr-bmbar, .op-statusbar) { visibility: hidden; }
 .pr-app.is-fullscreen .pr-page { margin: 0; border-radius: 0; }
 
 /* ══ Titlebar: la tira de pestañas ════════════════════════════════════════ */
@@ -630,6 +634,11 @@
   min-height: 0;
 }
 
+/* Mientras la barra de favoritos aparece o se va, la hoja cambia de alto: la
+   foto se queda con el alto de antes, pegada arriba, y viaja con la hoja en
+   vez de estirarse (bmbar.js). */
+.pr-page.is-shifting .pr-freeze { bottom: auto; height: var(--shot-h); }
+
 /* La foto del congelado. Está siempre montada y se muestra por opacidad:
    crear el <img> recién al abrir un menú sumaría un frame de demora. */
 .pr-freeze {
@@ -645,6 +654,82 @@
   z-index: 5;
 }
 .pr-freeze.is-on { opacity: 1; visibility: visible; }
+
+/* ══ Barra de favoritos ═══════════════════════════════════════════════════ */
+
+/* Alineada con la barra de herramientas: el ícono del primero cae debajo de
+   la flecha de Atrás. Oculta, su fila mide 0 y ella se desvanece. */
+.pr-bmbar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--op-1);
+  padding: 0 var(--op-3);
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
+}
+.pr-app.has-bmbar .pr-bmbar { opacity: 1; }
+.pr-bmbar__items {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.pr-bm {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  max-width: 180px;
+  height: 26px;
+  padding: 0 var(--op-2);
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: transparent;
+  color: var(--op-text-2);
+  font: inherit;
+  font-size: var(--op-fs-12);
+  white-space: nowrap;
+  transition: var(--tr-color);
+}
+.pr-bm:hover { background: var(--op-wash-1); color: var(--op-text); }
+.pr-bm:active, .pr-bm.is-open { background: var(--op-wash-2); color: var(--op-text); }
+.pr-bm[hidden] { display: none; }
+.pr-bm > img, .pr-bm > .op-icon { width: 16px; height: 16px; flex: 0 0 auto; border-radius: 3px; }
+.pr-bm > .op-icon { width: 14px; height: 14px; margin: 1px; color: var(--op-text-3); }
+.pr-bm__label { overflow: hidden; text-overflow: ellipsis; }
+.pr-bmbar__more { flex: 0 0 auto; margin-top: 2px; color: var(--op-text-3); }
+.pr-bmbar__more[hidden] { display: none; }
+
+/* Sin favoritos: cómo sumar uno. */
+.pr-bmbar__empty {
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  height: 26px;
+  padding: 0 var(--op-2);
+  font-size: var(--op-fs-12);
+  color: var(--op-text-3);
+  white-space: nowrap;
+  animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both;
+}
+.pr-bmbar__empty .op-icon { width: 14px; height: 14px; }
+.pr-bmbar__link {
+  padding: 0 var(--op-1);
+  border: 0;
+  border-radius: var(--op-r-xs);
+  background: transparent;
+  color: var(--op-text-2);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--op-line-3);
+  text-underline-offset: 3px;
+  transition: var(--tr-color);
+}
+.pr-bmbar__link:hover { color: var(--op-text); }
 
 /* ══ Statusbar ════════════════════════════════════════════════════════════ */
 

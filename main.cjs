@@ -191,6 +191,7 @@ const ctx = {
       ctx.send('library:changed');
       return T.emit();
     }
+    if (name === 'bookmarks:bar') return ctx.updateSettings((s) => ({ bookmarksBar: s.bookmarksBar === false }));
     if (name === 'omni:focus') return ui('omni:focus');
     if (name === 'find:open') return T.active?.view && ui('find:open');
     if (name === 'find:next' || name === 'find:prev') return ui(name, false);

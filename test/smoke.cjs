@@ -732,6 +732,24 @@ app.whenReady().then(async () => {
   ok('un menú que se abre aparta la tarjeta', await until(() => !ctx.card.shown && tarjeta().getBounds().x < 0));
   ctx.tabs.hold(false);
 
+  console.log('\n11c. Barra de favoritos');
+  ctx.library.addBookmark({ url: `${BASE}/dos`, title: 'Página dos' });
+  ctx.send('library:changed');
+  ok('muestra los favoritos', await until(() => js(`[...document.querySelectorAll('.pr-bm')].some((b) => b.textContent.includes('Página dos'))`)));
+  const paginaTop = () => js(`Math.round(document.getElementById('page').getBoundingClientRect().top)`);
+  const conBarra = await paginaTop();
+  const vistaEnSuLugar = async () => {
+    const top = await paginaTop();
+    const v = ctx.tabs.active.view?.getBounds();
+    return !v || (v.x >= 0 && v.y === top);
+  };
+  ctx.command('bookmarks:bar');
+  ok('Ctrl+Mayús+B la oculta y la página sube lo que medía', await until(async () => (await paginaTop()) === conBarra - 30 && await vistaEnSuLugar()), String(await paginaTop()));
+  ok('y se guarda', ctx.settings.bookmarksBar === false);
+  ctx.command('bookmarks:bar');
+  ok('otra vez la muestra, con la página en su lugar', await until(async () => (await paginaTop()) === conBarra && await vistaEnSuLugar()));
+  ok('sin foto del congelado olvidada', await until(() => js(`!document.getElementById('freeze').classList.contains('is-on') && !document.getElementById('page').classList.contains('is-shifting')`)));
+
   console.log('\n12. Bandeja e instancia única');
   win.close();
   ok('cerrar esconde la ventana en vez de salir', await until(() => !win.isDestroyed() && !win.isVisible()));

@@ -59,6 +59,8 @@ export function hold() {
     done = true;
     count = Math.max(0, count - 1);
     if (!count) thaw();
+    // Quien necesite saber cuándo volvió la página (bmbar.js) espera esto.
+    return chain;
   };
   return ready.then(() => release);
 }

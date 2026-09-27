@@ -139,6 +139,14 @@
     <div class="pr-loadbar" id="loadbar" aria-hidden="true"></div>
   </div>
 
+  <!-- ── Barra de favoritos (bmbar.js) ─────────────────────────────────────
+       Una fila de la grilla que mide 0 cuando está oculta. Lo que no entra se
+       va al menú de la punta. -->
+  <nav class="pr-bmbar" id="bmbar" aria-label="Barra de favoritos">
+    <div class="pr-bmbar__items" id="bmbar-items"></div>
+    <button class="op-iconbtn op-iconbtn--sm pr-bmbar__more" id="bmbar-more" aria-label="Más favoritos" hidden><i data-icon="chevronRight"></i></button>
+  </nav>
+
   <!-- ── La página ──────────────────────────────────────────────────────────
        Una hoja por mitad: sin vista dividida se ve solo la primera, que
        ocupa todo. Una pestaña web apoya su vista nativa exactamente sobre su

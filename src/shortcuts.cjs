@@ -30,6 +30,7 @@ function match(i) {
     if (k === 'r') return shift ? 'page:hard-reload' : 'page:reload';
     if (k === 'f5') return 'page:hard-reload';
     if (k === 'd') return 'bookmark:toggle';
+    if (k === 'b' && shift) return 'bookmarks:bar';
     if (k === 'h') return 'open:historial';
     if (k === 'j') return 'open:descargas';
     if (k === 'f') return 'find:open';
@@ -77,6 +78,7 @@ const TABLE = [
   ['Recargar / sin caché', 'F5 · Ctrl+Mayús+R'],
   ['Buscar en la página', 'Ctrl+F · F3'],
   ['Agregar a favoritos', 'Ctrl+D'],
+  ['Mostrar u ocultar la barra de favoritos', 'Ctrl+Mayús+B'],
   ['Historial', 'Ctrl+H'],
   ['Descargas', 'Ctrl+J'],
   ['Ajustes (para borrar datos de navegación)', 'Ctrl+Mayús+Supr'],

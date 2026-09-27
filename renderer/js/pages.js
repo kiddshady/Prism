@@ -47,7 +47,7 @@ function wireFallbacks(root) {
 
 /* Los avisos de Prism van en la statusbar, no en un toast: con la vista
    dividida, un toast cae sobre la mitad que es una página y queda tapado. */
-async function copyUrl(url) {
+export async function copyUrl(url) {
   try {
     await navigator.clipboard.writeText(String(url));
     say('Dirección copiada', { icon: 'copy' });
@@ -414,7 +414,7 @@ function historyPage(t) {
 
 /* ══ Favoritos ═══════════════════════════════════════════════════════════════ */
 
-async function editBookmark(id) {
+export async function editBookmark(id) {
   const list = await api.bookmarks.list();
   const b = list.find((x) => x.id === id);
   if (!b) return;
@@ -680,6 +680,9 @@ function settingsPage() {
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Dormir las pestañas que no mirás</div>
           <div class="pr-opt__hint">Liberan memoria y, al volver, siguen donde estaban. Nunca se duermen las fijadas ni las que suenan.</div></div>
           <div class="pr-opt__ctl"><div class="op-segmented" id="s-sleep">${[[0, 'Nunca'], [15, '15 min'], [30, '30 min'], [60, '1 h']].map(([v, l]) => `<button class="op-segmented__opt${Number(s.sleepTabs) === v ? ' is-active' : ''}" data-value="${v}">${l}</button>`).join('')}</div></div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Barra de favoritos</div>
+          <div class="pr-opt__hint">Tus favoritos a un clic, debajo de la barra de direcciones. Lo que no entra queda en la flecha de la punta. También con Ctrl+Mayús+B.</div></div>
+          <div class="pr-opt__ctl"><button class="op-switch${s.bookmarksBar !== false ? ' is-on' : ''}" data-toggle="bookmarksBar" aria-label="Barra de favoritos"></button></div></div>
       </section>
 
       <section class="pr-set" style="--i:2">

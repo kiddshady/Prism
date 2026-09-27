@@ -41,6 +41,12 @@ function paintLeft() {
   left.appendChild(el);
 }
 
+/** El link que tenés abajo del mouse, cuando no es de la página (un favorito de la barra). */
+export function hover(url) {
+  hoverUrl = url || '';
+  paintLeft();
+}
+
 /** Un aviso corto en la statusbar. Se va solo. */
 export function say(text, { icon = 'info', tone = 'default', ms = 4500 } = {}) {
   msg = { text, icon, tone };

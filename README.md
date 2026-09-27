@@ -43,6 +43,9 @@ npm run release # publica en GitHub (ver abajo)
 - **Historial** agrupado por día, con búsqueda. **Favoritos** con la estrella
   o Ctrl+D, e importados de Chrome, Edge o Brave (o de un HTML exportado).
   **Descargas** con progreso, pausa y reintento.
+- **Barra de favoritos** debajo de la de direcciones, como en Chrome
+  (Ctrl+Mayús+B la muestra u oculta). Lo que no entra queda en la flecha de la
+  punta; el botón del medio abre en una pestaña nueva.
 - **Capturas**: lo visible, o la página entera de punta a punta (Ctrl+Mayús+S)
   sin mover el scroll, también en las que scrollean una caja adentro (Moodle).
   Van a Imágenes\Prism y quedan copiadas; una tarjeta en la esquina avisa, con
@@ -156,6 +159,7 @@ renderer/
   js/omnibox.js       La barra de direcciones y sus sugerencias.
   js/toolbar.js       Navegación, buscar en la página, escudo, descargas.
   js/pages.js         Nueva pestaña, historial, favoritos, descargas, ajustes.
+  js/bmbar.js         La barra de favoritos.
   js/freeze.js        El congelado.
   js/layers.js        Menú, modal y popover de Opal, con congelado.
   (el resto)          El sistema de Opal: tokens, controles, overlays, motion.

@@ -19,6 +19,7 @@ import * as Pages from './pages.js';
 import * as Status from './status.js';
 import * as Prompts from './prompts.js';
 import * as Passwords from './passwords.js';
+import * as Bmbar from './bmbar.js';
 import { pageMenu } from './menus.js';
 
 /* ── Ventana ─────────────────────────────────────────────────────────────── */
@@ -141,6 +142,7 @@ async function boot() {
   Status.init();
   Prompts.init();
   Passwords.init();
+  Bmbar.init();
 
   api.tabs.onState(applyTabs);
   api.settings.onChange(async (s) => {
