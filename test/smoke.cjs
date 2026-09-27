@@ -753,17 +753,23 @@ app.whenReady().then(async () => {
   // Arrastrar el primero al segundo lugar, con el mouse de verdad.
   ctx.library.addBookmark({ url: `${BASE}/titulo-largo`, title: 'Otra' });
   ctx.send('library:changed');
-  await until(() => js(`document.querySelectorAll('.pr-bm').length >= 2`));
+  // Que el nuevo ya esté primero en la barra, y que la barra esté quieta (sin nada
+  // entrando ni viajando a su lugar): medir antes arrastraba sobre la fila vieja.
+  await until(() => js(`document.querySelector('.pr-bm')?.textContent.trim() === 'Otra' && !document.querySelector('.pr-bm.is-entering, .pr-bm.is-flipping')`));
   const primero = ctx.library.listBookmarks()[0].url;
-  const [bx, by, bx1] = await js(`(() => { const [a, b] = document.querySelectorAll('.pr-bm'); const ra = a.getBoundingClientRect(); const rb = b.getBoundingClientRect(); return [Math.round(ra.x + ra.width / 2), Math.round(ra.y + ra.height / 2), Math.round(rb.x + rb.width - 4)]; })()`);
+  const [bx, by, bx1] = await js(`(() => { const [a, b] = document.querySelectorAll('.pr-bm'); const ra = a.getBoundingClientRect(); const rb = b.getBoundingClientRect(); return [Math.round(ra.x + ra.width / 2), Math.round(ra.y + ra.height / 2), Math.round(rb.x + rb.width + 12)]; })()`);
   const urlAntes = ctx.tabs.active.url;
   win.webContents.sendInputEvent({ type: 'mouseDown', x: bx, y: by, button: 'left', clickCount: 1 });
   for (let i = 1; i <= 8; i++) {
     win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(bx + ((bx1 - bx) * i) / 8), y: by, button: 'left', modifiers: ['leftButtonDown'] });
     await sleep(30);
   }
+  // Con el botón apretado (:active) el que se arrastra tiene que seguir opaco: no deja ver al de abajo.
+  const fondo = await js(`(() => { const e = document.querySelector('.pr-bm.is-dragging'); return e ? getComputedStyle(e).backgroundColor : ''; })()`);
+  ok('el que se arrastra es opaco', !!fondo && !/rgba\(|\/\s*0?\.\d/.test(fondo), fondo);
   win.webContents.sendInputEvent({ type: 'mouseUp', x: bx1, y: by, button: 'left', clickCount: 1 });
-  ok('arrastrar un favorito lo cambia de lugar', await until(() => ctx.library.listBookmarks()[1]?.url === primero));
+  ok('arrastrar un favorito lo cambia de lugar', await until(() => ctx.library.listBookmarks()[1]?.url === primero),
+    JSON.stringify({ orden: ctx.library.listBookmarks().map((x) => x.title), primero, desde: [bx, by, bx1], barra: await js(`[...document.querySelectorAll('.pr-bm')].map((e) => e.textContent.trim() + '|' + e.className + '|' + Math.round(e.getBoundingClientRect().x))`) }));
   ok('y soltarlo no lo abre', ctx.tabs.active.url === urlAntes);
 
   console.log('\n11d. Incógnito');

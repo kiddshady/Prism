@@ -719,10 +719,13 @@
 .pr-bm:hover { background: var(--op-wash-1); color: var(--op-text); }
 /* Arrastrar (bmbar.js): los del camino se corren con transición; el que se
    arrastra va pegado al mouse, opaco y un poco levantado; al soltar viaja a
-   su hueco. Mientras dura, ningún otro reacciona al hover. */
+   su hueco. Mientras dura, ningún otro reacciona al hover.
+   Con el ancestro en el selector, porque mientras se arrastra el botón del
+   mouse está apretado: .pr-bm:active (más abajo, con la misma especificidad)
+   le ganaba y el fondo quedaba al 9 %, dejando ver al de abajo. */
 .pr-bmbar.is-sorting .pr-bm { transition: var(--tr-color), transform var(--op-t-2) var(--op-ease); }
 .pr-bmbar.is-sorting .pr-bm:not(.is-dragging):hover { background: transparent; color: var(--op-text-2); }
-.pr-bm.is-dragging {
+.pr-bmbar .pr-bm.is-dragging {
   position: relative;
   z-index: 2;
   transition: var(--tr-color);
@@ -731,7 +734,18 @@
   box-shadow: var(--op-sheet), 0 2px 6px rgb(0 0 0 / .35);
   cursor: grabbing;
 }
-.pr-bm.is-dropping { position: relative; z-index: 2; }
+/* Al soltar sigue opaco mientras viaja a su hueco; asentado, el fondo se va con --tr-color. */
+.pr-bmbar .pr-bm.is-dropping { position: relative; z-index: 2; background: color-mix(in srgb, #fff 10%, var(--op-bg)); color: var(--op-text); }
+/* Cuando la lista cambia (bmbar.js, paint): el que llega se desvanece hacia
+   adentro, el que se va se desvanece en su lugar, y los demás viajan a su
+   nuevo lugar (FLIP). La flecha de la punta, cuando aparece, también. */
+.pr-bm.is-entering { animation: pr-bm-in var(--op-t-3) var(--op-ease) var(--d, 0ms) both; }
+.pr-bm[data-state='closing'] { pointer-events: none; animation: pr-bm-out 160ms var(--op-ease-both) both; }
+.pr-bm.is-flipping { transition: var(--tr-color), transform var(--op-t-3) var(--op-ease); }
+@keyframes pr-bm-in { from { opacity: 0; transform: scale(.9) } to { opacity: 1; transform: none } }
+@keyframes pr-bm-out { from { opacity: 1; transform: none } to { opacity: 0; transform: scale(.9) } }
+.pr-bmbar__more:not([hidden]) { animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both; }
+.pr-bmbar__empty[data-state='closing'] { position: absolute; animation: op-fade-out 140ms var(--op-ease-both) both; }
 .pr-bm:active, .pr-bm.is-open { background: var(--op-wash-2); color: var(--op-text); }
 .pr-bm[hidden] { display: none; }
 .pr-bm > img, .pr-bm > .op-icon { width: 16px; height: 16px; flex: 0 0 auto; border-radius: 3px; }

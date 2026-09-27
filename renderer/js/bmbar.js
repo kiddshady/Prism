@@ -19,14 +19,22 @@
    en el camino se corren su ancho para hacerle lugar, con transición. Al
    soltar, viaja a su hueco y recién ahí se guarda el orden: el repintado cae
    exactamente donde ya estaba todo, y no salta nada.
+
+   ── Cuando la lista cambia ─────────────────────────────────────────────────
+   La barra no se redibuja de cero: reusa los botones que ya están (así sus
+   favicons no se recargan) y mueve cada uno de donde estaba a donde va, con
+   FLIP: se mide antes, se acomoda, se mide después y se lo anima desde la
+   diferencia. El nuevo entra desvaneciéndose; el que se va sale de la fila
+   y se desvanece en su lugar mientras los demás cierran el hueco; el que ya
+   no entra se desliza contra el borde y recién ahí se esconde.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { api, S, on } from './state.js';
 import { Icons } from './icons.js';
-import { esc } from './ui.js';
 import { menu, pointAnchor } from './layers.js';
 import * as Freeze from './freeze.js';
 import { hover } from './status.js';
+import { exit } from './motion.js';
 import { editBookmark, copyUrl } from './pages.js';
 import { openPage } from './menus.js';
 
@@ -43,47 +51,167 @@ export const isShown = () => S.settings?.bookmarksBar !== false;
 
 /* ── Pintar ──────────────────────────────────────────────────────────────── */
 
-function itemHTML(b, i) {
-  const icon = b.favicon
-    ? `<img src="${esc(b.favicon)}" alt="" referrerpolicy="no-referrer" draggable="false">`
-    : Icons.svg('globe');
-  return `<button class="pr-bm" data-i="${i}">${icon}<span class="pr-bm__label">${esc(labelOf(b))}</span></button>`;
+const LIVE = '.pr-bm:not([data-state="closing"])';
+const svgNode = (name) => {
+  const t = document.createElement('template');
+  t.innerHTML = Icons.svg(name).trim();
+  return t.content.firstChild;
+};
+
+/** El ícono cambia solo si cambió el favicon: un <img> nuevo se recargaría. */
+function setIcon(el, favicon) {
+  const want = favicon || '';
+  if (el.dataset.icon === want && el.firstElementChild?.matches('img, .op-icon')) return;
+  el.dataset.icon = want;
+  let node;
+  if (want) {
+    node = new Image();
+    node.alt = '';
+    node.referrerPolicy = 'no-referrer';
+    node.draggable = false;
+    node.src = want;
+    // Un favicon que no carga vuelve al globo en vez de quedar roto.
+    node.addEventListener('error', () => { el.dataset.icon = ''; node.replaceWith(svgNode('globe')); }, { once: true });
+  } else {
+    node = svgNode('globe');
+  }
+  const old = el.querySelector(':scope > img, :scope > .op-icon');
+  if (old) old.replaceWith(node);
+  else el.prepend(node);
 }
+
+function update(el, b) {
+  setIcon(el, b.favicon);
+  let l = el.querySelector('.pr-bm__label');
+  if (!l) { l = document.createElement('span'); l.className = 'pr-bm__label'; el.appendChild(l); }
+  if (l.textContent !== labelOf(b)) l.textContent = labelOf(b);
+}
+
+function makeItem(b) {
+  const el = document.createElement('button');
+  el.className = 'pr-bm';
+  el.dataset.id = b.id;
+  update(el, b);
+  return el;
+}
+
+/** Entra desvaneciéndose. La clase se va al terminar: una animación con fill
+    retenido le ganaría al transform del FLIP y del arrastre. */
+function enter(el, delay = 0) {
+  el.style.setProperty('--d', `${delay}ms`);
+  el.classList.add('is-entering');
+  el.addEventListener('animationend', () => el.classList.remove('is-entering'), { once: true });
+}
+
+/** Sale de la fila (así los demás pueden cerrar el hueco) y se desvanece en su lugar. */
+function leave(el, left) {
+  el.style.position = 'absolute';
+  el.style.left = `${left}px`;
+  el.style.transform = '';
+  exit(el, { fallback: 260 });
+}
+
+function showEmpty() {
+  items.querySelectorAll(LIVE).forEach((el) => leave(el, el.offsetLeft));
+  more.hidden = true;
+  if (items.querySelector('.pr-bmbar__empty:not([data-state="closing"])')) return;
+  items.insertAdjacentHTML('beforeend', `<div class="pr-bmbar__empty">${Icons.svg('star')}
+    <span>Para tener un sitio a mano acá, tocá la estrella de la barra.</span>
+    <button class="pr-bmbar__link" data-import>Importar favoritos</button></div>`);
+}
+
+let painted = false;
+let pendingPaint = false;
 
 function paint() {
-  if (!marks.length) {
-    items.innerHTML = `<div class="pr-bmbar__empty">${Icons.svg('star')}
-      <span>Para tener un sitio a mano acá, tocá la estrella de la barra.</span>
-      <button class="pr-bmbar__link" data-import>Importar favoritos</button></div>`;
-    more.hidden = true;
-    return;
+  // En medio de un arrastre no se reacomoda nada: se hace al soltar.
+  if (drag) { pendingPaint = true; return; }
+  if (!marks.length) { showEmpty(); painted = true; return; }
+  items.querySelectorAll('.pr-bmbar__empty:not([data-state="closing"])').forEach((el) => exit(el, { fallback: 200 }));
+
+  // Primero: dónde está cada uno ahora, tal como se ve (con lo que haya quedado de un arrastre).
+  const byId = new Map();
+  const before = new Map();   // botón → { x en pantalla, left en la fila }
+  for (const el of items.querySelectorAll(LIVE)) {
+    byId.set(el.dataset.id, el);
+    if (!el.hidden) before.set(el, { x: el.getBoundingClientRect().left, left: el.offsetLeft });
   }
-  items.innerHTML = marks.map(itemHTML).join('');
-  // Un favicon que no carga vuelve al globo en vez de quedar roto.
-  items.querySelectorAll('img').forEach((img) => img.addEventListener('error', () => { img.outerHTML = Icons.svg('globe'); }, { once: true }));
-  fit();
+  items.querySelectorAll(LIVE).forEach((el) => {
+    el.classList.remove('is-dropping', 'is-flipping');
+    el.style.transform = '';
+  });
+
+  // La fila nueva, reusando lo que ya estaba.
+  const order = marks.map((b, i) => {
+    const had = byId.get(b.id);
+    const el = had || makeItem(b);
+    if (had) { update(el, b); byId.delete(b.id); }
+    el.dataset.i = i;
+    return el;
+  });
+  for (const el of byId.values()) leave(el, before.get(el)?.left ?? el.offsetLeft);
+  for (const el of order) items.appendChild(el);
+
+  const later = fit(painted ? before : null);
+
+  // Último e invertir: cada uno arranca donde estaba y viaja a su lugar.
+  const flipping = [];
+  order.forEach((el, i) => {
+    if (el.hidden) return;
+    const was = before.get(el);
+    if (!was) { enter(el, painted ? 60 : Math.min(i, 12) * 18); return; }
+    const dx = was.x - el.getBoundingClientRect().left;
+    if (Math.abs(dx) < 0.5) return;
+    el.style.transform = `translateX(${dx}px)`;
+    flipping.push(el);
+  });
+  if (flipping.length) {
+    void items.offsetWidth;
+    for (const el of flipping) {
+      el.classList.add('is-flipping');
+      el.style.transform = '';
+    }
+  }
+  // Los que ya no entran se deslizaron contra el borde: recién ahora se esconden.
+  setTimeout(() => {
+    for (const el of flipping) el.classList.remove('is-flipping');
+    for (const el of later) el.hidden = true;
+  }, 320);
+  painted = true;
 }
 
-/** Los que no entran se esconden y quedan en el menú de la punta. */
-function fit() {
-  const btns = [...items.querySelectorAll('.pr-bm')];
-  if (!btns.length) return;
+/**
+ * Los que no entran se esconden y quedan en el menú de la punta.
+ * Con `before` (un repintado), los que se veían y ya no entran no se esconden
+ * todavía: se devuelven, para esconderlos cuando terminen de deslizarse.
+ */
+function fit(before = null) {
+  const btns = [...items.querySelectorAll(LIVE)];
+  if (!btns.length) return [];
+  const was = new Map(btns.map((b) => [b, b.hidden]));
   btns.forEach((b) => { b.hidden = false; });
   more.hidden = true;
   const over = () => btns.findIndex((b) => b.offsetLeft + b.offsetWidth > items.clientWidth);
   let i = over();
+  const later = [];
   if (i >= 0) {
     more.hidden = false;       // la flecha le quita ancho a la fila: se mide de nuevo
     i = over();
-    btns.slice(i).forEach((b) => { b.hidden = true; });
+    for (const b of btns.slice(i)) {
+      if (before?.has(b)) later.push(b);
+      else b.hidden = true;
+    }
   }
   cut = i >= 0 ? i : Infinity;
+  // Al agrandar la ventana, los que vuelven a entrar no aparecen de golpe.
+  if (!before && painted) for (const b of btns) if (was.get(b) && !b.hidden) enter(b);
   // El nombre completo como tooltip, solo si no se lee entero.
   for (const b of btns) {
     const l = b.querySelector('.pr-bm__label');
     if (l.scrollWidth > l.clientWidth + 1) b.dataset.tip = l.textContent;
     else delete b.dataset.tip;
   }
+  return later;
 }
 
 async function load() {
@@ -104,7 +232,13 @@ function onPointerDown(e) {
 }
 
 function startDrag() {
-  const btns = [...items.querySelectorAll('.pr-bm:not([hidden])')];
+  const btns = [...items.querySelectorAll(`${LIVE}:not([hidden])`)];
+  // Lo que estuviera entrando o viajando termina ya: el arrastre toma el control
+  // (una entrada con fill retenido le ganaría al transform que sigue al mouse).
+  for (const b of btns) {
+    b.classList.remove('is-entering', 'is-flipping');
+    if (b !== drag.el) b.style.transform = '';
+  }
   const from = btns.indexOf(drag.el);
   Object.assign(drag, {
     moved: true,
@@ -158,7 +292,7 @@ function onPointerUp() {
   if (!drag) return;
   const d = drag;
   drag = null;
-  if (!d.moved) return;
+  if (!d.moved) { if (pendingPaint) { pendingPaint = false; paint(); } return; }
   swallowClick = true;   // soltar no es hacer clic: no abre el favorito
   setTimeout(() => { swallowClick = false; }, 0);
   const { el, btns, from, to } = d;
@@ -188,6 +322,7 @@ function cancelDrag() {
   if (!drag) return;
   const d = drag;
   drag = null;
+  if (pendingPaint) { pendingPaint = false; paint(); }
   if (!d.moved) return;
   bar.classList.remove('is-sorting');
   d.el.classList.remove('is-dragging');
