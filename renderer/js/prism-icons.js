@@ -34,12 +34,12 @@ Icons.add({
   reopen: '<path d="M3.2 6.4a5 5 0 1 1-.1 3.4"/><path d="M2.6 3v3.4H6"/>',
   /* Capturas: el visor (cuatro esquinas) con lo que entra. La visible encierra
      un recuadro; la entera, una flecha que baja: la página sigue más allá. */
-  /* Incógnito: un fantasmita. Cabeza redonda, la falda en cinco medias ondas
-     que empiezan y terminan bajando (los dos costados son piecitos), y dos
-     ojos rellenos. */
-  ghost: '<path d="M3.2 13.4V7.4a4.8 4.8 0 0 1 9.6 0v6q-.96 1.3-1.92 0t-1.92 0-1.92 0-1.92 0-1.92 0z"/>'
-       + '<circle cx="6.4" cy="7.7" r=".95" fill="currentColor" stroke="none"/>'
-       + '<circle cx="9.6" cy="7.7" r=".95" fill="currentColor" stroke="none"/>',
+  /* Incógnito: un fantasmita. Cabeza redonda que usa casi toda la grilla, la
+     falda en cinco medias ondas que empiezan y terminan bajando (los dos
+     costados son piecitos), y los ojos como dos rayitas: con puntos
+     rellenos, a 14 px se fundían con el borde de la cabeza. */
+  ghost: '<path d="M2.8 13.6V7.2a5.2 5.2 0 0 1 10.4 0v6.4q-1.04 1.3-2.08 0t-2.08 0-2.08 0-2.08 0-2.08 0z"/>'
+       + '<path d="M6.3 6.6v1.6M9.7 6.6v1.6"/>',
   capture: '<path d="M2 5.2V3.6A1.6 1.6 0 0 1 3.6 2h1.6M10.8 2h1.6A1.6 1.6 0 0 1 14 3.6v1.6M14 10.8v1.6a1.6 1.6 0 0 1-1.6 1.6h-1.6M5.2 14H3.6A1.6 1.6 0 0 1 2 12.4v-1.6"/><rect x="5" y="5.4" width="6" height="5.2" rx="1.1"/>',
   captureFull: '<path d="M2 5.2V3.6A1.6 1.6 0 0 1 3.6 2h1.6M10.8 2h1.6A1.6 1.6 0 0 1 14 3.6v1.6M14 10.8v1.6a1.6 1.6 0 0 1-1.6 1.6h-1.6M5.2 14H3.6A1.6 1.6 0 0 1 2 12.4v-1.6"/><path d="M8 4.8v6.2M5.8 8.8 8 11l2.2-2.2"/>',
   camera: '<rect x="1.6" y="4" width="9.2" height="8" rx="1.8"/><path d="M10.8 7 14.4 4.8v6.4L10.8 9z"/>',

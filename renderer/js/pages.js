@@ -218,7 +218,7 @@ function incognitoHTML() {
         <div class="pr-incog__col"><div class="pr-incog__head">${Icons.svg('star')}Sí queda</div>
           <ul class="pr-incog__list"><li>Los favoritos que agregues</li><li>Los archivos que bajes</li><li>Las capturas</li></ul></div>
       </div>
-      <div class="pr-incog__text">Los sitios que visitás, tu proveedor de internet o la red de la facu igual pueden ver lo que hacés.</div>
+      <div class="pr-incog__text">Los sitios que visitás, tu proveedor de internet y quien administre la red igual pueden ver tu actividad.</div>
     </div>`;
 }
 

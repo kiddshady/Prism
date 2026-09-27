@@ -341,7 +341,7 @@
   animation: op-rise-in var(--op-t-3) var(--op-ease) .06s both;
 }
 .pr-incog__title { font-size: 17px; font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); text-align: center; color: var(--op-text); }
-.pr-incog__text { margin-top: var(--op-2); font-size: var(--op-fs-13); line-height: var(--op-lh); color: var(--op-text-3); text-align: center; user-select: text; }
+.pr-incog__text { margin-top: var(--op-2); font-size: var(--op-fs-13); line-height: var(--op-lh); color: var(--op-text-3); text-align: center; text-wrap: balance; user-select: text; }
 .pr-incog__cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--op-3); margin-top: var(--op-5); }
 .pr-incog__col {
   padding: var(--op-3) var(--op-4);
