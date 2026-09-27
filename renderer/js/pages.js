@@ -226,7 +226,7 @@ function ntpPage(t) {
   const priv = !!S.info?.private;
   const el = mount(`
     <div class="pr-ntp" id="ntp">
-      ${priv ? `<div class="pr-ntp__ghost">${Icons.svg('ghost')}</div>` : `<div class="pr-ntp__mark">${Icons.svg('prism')}</div>`}
+      <div class="pr-ntp__mark">${Icons.svg('prism')}</div>
       <label class="pr-fakebox" id="fakebox">${Icons.svg('search')}
         <input class="pr-fakebox__input" id="ntp-input" type="text" spellcheck="false" autocomplete="off"
                placeholder="Buscá o escribí una dirección" aria-label="Buscar o ir a una dirección"></label>

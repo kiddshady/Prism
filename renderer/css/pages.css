@@ -331,13 +331,9 @@
 .pr-list.is-settled .pr-dlrow { animation: none; }
 
 /* ── La pestaña nueva de incógnito ─────────────────────────────────────────
-   En vez de la marca, el fantasma: flota despacio y pestañea cada tanto. Y
-   en vez de los accesos (que mostrarían el historial), qué se guarda y qué no. */
-.pr-ntp__ghost { color: var(--op-text-2); margin-bottom: var(--op-2); }
-.pr-ntp__ghost .op-icon { width: 76px; height: 76px; stroke-width: 1.1; animation: pr-ghost-float 3.6s var(--op-ease-both) infinite alternate; }
-.pr-ntp__ghost .pr-ghost__eye { transform-box: fill-box; transform-origin: center; animation: pr-ghost-blink 5s linear infinite; }
-@keyframes pr-ghost-float { from { transform: translateY(0) } to { transform: translateY(-5px) } }
-@keyframes pr-ghost-blink { 0%, 93%, 100% { transform: scaleY(1) } 95% { transform: scaleY(.12) } }
+   La misma marca que la normal (lo que la distingue es el chip de la titlebar
+   y este texto). En vez de los accesos (que mostrarían el historial), qué se
+   guarda y qué no. */
 
 .pr-incog {
   width: min(560px, 100%);
