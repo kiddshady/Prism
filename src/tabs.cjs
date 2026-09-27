@@ -214,6 +214,8 @@ function createTabs(ctx) {
      y cerrar un menú pestañeaba. Corrida, sigue viva y pintada, no cambia de
      tamaño (la página no se remaqueta) y vuelve en el acto. */
   function layout() {
+    // La tarjeta de la esquina (card.cjs) sigue a la página y se queda arriba de todo.
+    ctx.card?.place();
     if (!attached.size) return;
     const rects = slotRects();
     for (const [view, slot] of attached) {
@@ -898,6 +900,8 @@ function createTabs(ctx) {
 
   function hold(on) {
     frozen = !!on;
+    // Un menú o un modal que se abre no puede quedar debajo de la tarjeta.
+    if (frozen) ctx.card?.hide();
     layout();
     if (!frozen) {
       for (const done of [...thawWaiters]) done();
@@ -1015,7 +1019,7 @@ function createTabs(ctx) {
     whenThawed, create, close, reopen, closeOthers, closeRight, move, duplicate, mute, pin, sleep, sweep, navigate,
     split, unsplit, swapSplit, setSplitRatio,
     activate: activateTab, back, forward, reload, stop, zoom, find, stopFind, devtools,
-    contextAction, snapshotPage, hold, focusPage, setInsets, layout, restore, writeSession,
+    contextAction, snapshotPage, hold, focusPage, setInsets, layout, pageBounds, restore, writeSession,
     closeIfDownloadOnly, countBlocked,
     snapshot, emit,
     byWebContents: (id) => byWc.get(id) || null,
@@ -1037,4 +1041,4 @@ function createTabs(ctx) {
   };
 }
 
-module.exports = { createTabs, ZOOMS, BG };
+module.exports = { createTabs, ZOOMS, BG, PRISM_WORLD };

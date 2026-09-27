@@ -1,0 +1,109 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRISM — la tarjeta de la esquina (renderer/card.html, src/card.cjs)
+   Vive en su propia vista, transparente, que flota sobre la página. El aire
+   alrededor (el padding del host) es donde cae la sombra: la vista es más
+   grande que la tarjeta por MARGIN de cada lado (card.cjs).
+   Como todo lo que flota en Prism, es una hoja OPACA (ver prism.css, Overlays
+   propios): sobre una página blanca el vidrio se leía mal, y una hoja que
+   entra moviéndose con blur deja un canto blanco.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html, body { background: transparent; }
+body { overflow: hidden; }
+
+/* La base es la de abajo: si la vista es más alta que la tarjeta (mientras
+   crece), la tarjeta sigue apoyada abajo y crece hacia arriba. */
+.pr-cardhost { display: flex; flex-direction: column; justify-content: flex-end; padding: 28px; }
+/* Una sola celda: la tarjeta que se va y la que llega ocupan el mismo lugar. */
+.pr-cardhost__slot { display: grid; grid-template-columns: minmax(0, 1fr); align-items: end; }
+.pr-cardhost__slot > .pr-card { grid-area: 1 / 1; }
+
+.pr-card {
+  position: relative;
+  width: 340px;
+  padding: var(--op-3);
+  border-radius: var(--op-r-lg);
+  background: linear-gradient(var(--op-s3), var(--op-s3)), rgb(12 12 14 / .97);
+  box-shadow: var(--op-sheet), 0 2px 6px rgb(0 0 0 / .35), 0 8px 20px rgb(0 0 0 / .5);
+  overflow: hidden;
+  animation: op-slide-in-r var(--op-t-3) var(--op-ease) both;
+}
+/* Asentada, sin animación retenida (ver motion-timing §3): la de salida gana. */
+.pr-card.is-settled { animation: none; }
+.pr-card[data-state='closing'] { animation: op-slide-out-r 160ms var(--op-ease-in) both; }
+/* De un alto al otro cuando cambia el contenido (card.js, resize). */
+.pr-card.is-resizing { transition: height var(--op-t-3) var(--op-ease); }
+
+/* Relevo: el contenido viejo y el nuevo ocupan la misma celda. */
+.pr-card__stage { display: grid; grid-template-columns: minmax(0, 1fr); }
+.pr-card__content {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--op-3);
+  min-width: 0;
+  padding-right: 22px;   /* la cruz */
+  animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both;
+}
+.pr-card__content.is-first { animation: none; }
+.pr-card__content.is-after { animation-delay: 80ms; }
+.pr-card__content[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
+
+/* La miniatura: la parte de arriba de la captura. Se toca para abrirla. */
+.pr-card__thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  height: 54px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: var(--op-sunken);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+  overflow: hidden;
+  cursor: pointer;
+  transition: var(--tr-color);
+}
+.pr-card__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.pr-card__thumb:hover { box-shadow: inset 0 0 0 1px var(--op-line-3); }
+
+/* Sin miniatura (capturando, error): el ícono en su pozo. */
+.pr-card__well {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--op-r-md);
+  background: var(--op-sunken);
+  color: var(--op-text-2);
+}
+.pr-card__well .op-icon { width: 16px; height: 16px; }
+.pr-card--error .pr-card__well { color: var(--op-danger); }
+
+.pr-card__main { flex: 1 1 auto; min-width: 0; padding-top: 1px; }
+.pr-card__title { font-size: var(--op-fs-13); font-weight: var(--op-w-medium); color: var(--op-text); }
+.pr-card__text {
+  margin-top: 2px;
+  font-size: var(--op-fs-11);
+  line-height: var(--op-lh);
+  color: var(--op-text-3);
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+.pr-card__actions { display: flex; gap: var(--op-1); margin: var(--op-2) 0 0 calc(var(--op-2) * -1); }
+
+.pr-card__close { position: absolute; top: var(--op-2); right: var(--op-2); color: var(--op-text-3); }
+
+/* La vida: se consume sola, y se frena mientras el mouse está encima. */
+.pr-card__life {
+  position: absolute;
+  left: 0; bottom: 0;
+  width: 100%;
+  height: 1.5px;
+  background: var(--op-line-3);
+  transform-origin: left;
+  animation: op-toast-life var(--life, 6000ms) linear forwards;
+}
+.pr-card:hover .pr-card__life { animation-play-state: paused; }
+.pr-card--error .pr-card__life { background: var(--op-danger-ring); }
+@keyframes op-toast-life { from { transform: scaleX(1) } to { transform: scaleX(0) } }

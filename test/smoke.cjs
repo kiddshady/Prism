@@ -93,6 +93,10 @@ const PAGES = {
   '/larga': `<title>Larga</title><body style="margin:0"><div style="height:5000px"></div><script>
     window.__sb = innerWidth - document.documentElement.clientWidth;
   </script></body>`,
+  /* Como Moodle 4 con sesión: el documento no scrollea, scrollea una caja. */
+  '/caja': `<title>Caja</title><style>html,body{height:100%;margin:0;overflow:hidden}
+    #page{height:calc(100vh - 50px);margin-top:50px;overflow-y:auto}</style>
+    <div id="page"><div style="height:3000px;background:linear-gradient(#c00,#00c)"></div></div>`,
 };
 const server = http.createServer((req, res) => {
   if (req.url === '/archivo.bin') {
@@ -695,6 +699,38 @@ app.whenReady().then(async () => {
   })`);
   ok('al cambiar de página, la vieja se desvanece', relevo?.sale === 'op-fade-out', JSON.stringify(relevo));
   ok('y la nueva espera a que se vaya', relevo?.llega === true, JSON.stringify(relevo));
+
+  console.log('\n11b. Capturas');
+  const { nativeImage } = require('electron');
+  const medir = (file) => file && nativeImage.createFromPath(file).getSize();
+  const tarjeta = () => ctx.win.contentView.children.find((v) => v.webContents.getURL().endsWith('card.html'));
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/larga`);
+  await until(() => ctx.tabs.active.title === 'Larga');
+  const larga = medir(await ctx.capture.run('full'));
+  ok('la entera mide lo que mide la página', larga?.height === 5000, JSON.stringify(larga));
+  const card = tarjeta();
+  ok('avisa con la tarjeta de la esquina', !!card && await until(() => card.webContents.executeJavaScript(`!!document.querySelector('.pr-card--done .pr-card__thumb img')`)));
+  const kids = ctx.win.contentView.children;
+  ok('arriba de la página', kids[kids.length - 1] === card);
+  const cardRect = card.getBounds();
+  const pageRect = ctx.tabs.pageBounds();
+  ok('en la esquina de abajo a la derecha', cardRect.x + cardRect.width > pageRect.x + pageRect.width - 60 && cardRect.y + cardRect.height > pageRect.y + pageRect.height - 60 && cardRect.x > pageRect.x + pageRect.width / 2, JSON.stringify({ cardRect, pageRect }));
+
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/caja`);
+  await until(() => ctx.tabs.active.title === 'Caja');
+  const cajaWc = ctx.tabs.active.view.webContents;
+  await cajaWc.executeJavaScript(`document.getElementById('page').scrollTop = 1200`);
+  const estado = () => cajaWc.executeJavaScript(`JSON.stringify([document.getElementById('page').scrollTop, ...[document.documentElement, document.body, document.getElementById('page')].map((e) => e.getAttribute('style'))])`);
+  const cajaAntes = await estado();
+  const caja = medir(await ctx.capture.run('full'));
+  ok('una página que scrollea en una caja sale entera', caja?.height >= 3000, JSON.stringify(caja));
+  const cajaDespues = await estado();
+  ok('y queda como estaba: scroll y estilos', cajaDespues === cajaAntes && cajaAntes.startsWith('[1200,'), `${cajaAntes} → ${cajaDespues}`);
+  const vis = medir(await ctx.capture.run('visible'));
+  ok('lo visible mide la vista', vis?.height === ctx.tabs.active.view.getBounds().height, JSON.stringify(vis));
+  ctx.tabs.hold(true);
+  ok('un menú que se abre aparta la tarjeta', await until(() => !ctx.card.shown && tarjeta().getBounds().x < 0));
+  ctx.tabs.hold(false);
 
   console.log('\n12. Bandeja e instancia única');
   win.close();

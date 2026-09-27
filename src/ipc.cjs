@@ -83,7 +83,6 @@ function register(ctx) {
   on(ctx, 'page:devtools', () => T().devtools());
   on(ctx, 'page:print', () => T().contextAction('print'));
   on(ctx, 'page:capture', (kind) => ctx.capture.run(kind === 'full' ? 'full' : 'visible'));
-  handle(ctx, 'capture:show', () => ctx.capture.showLast());
 
   /* ── La página y los overlays ──────────────────────────────────────────── */
   on(ctx, 'page:insets', (i) => T().setInsets(i));

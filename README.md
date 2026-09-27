@@ -44,7 +44,9 @@ npm run release # publica en GitHub (ver abajo)
   o Ctrl+D, e importados de Chrome, Edge o Brave (o de un HTML exportado).
   **Descargas** con progreso, pausa y reintento.
 - **Capturas**: lo visible, o la página entera de punta a punta (Ctrl+Mayús+S)
-  sin mover el scroll. Van a Imágenes\Prism y quedan copiadas para pegarlas.
+  sin mover el scroll, también en las que scrollean una caja adentro (Moodle).
+  Van a Imágenes\Prism y quedan copiadas; una tarjeta en la esquina avisa, con
+  la miniatura, Abrir y Mostrar en la carpeta.
 - **Nueva pestaña** con tus favoritos y los sitios que más visitás.
 - **Permisos** propios: cámara, micrófono, ubicación, notificaciones… se
   preguntan y se recuerdan por sitio. Compartir pantalla con selector propio.
@@ -80,7 +82,10 @@ verdad. Es un contador: dos overlays a la vez congelan una sola vez.
 
 Lo que NO puede congelar (porque se usa mientras mirás la página) vive fuera
 de su rectángulo: la búsqueda en la página entra a la barra de herramientas,
-el link bajo el mouse va a la statusbar, y los avisos también.
+el link bajo el mouse va a la statusbar, y los avisos también. La excepción es
+la tarjeta de la esquina (`src/card.cjs`): una vista nativa propia, chica y
+transparente, apoyada ENCIMA de las pestañas. Flota sin congelar nada y tapa
+solo su rectángulo.
 
 Sobre páginas claras, el vidrio de Opal (luz sobre niebla oscura) quedaba gris
 claro con texto gris encima. Los overlays llevan una base oscura debajo de la
@@ -136,6 +141,7 @@ src/
   adblock.cjs         El bloqueador, con conteo por pestaña y apagado por sitio.
   downloads.cjs       Descargas.
   capture.cjs         Capturas: lo visible y la página entera, por tramos cosidos.
+  card.cjs            La tarjeta de la esquina: un aviso que flota sobre la página.
   bookmarks-import.cjs  Favoritos de Chrome/Edge/Brave o de un HTML. Puro, con tests.
   prompts.cjs         Preguntas que nacen acá y se contestan en el cromo.
   shortcuts.cjs       Atajos. Puro, con tests.

@@ -88,7 +88,6 @@ contextBridge.exposeInMainWorld('prism', {
     print: () => send('page:print'),
     /** Captura: 'visible' o 'full' (la página entera). Se guarda y se copia. */
     capture: (kind = 'visible') => send('page:capture', kind),
-    showCapture: () => call('capture:show'),
     find: (text, opts) => send('page:find', text, opts),
     findStop: () => send('page:find-stop'),
     context: (action, payload) => send('page:context', action, payload),

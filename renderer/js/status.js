@@ -34,9 +34,7 @@ function paintLeft() {
   old.forEach((el) => exit(el, { fallback: 180 }));
   if (!key) return;
   const el = document.createElement('div');
-  const action = !hoverUrl && msg?.action ? msg.action : '';
-  el.className = `pr-status__msg${msg?.tone === 'error' && !hoverUrl ? ' pr-status__msg--error' : ''}${action ? ' pr-status__msg--action' : ''}${old.length ? ' is-after' : ''}`;
-  if (action) el.dataset.action = action;
+  el.className = `pr-status__msg${msg?.tone === 'error' && !hoverUrl ? ' pr-status__msg--error' : ''}${old.length ? ' is-after' : ''}`;
   el.innerHTML = hoverUrl
     ? `${Icons.svg('link')}<span class="pr-status__url op-truncate">${esc(safeDecode(hoverUrl))}</span>`
     : `${Icons.svg(msg.icon || 'info')}<span class="op-truncate">${esc(msg.text)}</span>`;
@@ -44,8 +42,8 @@ function paintLeft() {
 }
 
 /** Un aviso corto en la statusbar. Se va solo. */
-export function say(text, { icon = 'info', tone = 'default', ms = 4500, action = '' } = {}) {
-  msg = { text, icon, tone, action };
+export function say(text, { icon = 'info', tone = 'default', ms = 4500 } = {}) {
+  msg = { text, icon, tone };
   clearTimeout(msgTimer);
   msgTimer = setTimeout(() => { msg = null; paintLeft(); }, ms);
   paintLeft();
@@ -67,13 +65,7 @@ export function init() {
   right = document.getElementById('status-right');
 
   api.page.onHover((url) => { hoverUrl = url || ''; paintLeft(); });
-  api.onStatus((m) => say(m.text, { icon: m.icon, tone: m.tone, ms: m.ms || undefined, action: m.action || '' }));
-  /* Un aviso con acción se puede tocar: el de una captura muestra el archivo. */
-  const ACTIONS = { capture: () => api.page.showCapture() };
-  left.addEventListener('click', (e) => {
-    const el = e.target.closest('.pr-status__msg--action:not([data-state="closing"])');
-    if (el) ACTIONS[el.dataset.action]?.();
-  });
+  api.onStatus((m) => say(m.text, { icon: m.icon, tone: m.tone }));
   on('downloads', paintRight);
   window.addEventListener('online', paintRight);
   window.addEventListener('offline', paintRight);

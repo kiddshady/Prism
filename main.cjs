@@ -35,6 +35,7 @@ const { createPrompts } = require('./src/prompts.cjs');
 const { createPasswords } = require('./src/passwords.cjs');
 const { createCerts } = require('./src/certs.cjs');
 const { createCapture } = require('./src/capture.cjs');
+const { createCard } = require('./src/card.cjs');
 const updater = require('./src/updater.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
@@ -437,6 +438,7 @@ app.whenReady().then(async () => {
   ctx.passwords = createPasswords(ctx);
   ctx.certs = createCerts(ctx);
   ctx.capture = createCapture(ctx);
+  ctx.card = createCard(ctx);
 
   await Promise.all([
     ctx.library.load().catch((err) => console.error('[library]', err.message)),
