@@ -336,6 +336,7 @@
   transform: translateX(var(--tab-x, 0px));
   transition: transform var(--op-t-3) var(--op-ease), width var(--op-t-3) var(--op-ease);
 }
+.op-tabs[data-placing]::after { transition: none; }
 .op-tab {
   display: flex;
   align-items: center;

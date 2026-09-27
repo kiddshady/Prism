@@ -126,7 +126,16 @@ export function bindSwitcher(root, onChange) {
   });
 
   new ResizeObserver(sync).observe(root);
-  raf2(sync);   // las fuentes pueden cambiar el ancho después del primer layout
+  /* El indicador NACE en su lugar: sin esto viaja desde la izquierda cada vez
+     que se repinta el grupo (en Ajustes, cualquier ajuste cambiado repinta la
+     página y los segmentados se animaban solos). Solo viaja al elegir. */
+  root.dataset.placing = '';
+  sync();
+  raf2(() => {
+    sync();   // las fuentes pueden cambiar el ancho después del primer layout
+    getComputedStyle(root, isSeg ? '::before' : '::after').transform;   // asienta el lugar sin transición
+    delete root.dataset.placing;
+  });
   return sync;
 }
 

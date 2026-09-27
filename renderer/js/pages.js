@@ -628,6 +628,7 @@ function settingsPage() {
     const engines = S.info?.engines || { google: 'Google' };
     const perms = Object.entries(s.permissions || {});
     const keepScroll = el.querySelector('#set-scroll').scrollTop;
+    const was = Object.fromEntries([...col.querySelectorAll('[data-toggle]')].map((b) => [b.dataset.toggle, b.classList.contains('is-on')]));
     col.innerHTML = `
       <div class="pr-head"><div class="pr-head__text"><div class="pr-head__title">Ajustes</div>
         <div class="pr-head__sub">Se guardan solos, apenas los cambiás</div></div></div>
@@ -735,6 +736,14 @@ function settingsPage() {
     el.querySelector('#set-scroll').scrollTop = keepScroll;
     col.querySelectorAll('.pr-set').forEach((sec, i) => { if (!first) sec.style.animation = 'none'; else sec.style.setProperty('--i', i); });
     first = false;
+    // Un switch que cambió desde afuera (el escudo de la barra) nace como
+    // estaba y recién ahí se mueve: si no, salta al estado nuevo de golpe.
+    col.querySelectorAll('[data-toggle]').forEach((b) => {
+      const on = b.classList.contains('is-on');
+      if (!(b.dataset.toggle in was) || was[b.dataset.toggle] === on) return;
+      b.classList.toggle('is-on', !on);
+      raf2(() => b.classList.toggle('is-on', on));
+    });
 
     bindSwitcher(col.querySelector('#s-engine'), (v) => save({ searchEngine: v }, false));
     bindSwitcher(col.querySelector('#s-startup'), (v) => save({ startup: v }, false));

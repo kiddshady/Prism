@@ -650,6 +650,34 @@ app.whenReady().then(async () => {
   ok('y un clic solo lo da vuelta', !!ctx.settings.askDownload === !antesAsk && await until(async () => (await js(`${sw}.classList.contains('is-on')`)) === !antesAsk, 3000));
   await ctx.saveSettings({ askDownload: antesAsk });
 
+  /* Un ajuste cambiado desde afuera (el switch del escudo) repinta Ajustes
+     entera. Los segmentados tienen que nacer en su lugar (antes viajaban desde
+     la izquierda en cada repintado) y el switch que cambió, moverse en vez de
+     saltar. Se muestrea cuadro por cuadro: a ojo no se distingue. */
+  const previoSleep = ctx.settings.sleepTabs;
+  await sleep(700);                      // que pase la ventana en que Ajustes ignora los avisos
+  await ctx.saveSettings({ sleepTabs: 30 });
+  await sleep(700);
+  const muestreo = js(`new Promise((res) => {
+    const page = document.querySelector('.pr-view[data-page="ajustes"]');
+    const seg = new Set(); const knob = new Set();
+    const t0 = performance.now();
+    const tick = () => {
+      const cs = getComputedStyle(page.querySelector('#s-sleep'), '::before');
+      seg.add(cs.transform + ' ' + cs.width);
+      knob.add(getComputedStyle(page.querySelector('[data-toggle="askDownload"]'), '::after').transform);
+      if (performance.now() - t0 < 700) return requestAnimationFrame(tick);
+      res({ seg: [...seg], knob: [...knob] });
+    };
+    requestAnimationFrame(tick);
+  })`);
+  await sleep(80);
+  await ctx.saveSettings({ askDownload: !antesAsk });
+  const repinte = await muestreo;
+  ok('un ajuste cambiado desde afuera no mueve los segmentados', repinte.seg.length === 1, JSON.stringify(repinte.seg));
+  ok('y el switch que cambió se desliza, no salta', repinte.knob.length > 2, JSON.stringify(repinte.knob));
+  await ctx.saveSettings({ askDownload: antesAsk, sleepTabs: previoSleep });
+
   /* Cambiar de página propia: la que se va se desvanece (antes un estilo en
      línea le apagaba la animación y quedaba entera encima de la nueva), y la
      nueva espera su turno. */

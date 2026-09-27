@@ -334,6 +334,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   transform: translateX(calc(var(--seg, 0) * var(--seg-w, 0px)));
   transition: transform var(--op-t-3) var(--op-ease), width var(--op-t-3) var(--op-ease);
 }
+/* Mientras bindSwitcher lo ubica al nacer: aparece en su lugar, no viaja. */
+.op-segmented[data-placing]::before { transition: none; }
 .op-segmented__opt {
   position: relative;
   z-index: 1;
