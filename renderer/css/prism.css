@@ -696,6 +696,21 @@
   transition: var(--tr-color);
 }
 .pr-bm:hover { background: var(--op-wash-1); color: var(--op-text); }
+/* Arrastrar (bmbar.js): los del camino se corren con transición; el que se
+   arrastra va pegado al mouse, opaco y un poco levantado; al soltar viaja a
+   su hueco. Mientras dura, ningún otro reacciona al hover. */
+.pr-bmbar.is-sorting .pr-bm { transition: var(--tr-color), transform var(--op-t-2) var(--op-ease); }
+.pr-bmbar.is-sorting .pr-bm:not(.is-dragging):hover { background: transparent; color: var(--op-text-2); }
+.pr-bm.is-dragging {
+  position: relative;
+  z-index: 2;
+  transition: var(--tr-color);
+  background: color-mix(in srgb, #fff 10%, var(--op-bg));
+  color: var(--op-text);
+  box-shadow: var(--op-sheet), 0 2px 6px rgb(0 0 0 / .35);
+  cursor: grabbing;
+}
+.pr-bm.is-dropping { position: relative; z-index: 2; }
 .pr-bm:active, .pr-bm.is-open { background: var(--op-wash-2); color: var(--op-text); }
 .pr-bm[hidden] { display: none; }
 .pr-bm > img, .pr-bm > .op-icon { width: 16px; height: 16px; flex: 0 0 auto; border-radius: 3px; }

@@ -12,6 +12,13 @@
    freeze.js), la foto viaja con la hoja mientras la fila crece, y la vista
    vuelve ya en su lugar nuevo. La foto conserva su alto (is-shifting): se
    corre, no se estira.
+
+   ── Arrastrar para reordenar ───────────────────────────────────────────────
+   Los favoritos miden distinto, así que no se posicionan a mano como las
+   pestañas: el que se arrastra sigue al mouse (transform) y los que quedan
+   en el camino se corren su ancho para hacerle lugar, con transición. Al
+   soltar, viaja a su hueco y recién ahí se guarda el orden: el repintado cae
+   exactamente donde ya estaba todo, y no salta nada.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { api, S, on } from './state.js';
@@ -82,6 +89,109 @@ function fit() {
 async function load() {
   marks = await api.bookmarks.list().catch(() => marks);
   paint();
+}
+
+/* ── Arrastrar ───────────────────────────────────────────────────────────── */
+
+let drag = null;
+let swallowClick = false;
+const GAP = 2;   // el gap de .pr-bmbar__items
+
+function onPointerDown(e) {
+  const el = e.target.closest('.pr-bm');
+  if (!el || e.button !== 0) return;
+  drag = { el, startX: e.clientX, moved: false, pointer: e.pointerId };
+}
+
+function startDrag() {
+  const btns = [...items.querySelectorAll('.pr-bm:not([hidden])')];
+  const from = btns.indexOf(drag.el);
+  Object.assign(drag, {
+    moved: true,
+    btns,
+    from,
+    to: from,
+    left: drag.el.offsetLeft,
+    w: drag.el.offsetWidth,
+    max: items.clientWidth - drag.el.offsetWidth,
+  });
+  drag.el.setPointerCapture(drag.pointer);
+  drag.el.classList.add('is-dragging');
+  bar.classList.add('is-sorting');
+  hover('');
+}
+
+/** Adónde caería: tantos lugares como favoritos tenga a la izquierda de su centro. */
+function targetOf(x) {
+  const mid = x + drag.w / 2;
+  let t = 0;
+  drag.btns.forEach((b, i) => {
+    if (i !== drag.from && b.offsetLeft + b.offsetWidth / 2 < mid) t += 1;
+  });
+  return t;
+}
+
+/** Los que quedan entre el lugar de antes y el nuevo se corren un ancho. */
+function shift(to) {
+  const step = drag.w + GAP;
+  drag.btns.forEach((b, i) => {
+    if (i === drag.from) return;
+    const dx = drag.from < i && i <= to ? -step : to <= i && i < drag.from ? step : 0;
+    b.style.transform = dx ? `translateX(${dx}px)` : '';
+  });
+}
+
+function onPointerMove(e) {
+  if (!drag) return;
+  const dx = e.clientX - drag.startX;
+  if (!drag.moved) {
+    if (Math.abs(dx) < 5) return;
+    startDrag();
+  }
+  const x = Math.max(0, Math.min(drag.max, drag.left + dx));
+  drag.el.style.transform = `translateX(${x - drag.left}px)`;
+  const to = targetOf(x);
+  if (to !== drag.to) { drag.to = to; shift(to); }
+}
+
+function onPointerUp() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (!d.moved) return;
+  swallowClick = true;   // soltar no es hacer clic: no abre el favorito
+  setTimeout(() => { swallowClick = false; }, 0);
+  const { el, btns, from, to } = d;
+  // Su hueco: donde empieza el que ocupaba ese lugar (o donde termina, si fue a la derecha).
+  const slot = to === from ? d.left : to > from ? btns[to].offsetLeft + btns[to].offsetWidth - d.w : btns[to].offsetLeft;
+  el.classList.remove('is-dragging');
+  el.classList.add('is-dropping');
+  el.style.transform = `translateX(${slot - d.left}px)`;
+  const settle = () => {
+    clearTimeout(timer);
+    el.removeEventListener('transitionend', onEnd);
+    bar.classList.remove('is-sorting');
+    if (to === from) {
+      el.classList.remove('is-dropping');
+      el.style.transform = '';
+      return;
+    }
+    // Guardado: el repintado de 'library' pone todo en su lugar sin transforms.
+    api.bookmarks.move(marks[from].id, to).catch(() => paint());
+  };
+  const onEnd = (e) => { if (e.target === el && e.propertyName === 'transform') settle(); };
+  const timer = setTimeout(settle, 320);
+  el.addEventListener('transitionend', onEnd);
+}
+
+function cancelDrag() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (!d.moved) return;
+  bar.classList.remove('is-sorting');
+  d.el.classList.remove('is-dragging');
+  d.btns.forEach((b) => { b.style.transform = ''; });
 }
 
 /* ── Abrir ───────────────────────────────────────────────────────────────── */
@@ -157,7 +267,12 @@ export function init() {
   more = document.getElementById('bmbar-more');
   setShown(isShown(), false);
 
+  items.addEventListener('pointerdown', onPointerDown);
+  items.addEventListener('pointermove', onPointerMove);
+  items.addEventListener('pointerup', onPointerUp);
+  items.addEventListener('pointercancel', cancelDrag);
   items.addEventListener('click', (e) => {
+    if (swallowClick) return;
     if (e.target.closest('[data-import]')) return openPage('favoritos');
     const btn = e.target.closest('.pr-bm');
     if (!btn) return;
@@ -180,6 +295,7 @@ export function init() {
   });
   // Adónde lleva, en la statusbar (como el link de una página).
   items.addEventListener('mouseover', (e) => {
+    if (drag?.moved) return;
     const btn = e.target.closest('.pr-bm');
     const b = btn && marks[Number(btn.dataset.i)];
     hover(b ? b.url : '');
@@ -187,7 +303,7 @@ export function init() {
   items.addEventListener('mouseleave', () => hover(''));
   more.addEventListener('click', moreMenu);
 
-  new ResizeObserver(() => fit()).observe(items);
+  new ResizeObserver(() => { if (!drag) fit(); }).observe(items);
   on('library', load);
   on('settings', () => setShown(isShown()));
   load();

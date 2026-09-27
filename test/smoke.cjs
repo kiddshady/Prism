@@ -750,6 +750,22 @@ app.whenReady().then(async () => {
   ok('otra vez la muestra, con la página en su lugar', await until(async () => (await paginaTop()) === conBarra && await vistaEnSuLugar()));
   ok('sin foto del congelado olvidada', await until(() => js(`!document.getElementById('freeze').classList.contains('is-on') && !document.getElementById('page').classList.contains('is-shifting')`)));
 
+  // Arrastrar el primero al segundo lugar, con el mouse de verdad.
+  ctx.library.addBookmark({ url: `${BASE}/titulo-largo`, title: 'Otra' });
+  ctx.send('library:changed');
+  await until(() => js(`document.querySelectorAll('.pr-bm').length >= 2`));
+  const primero = ctx.library.listBookmarks()[0].url;
+  const [bx, by, bx1] = await js(`(() => { const [a, b] = document.querySelectorAll('.pr-bm'); const ra = a.getBoundingClientRect(); const rb = b.getBoundingClientRect(); return [Math.round(ra.x + ra.width / 2), Math.round(ra.y + ra.height / 2), Math.round(rb.x + rb.width - 4)]; })()`);
+  const urlAntes = ctx.tabs.active.url;
+  win.webContents.sendInputEvent({ type: 'mouseDown', x: bx, y: by, button: 'left', clickCount: 1 });
+  for (let i = 1; i <= 8; i++) {
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(bx + ((bx1 - bx) * i) / 8), y: by, button: 'left', modifiers: ['leftButtonDown'] });
+    await sleep(30);
+  }
+  win.webContents.sendInputEvent({ type: 'mouseUp', x: bx1, y: by, button: 'left', clickCount: 1 });
+  ok('arrastrar un favorito lo cambia de lugar', await until(() => ctx.library.listBookmarks()[1]?.url === primero));
+  ok('y soltarlo no lo abre', ctx.tabs.active.url === urlAntes);
+
   console.log('\n12. Bandeja e instancia única');
   win.close();
   ok('cerrar esconde la ventana en vez de salir', await until(() => !win.isDestroyed() && !win.isVisible()));
