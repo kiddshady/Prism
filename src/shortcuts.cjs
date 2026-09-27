@@ -38,6 +38,7 @@ function match(i) {
     if (k === '-' || code === 'NumpadSubtract') return 'zoom:out';
     if ((k === '0' && code.startsWith('Digit')) || code === 'Numpad0') return 'zoom:reset';
     if (k === 'p') return 'page:print';
+    if (k === 's' && shift) return 'page:capture-full';
     if (k === 'u') return 'page:source';
     if (k === 'i' && shift) return 'page:devtools';
     if (k === 'delete' && shift) return 'open:ajustes';
@@ -81,6 +82,7 @@ const TABLE = [
   ['Ajustes (para borrar datos de navegación)', 'Ctrl+Mayús+Supr'],
   ['Zoom', 'Ctrl++ · Ctrl+- · Ctrl+0'],
   ['Imprimir', 'Ctrl+P'],
+  ['Capturar la página entera', 'Ctrl+Mayús+S'],
   ['Código fuente', 'Ctrl+U'],
   ['Herramientas de desarrollo', 'F12'],
   ['Pantalla completa', 'F11'],

@@ -114,5 +114,22 @@ await lib2.load();
 ok('vuelve a cargar igual', lib2.listVisits().length === lib.listVisits().length && lib2.listBookmarks().length === 2);
 ok('y el índice se reconstruye', lib2.suggest('red').inline === 'reddit.com', String(lib2.suggest('red').inline));
 
+console.log('\n8. Importar favoritos');
+const before = lib2.listBookmarks().map((b) => b.url);
+const imp = lib2.importBookmarks([
+  { url: before[0], title: 'repetido' },
+  { url: 'https://umaza.edu.ar/', title: 'UMaza', createdAt: Date.UTC(2020, 0, 1) },
+  { url: 'https://umaza.edu.ar/', title: 'UMaza otra vez' },
+  { url: 'javascript:alert(1)', title: 'bookmarklet' },
+  { url: 'https://pubchem.ncbi.nlm.nih.gov/', title: '' },
+]);
+ok('suma lo nuevo y cuenta lo repetido', imp.added === 2 && imp.repeated === 2, JSON.stringify(imp));
+const after = lib2.listBookmarks();
+ok('lo que ya tenías queda arriba, en su orden', before.every((u, i) => after[i].url === u));
+ok('lo importado va al final, en el orden de origen', after.at(-2).url === 'https://umaza.edu.ar/' && after.at(-1).url.startsWith('https://pubchem'));
+ok('conserva la fecha de origen', after.at(-2).createdAt === Date.UTC(2020, 0, 1));
+ok('los ids no chocan', new Set(after.map((b) => b.id)).size === after.length);
+ok('importar lo mismo otra vez no suma nada', lib2.importBookmarks([{ url: 'https://umaza.edu.ar/' }]).added === 0);
+
 console.log(`\n═══ ${pass} ok · ${fail} fallas ═══`);
 process.exit(fail ? 1 : 0);

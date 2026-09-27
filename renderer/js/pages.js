@@ -437,6 +437,27 @@ async function editBookmark(id) {
     .catch((err) => say(err.message, { icon: 'alert', tone: 'error' }));
 }
 
+/** Cómo salió una importación, en la statusbar. */
+function sayImported(r, from) {
+  if (!r) return;
+  const rep = r.repeated ? ` · ${plural(r.repeated, 'ya estaba', 'ya estaban')}` : '';
+  say(r.added ? `Se sumaron ${plural(r.added, 'favorito', 'favoritos')} de ${from}${rep}` : `No había favoritos nuevos en ${from}${rep}`, { icon: 'star', ms: 7000 });
+}
+
+/** De dónde importar: los perfiles de los navegadores instalados, o un archivo exportado. */
+async function importMenu(btn) {
+  const sources = await api.bookmarks.sources().catch(() => []);
+  const run = (p, from) => p.then((r) => sayImported(r, from)).catch((err) => say(err.message, { icon: 'alert', tone: 'error' }));
+  menu(btn, [
+    { groupLabel: 'Importar de' },
+    ...(sources.length
+      ? sources.map((s) => ({ label: `${s.browser} · ${s.profile}`, icon: 'star', key: String(s.count), onSelect: () => run(api.bookmarks.import(s.id), s.browser) }))
+      : [{ label: 'No encontré Chrome, Edge ni Brave', icon: 'info', disabled: true }]),
+    { sep: true },
+    { label: 'Un archivo HTML exportado…', icon: 'folderOpen', onSelect: () => run(api.bookmarks.importFile(), 'el archivo') },
+  ], { align: 'end' });
+}
+
 function bookmarksPage(t) {
   const el = mount(`
     <div class="op-scroll op-scroll--line-top op-scroll--line-bottom pr-view__scroll"><div class="pr-view__col">
@@ -444,6 +465,7 @@ function bookmarksPage(t) {
         <div class="pr-head__text"><div class="pr-head__title">Favoritos</div><div class="pr-head__sub" id="b-sub"></div></div>
         <div class="pr-head__actions">
           <div class="op-inputwrap pr-search">${Icons.svg('search')}<input class="op-input" id="b-q" placeholder="Buscar en favoritos" spellcheck="false"></div>
+          <button class="op-btn op-btn--secondary op-flashable" id="b-import"><i data-icon="download"></i> Importar…</button>
         </div>
       </div>
       <div class="pr-list" id="b-list"></div>
@@ -468,7 +490,7 @@ function bookmarksPage(t) {
       </div>`).join('')
       : `<div class="op-empty">${Icons.svg(f ? 'search' : 'star')}
           <div class="op-empty__title">${f ? 'Nada coincide' : 'Todavía no guardaste favoritos'}</div>
-          <div class="op-empty__text">${f ? '' : 'Tocá la estrella de la barra de direcciones, o apretá Ctrl+D en cualquier sitio.'}</div></div>`;
+          <div class="op-empty__text">${f ? '' : 'Tocá la estrella de la barra de direcciones, apretá Ctrl+D en cualquier sitio, o traé los de Chrome con Importar.'}</div></div>`;
     wireFallbacks(list);
     first = false;
   }
@@ -479,6 +501,8 @@ function bookmarksPage(t) {
   }
 
   q.addEventListener('input', paint);
+  const importBtn = el.querySelector('#b-import');
+  importBtn.addEventListener('click', () => importMenu(importBtn));
   el.addEventListener('click', (e) => {
     const row = e.target.closest('.pr-row');
     if (!row) return;

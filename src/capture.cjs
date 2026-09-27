@@ -1,0 +1,166 @@
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRISM — capturas de la página
+   Dos: lo visible (lo que ya pinta la vista, `capturePage`) y la página
+   entera, que pide el protocolo de DevTools: `Page.captureScreenshot` con
+   `captureBeyondViewport` le hace pintar a Chromium lo que queda fuera de la
+   pantalla, sin mover el scroll de la persona.
+
+   ── Por tramos ─────────────────────────────────────────────────────────────
+   Una textura de GPU no pasa de 16384 px de lado. Una página más alta que eso
+   sale cortada o con el final repetido, así que se pide en tramos de TILE px
+   de CSS (con pantalla al 250 % siguen entrando) y se cosen acá, fila por
+   fila, sobre el bitmap crudo.
+
+   Lo que no alcanza: las páginas que no scrollean el documento sino una caja
+   adentro (Gmail, las apps de una sola pantalla) miden lo mismo que la
+   ventana, y la entera sale igual que la visible.
+
+   Se guardan en Imágenes\Prism y se copian al portapapeles para pegarlas
+   directo. La lógica de nombres y tramos es pura, con tests; Electron se pide
+   recién al crear el módulo.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const path = require('path');
+const fsp = require('fs/promises');
+
+/** Alto de cada tramo, en px de CSS. */
+const TILE = 6000;
+/** Más alta que esto no se captura: 60 000 px de CSS ya son cientos de MB en memoria. */
+const MAX_HEIGHT = 60000;
+/** El portapapeles de Windows copia el bitmap entero: más de esto se guarda y no se copia. */
+const MAX_CLIPBOARD_PX = 60e6;
+
+const pad = (n) => String(n).padStart(2, '0');
+
+/** "2026-09-27 14.03.22": ordena bien en el explorador y no lleva ':' (Windows no lo acepta). */
+function stamp(d = new Date()) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}.${pad(d.getMinutes())}.${pad(d.getSeconds())}`;
+}
+
+/** El nombre del archivo: el sitio y la hora. Lo que Windows no acepta en un nombre se va. */
+function fileName(url, when = new Date(), full = false) {
+  let host = '';
+  try { host = new URL(String(url)).hostname.replace(/^www\./, ''); } catch { /* sin host */ }
+  host = host.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').slice(0, 60);
+  return `${host || 'Prism'} ${stamp(when)}${full ? ' (entera)' : ''}.png`;
+}
+
+/** Los tramos [y, alto] que cubren `height` px de CSS. */
+function tiles(height, tile = TILE) {
+  const out = [];
+  for (let y = 0; y < height; y += tile) out.push([y, Math.min(tile, height - y)]);
+  return out;
+}
+
+function createCapture(ctx) {
+  const { app, clipboard, nativeImage, shell } = require('electron');
+  let busy = false;
+  let last = null;
+
+  /** Imágenes\Prism. En modo verificación, adentro de los datos descartables. */
+  const dir = () => process.env.PRISM_CAPTURES
+    || (process.env.PRISM_SHOTS ? path.join(require('./store.cjs').ROOT, 'capturas') : path.join(app.getPath('pictures'), 'Prism'));
+
+  /** Cose los tramos uno debajo del otro. Si alguno salió un píxel más angosto
+      (redondeo de la escala), se copia lo que tiene y el resto queda negro. */
+  function stitch(parts) {
+    if (parts.length === 1) return parts[0];
+    const sizes = parts.map((p) => p.getSize());
+    const width = Math.max(...sizes.map((s) => s.width));
+    const height = sizes.reduce((h, s) => h + s.height, 0);
+    const out = Buffer.alloc(width * height * 4);
+    let row = 0;
+    parts.forEach((p, i) => {
+      const { width: w, height: h } = sizes[i];
+      const src = p.toBitmap();
+      for (let y = 0; y < h; y++) src.copy(out, (row + y) * width * 4, y * w * 4, (y + 1) * w * 4);
+      row += h;
+    });
+    return nativeImage.createFromBitmap(out, { width, height });
+  }
+
+  async function fullPage(wc) {
+    const dbg = wc.debugger;
+    const mine = !dbg.isAttached();
+    try {
+      if (mine) dbg.attach('1.3');
+    } catch {
+      throw new Error('No se pudo capturar: cerrá las herramientas de desarrollo de la página y probá de nuevo.');
+    }
+    try {
+      const m = await dbg.sendCommand('Page.getLayoutMetrics');
+      const size = m.cssContentSize || m.contentSize;
+      const width = Math.ceil(size.width);
+      const height = Math.min(MAX_HEIGHT, Math.ceil(size.height));
+      const parts = [];
+      for (const [y, h] of tiles(height)) {
+        const r = await dbg.sendCommand('Page.captureScreenshot', {
+          format: 'png',
+          captureBeyondViewport: true,
+          clip: { x: 0, y, width, height: h, scale: 1 },
+        });
+        parts.push(nativeImage.createFromBuffer(Buffer.from(r.data, 'base64')));
+      }
+      return { image: stitch(parts), cut: size.height > MAX_HEIGHT };
+    } finally {
+      if (mine) try { dbg.detach(); } catch { /* ya se había ido */ }
+    }
+  }
+
+  /** Lo visible sale de lo que ya está pintado. La primera captura de una vista
+      a veces viene vacía (ver snapshotPage en tabs.cjs): se reintenta. */
+  async function visible(wc) {
+    for (let i = 0; i < 3; i++) {
+      const img = await wc.capturePage().catch(() => null);
+      if (img && !img.isEmpty()) return { image: img, cut: false };
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    throw new Error('No se pudo capturar la página.');
+  }
+
+  async function run(kind = 'visible') {
+    const t = ctx.tabs?.active;
+    const wc = t?.view?.webContents;
+    if (!wc || t.internal || busy) return null;
+    busy = true;
+    const full = kind === 'full';
+    try {
+      // Si la pidió un menú, la vista vuelve a su lugar recién cuando el menú se va.
+      await ctx.tabs.whenThawed();
+      if (full) ctx.send('status:msg', { text: 'Capturando la página entera…', icon: 'capture' });
+      const { image, cut } = full ? await fullPage(wc) : await visible(wc);
+      const { width, height } = image.getSize();
+
+      const folder = dir();
+      await fsp.mkdir(folder, { recursive: true });
+      const file = path.join(folder, fileName(t.url, new Date(), full));
+      await fsp.writeFile(file, image.toPNG());
+      last = file;
+
+      const copied = width * height <= MAX_CLIPBOARD_PX;
+      if (copied) clipboard.writeImage(image);
+      const what = full ? 'Página entera' : 'Captura';
+      const text = `${what} ${copied ? 'copiada y guardada' : 'guardada (muy larga para copiarla)'}${cut ? ', hasta donde se pudo' : ''} · clic para verla`;
+      ctx.send('status:msg', { text, icon: 'capture', action: 'capture', ms: 9000 });
+      return file;
+    } catch (err) {
+      console.error('[capture]', err);
+      ctx.send('status:msg', { text: err.message || 'No se pudo capturar la página.', icon: 'alert', tone: 'error' });
+      return null;
+    } finally {
+      busy = false;
+    }
+  }
+
+  /** La última captura, marcada en su carpeta (para arrastrarla a donde sea). */
+  function showLast() {
+    if (last) shell.showItemInFolder(last);
+    else shell.openPath(dir());
+  }
+
+  return { run, showLast, dir };
+}
+
+module.exports = { createCapture, fileName, tiles, stamp, TILE, MAX_HEIGHT };

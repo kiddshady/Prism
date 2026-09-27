@@ -32,6 +32,10 @@ Icons.add({
   image: '<rect x="2" y="2.6" width="12" height="10.8" rx="2"/><circle cx="5.8" cy="6.2" r="1.2"/><path d="M14 10.6 10.6 7.4 3.2 13.4"/>',
   tabs: '<rect x="1.8" y="4.4" width="12.4" height="9.4" rx="1.8"/><path d="M1.8 7.2h12.4M4.6 4.4V2.6a.6.6 0 0 1 .6-.6h3.6a.6.6 0 0 1 .6.6v1.8"/>',
   reopen: '<path d="M3.2 6.4a5 5 0 1 1-.1 3.4"/><path d="M2.6 3v3.4H6"/>',
+  /* Capturas: el visor (cuatro esquinas) con lo que entra. La visible encierra
+     un recuadro; la entera, una flecha que baja: la página sigue más allá. */
+  capture: '<path d="M2 5.2V3.6A1.6 1.6 0 0 1 3.6 2h1.6M10.8 2h1.6A1.6 1.6 0 0 1 14 3.6v1.6M14 10.8v1.6a1.6 1.6 0 0 1-1.6 1.6h-1.6M5.2 14H3.6A1.6 1.6 0 0 1 2 12.4v-1.6"/><rect x="5" y="5.4" width="6" height="5.2" rx="1.1"/>',
+  captureFull: '<path d="M2 5.2V3.6A1.6 1.6 0 0 1 3.6 2h1.6M10.8 2h1.6A1.6 1.6 0 0 1 14 3.6v1.6M14 10.8v1.6a1.6 1.6 0 0 1-1.6 1.6h-1.6M5.2 14H3.6A1.6 1.6 0 0 1 2 12.4v-1.6"/><path d="M8 4.8v6.2M5.8 8.8 8 11l2.2-2.2"/>',
   camera: '<rect x="1.6" y="4" width="9.2" height="8" rx="1.8"/><path d="M10.8 7 14.4 4.8v6.4L10.8 9z"/>',
   mic: '<rect x="5.8" y="1.8" width="4.4" height="7.6" rx="2.2"/><path d="M3.4 7.6a4.6 4.6 0 0 0 9.2 0M8 12.2v2"/>',
   location: '<path d="M8 14.2s4.6-4 4.6-7.4a4.6 4.6 0 0 0-9.2 0c0 3.4 4.6 7.4 4.6 7.4z"/><circle cx="8" cy="6.8" r="1.7"/>',

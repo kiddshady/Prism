@@ -14,10 +14,12 @@
    quien habla sea la ventana y no una página.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+const fsp = require('fs/promises');
 const { ipcMain, app, dialog, shell, net } = require('electron');
 const store = require('./store.cjs');
 const omni = require('./omni.cjs');
 const { TABLE } = require('./shortcuts.cjs');
+const importer = require('./bookmarks-import.cjs');
 
 /** La ventana de Prism es la única que puede hablarle a estos canales. */
 const fromChrome = (ctx, e) => !!ctx.win && !ctx.win.isDestroyed() && e.sender === ctx.win.webContents;
@@ -80,6 +82,8 @@ function register(ctx) {
   on(ctx, 'page:zoom', (dir) => T().zoom(['in', 'out', 'reset'].includes(dir) ? dir : 'reset'));
   on(ctx, 'page:devtools', () => T().devtools());
   on(ctx, 'page:print', () => T().contextAction('print'));
+  on(ctx, 'page:capture', (kind) => ctx.capture.run(kind === 'full' ? 'full' : 'visible'));
+  handle(ctx, 'capture:show', () => ctx.capture.showLast());
 
   /* ── La página y los overlays ──────────────────────────────────────────── */
   on(ctx, 'page:insets', (i) => T().setInsets(i));
@@ -165,6 +169,28 @@ function register(ctx) {
   });
   handle(ctx, 'bookmarks:remove', (id) => { const r = L().removeBookmark(str(id)); changed(); return r; });
   handle(ctx, 'bookmarks:move', (id, to) => { const r = L().moveBookmark(str(id, 64), Number(to)); changed(); return r; });
+
+  /* Importar: la ventana elige una fuente de la lista (no manda rutas), o un
+     archivo HTML que elige la persona en el diálogo. */
+  handle(ctx, 'bookmarks:sources', () => importer.findSources());
+  handle(ctx, 'bookmarks:import', async (id) => {
+    const r = L().importBookmarks(await importer.readSource(str(id, 200)));
+    changed();
+    return r;
+  });
+  handle(ctx, 'bookmarks:import-file', async () => {
+    const r = await dialog.showOpenDialog(ctx.win, {
+      title: 'Importar favoritos',
+      buttonLabel: 'Importar',
+      filters: [{ name: 'Favoritos exportados', extensions: ['html', 'htm'] }],
+      properties: ['openFile'],
+    });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const list = importer.parseNetscape(await fsp.readFile(r.filePaths[0], 'utf8'));
+    const res = L().importBookmarks(list);
+    changed();
+    return { ...res, found: list.length };
+  });
 
   /* ── Descargas ─────────────────────────────────────────────────────────── */
   const D = () => ctx.downloads;

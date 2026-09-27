@@ -34,6 +34,7 @@ const { createDownloads } = require('./src/downloads.cjs');
 const { createPrompts } = require('./src/prompts.cjs');
 const { createPasswords } = require('./src/passwords.cjs');
 const { createCerts } = require('./src/certs.cjs');
+const { createCapture } = require('./src/capture.cjs');
 const updater = require('./src/updater.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
@@ -175,6 +176,7 @@ const ctx = {
     if (name === 'page:reload') return T.reload(false);
     if (name === 'page:hard-reload') return T.reload(true);
     if (name === 'page:print') return T.contextAction('print');
+    if (name === 'page:capture-full') return ctx.capture.run('full');
     if (name === 'page:source') return T.contextAction('source');
     if (name === 'page:devtools') return T.devtools();
     if (name.startsWith('zoom:')) return T.zoom(name.slice(5));
@@ -434,6 +436,7 @@ app.whenReady().then(async () => {
   ctx.downloads.attach(session);
   ctx.passwords = createPasswords(ctx);
   ctx.certs = createCerts(ctx);
+  ctx.capture = createCapture(ctx);
 
   await Promise.all([
     ctx.library.load().catch((err) => console.error('[library]', err.message)),

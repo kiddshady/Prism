@@ -86,6 +86,9 @@ contextBridge.exposeInMainWorld('prism', {
     zoom: (dir) => send('page:zoom', dir),
     devtools: () => send('page:devtools'),
     print: () => send('page:print'),
+    /** Captura: 'visible' o 'full' (la página entera). Se guarda y se copia. */
+    capture: (kind = 'visible') => send('page:capture', kind),
+    showCapture: () => call('capture:show'),
     find: (text, opts) => send('page:find', text, opts),
     findStop: () => send('page:find-stop'),
     context: (action, payload) => send('page:context', action, payload),
@@ -115,6 +118,10 @@ contextBridge.exposeInMainWorld('prism', {
     update: (id, patch) => call('bookmarks:update', id, patch),
     remove: (id) => call('bookmarks:remove', id),
     move: (id, to) => call('bookmarks:move', id, to),
+    /** De dónde se puede importar: [{ id, browser, profile, count }]. */
+    sources: () => call('bookmarks:sources'),
+    import: (sourceId) => call('bookmarks:import', sourceId),
+    importFile: () => call('bookmarks:import-file'),
   },
   onLibraryChanged: listen('library:changed'),
 

@@ -41,7 +41,10 @@ npm run release # publica en GitHub (ver abajo)
   Ghostery con listas de EasyList, EasyPrivacy y uBlock Origin). Cuenta lo que
   bloquea en cada página y se apaga por sitio desde el escudo.
 - **Historial** agrupado por día, con búsqueda. **Favoritos** con la estrella
-  o Ctrl+D. **Descargas** con progreso, pausa y reintento.
+  o Ctrl+D, e importados de Chrome, Edge o Brave (o de un HTML exportado).
+  **Descargas** con progreso, pausa y reintento.
+- **Capturas**: lo visible, o la página entera de punta a punta (Ctrl+Mayús+S)
+  sin mover el scroll. Van a Imágenes\Prism y quedan copiadas para pegarlas.
 - **Nueva pestaña** con tus favoritos y los sitios que más visitás.
 - **Permisos** propios: cámara, micrófono, ubicación, notificaciones… se
   preguntan y se recuerdan por sitio. Compartir pantalla con selector propio.
@@ -132,6 +135,8 @@ src/
   web.cjs             La sesión de las páginas: permisos, pantalla, identidad.
   adblock.cjs         El bloqueador, con conteo por pestaña y apagado por sitio.
   downloads.cjs       Descargas.
+  capture.cjs         Capturas: lo visible y la página entera, por tramos cosidos.
+  bookmarks-import.cjs  Favoritos de Chrome/Edge/Brave o de un HTML. Puro, con tests.
   prompts.cjs         Preguntas que nacen acá y se contestan en el cromo.
   shortcuts.cjs       Atajos. Puro, con tests.
   updater.cjs         Auto-update desde los releases de GitHub.

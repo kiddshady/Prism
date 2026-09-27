@@ -884,10 +884,23 @@ function createTabs(ctx) {
     return shots;
   }
 
+  /* Lo que necesita la vista en su lugar (una captura pedida desde un menú)
+     espera a que el overlay se vaya, y un par de cuadros más para que pinte. */
+  const thawWaiters = new Set();
+  function whenThawed(max = 2000) {
+    return new Promise((resolve) => {
+      if (!frozen) return resolve();
+      const done = () => { clearTimeout(timer); thawWaiters.delete(done); setTimeout(resolve, 80); };
+      const timer = setTimeout(done, max);
+      thawWaiters.add(done);
+    });
+  }
+
   function hold(on) {
     frozen = !!on;
     layout();
     if (!frozen) {
+      for (const done of [...thawWaiters]) done();
       const t = active();
       // Si el foco estaba en la página antes del overlay, vuelve a ella.
       if (t?.view && ctx.win?.isFocused()) {
@@ -999,7 +1012,7 @@ function createTabs(ctx) {
   }
 
   return {
-    create, close, reopen, closeOthers, closeRight, move, duplicate, mute, pin, sleep, sweep, navigate,
+    whenThawed, create, close, reopen, closeOthers, closeRight, move, duplicate, mute, pin, sleep, sweep, navigate,
     split, unsplit, swapSplit, setSplitRatio,
     activate: activateTab, back, forward, reload, stop, zoom, find, stopFind, devtools,
     contextAction, snapshotPage, hold, focusPage, setInsets, layout, restore, writeSession,

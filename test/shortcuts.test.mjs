@@ -36,6 +36,8 @@ is('Ctrl++ (teclado en castellano)', key('+', { control: true }, 'BracketRight')
 is('Ctrl+-', key('-', { control: true }, 'Slash'), 'zoom:out');
 is('F12', key('F12', {}, 'F12'), 'page:devtools');
 is('Ctrl+Mayús+Q sale de verdad', key('Q', { control: true, shift: true }), 'app:quit');
+is('Ctrl+Mayús+S captura la página entera', key('S', { control: true, shift: true }), 'page:capture-full');
+is('Ctrl+S solo no hace nada (es de la página)', key('s', { control: true }), null);
 is('Ctrl+Q solo no hace nada (no se sale por accidente)', key('q', { control: true }), null);
 
 console.log('\n3. Lo que NO es atajo pasa de largo');

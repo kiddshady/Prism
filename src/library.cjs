@@ -314,6 +314,26 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
     return true;
   }
 
+  /** Suma lo importado de otro navegador AL FINAL (el orden que ya tenías queda
+      arriba), salteando lo que ya estaba o viene repetido. → { added, repeated } */
+  function importBookmarks(list = []) {
+    const have = new Set(bookmarks.map((b) => b.url));
+    let added = 0;
+    let repeated = 0;
+    const base = now().toString(36);
+    for (const x of list) {
+      const url = String(x?.url || '').trim();
+      if (!recordable(url)) continue;
+      if (have.has(url)) { repeated += 1; continue; }
+      have.add(url);
+      const t = Number(x.createdAt) > 0 ? Number(x.createdAt) : now();
+      bookmarks.push({ id: `b${base}i${added.toString(36)}${Math.random().toString(36).slice(2, 5)}`, url, title: String(x.title || '').slice(0, 300), favicon: null, createdAt: t });
+      added += 1;
+    }
+    if (added) schedule('bookmarks');
+    return { added, repeated };
+  }
+
   /** Alterna: si estaba, lo saca; si no, lo agrega. Devuelve el estado final. */
   function toggleBookmark(info) {
     if (isBookmarked(info.url)) { removeBookmark(info.url); return false; }
@@ -324,7 +344,7 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
   return {
     load, flushAll,
     visit, setTitle, setFavicon, faviconFor, listVisits, removeVisits, clearHistory, topSites, suggest,
-    isBookmarked, listBookmarks, addBookmark, removeBookmark, updateBookmark, moveBookmark, toggleBookmark,
+    isBookmarked, listBookmarks, addBookmark, removeBookmark, updateBookmark, moveBookmark, toggleBookmark, importBookmarks,
     get visitCount() { return visits.length; },
   };
 }

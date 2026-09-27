@@ -125,6 +125,8 @@ export function pageMenu(p) {
       { label: 'Recargar', icon: 'reload', key: 'F5', onSelect: act('reload') },
       { sep: true },
       { label: 'Imprimir', icon: 'printer', key: 'Ctrl+P', onSelect: act('print') },
+      { label: 'Capturar lo visible', icon: 'capture', onSelect: () => api.page.capture('visible') },
+      { label: 'Capturar la página entera', icon: 'captureFull', key: 'Ctrl+Mayús+S', onSelect: () => api.page.capture('full') },
       { label: 'Ver el código fuente', icon: 'code', key: 'Ctrl+U', onSelect: act('source') },
       { sep: true },
     );
@@ -162,6 +164,8 @@ export function mainMenu(anchor, { openFind } = {}) {
     { label: 'Acercar', icon: 'zoomIn', key: 'Ctrl++', disabled: !web, onSelect: () => api.page.zoom('in') },
     { label: `Alejar${web && zoom !== 100 ? ` · ${zoom} %` : ''}`, icon: 'zoomOut', key: 'Ctrl+-', disabled: !web, onSelect: () => api.page.zoom('out') },
     { label: 'Imprimir', icon: 'printer', key: 'Ctrl+P', disabled: !web, onSelect: () => api.page.print() },
+    { label: 'Capturar lo visible', icon: 'capture', disabled: !web, onSelect: () => api.page.capture('visible') },
+    { label: 'Capturar la página entera', icon: 'captureFull', key: 'Ctrl+Mayús+S', disabled: !web, onSelect: () => api.page.capture('full') },
     { sep: true },
     { label: 'Herramientas de desarrollo', icon: 'terminal', key: 'F12', disabled: !web, onSelect: () => api.page.devtools() },
     { label: 'Ver el código fuente', icon: 'code', key: 'Ctrl+U', disabled: !web, onSelect: () => api.page.context('source') },
