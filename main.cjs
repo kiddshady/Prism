@@ -19,7 +19,7 @@
    `backgroundColor`. En la 33 es blanco y no hay forma de taparlo.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { app, BrowserWindow, ipcMain, screen, shell, nativeTheme, Tray, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, screen, shell, nativeTheme, Tray, Menu, globalShortcut } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const store = require('./src/store.cjs');
@@ -553,6 +553,12 @@ app.whenReady().then(async () => {
   // La bandeja no se crea en modo verificación: no tiene por qué aparecer un
   // ícono en la barra de la persona mientras corren las pruebas.
   if (!SHOTS || process.env.PRISM_TRAY) createTray();
+  /* Ctrl+Alt+P desde cualquier lado de Windows: saca a Prism de la bandeja o
+     lo trae al frente. Global de verdad, así que en las pruebas no: le
+     robaría el atajo al Prism de todos los días. */
+  if (!SHOTS && !globalShortcut.register(shortcuts.GLOBAL_SHOW, showMain)) {
+    console.error(`[atajos] ${shortcuts.GLOBAL_SHOW} ya lo tiene otra app`);
+  }
   updater.init({ onChange: (u) => { windows.broadcast('update:state', u); refreshTray(); } });
 
   // El bloqueador baja listas la primera vez: no puede demorar la ventana.
@@ -589,6 +595,7 @@ app.on('before-quit', (e) => {
 });
 
 app.on('window-all-closed', () => app.quit());
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 /* Captura de verificación: la foto del cromo y, aparte, la de la página
    activa con su rectángulo. tools/shot.mjs las compone. (PrintWindow devuelve
