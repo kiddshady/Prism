@@ -92,11 +92,11 @@ const TABLE = [
   ['Herramientas de desarrollo', 'F12'],
   ['Pantalla completa', 'F11'],
   ['Salir de Prism (cerrar lo manda a la bandeja)', 'Ctrl+Mayús+Q'],
-  ['Traer Prism al frente, desde cualquier lado de Windows', 'Ctrl+Alt+P'],
+  ['Mostrar u ocultar Prism, desde cualquier lado de Windows', 'Ctrl+Alt+P'],
 ];
 
 /** El único atajo global: lo escucha Windows entero, no solo la ventana
     (ver main.cjs). En formato de Electron, no el de la tabla. */
-const GLOBAL_SHOW = 'CommandOrControl+Alt+P';
+const GLOBAL_TOGGLE = 'CommandOrControl+Alt+P';
 
-module.exports = { match, TABLE, GLOBAL_SHOW };
+module.exports = { match, TABLE, GLOBAL_TOGGLE };

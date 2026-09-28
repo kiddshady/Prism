@@ -921,6 +921,18 @@ app.whenReady().then(async () => {
   app.emit('second-instance', {}, [process.execPath]);
   ok('abrir Prism otra vez la trae de vuelta', await until(() => win.isVisible()));
   ok('y le suma una pestaña nueva', await until(() => ctx.tabs.active.internal === 'nueva'));
+  // Ctrl+Alt+P (el atajo global no se registra en las pruebas: se llama directo).
+  win.focus();
+  await until(() => win.isFocused());
+  ctx.toggleMain();
+  ok('Ctrl+Alt+P con Prism al frente lo manda a la bandeja', await until(() => !win.isDestroyed() && !win.isVisible()));
+  ok('sin cerrar pestañas', ctx.tabs.list.length > 0);
+  ctx.toggleMain();
+  ok('y otra vez lo trae', await until(() => win.isVisible() && win.isFocused()));
+  win.minimize();
+  await until(() => win.isMinimized());
+  ctx.toggleMain();
+  ok('minimizado, lo trae en vez de ocultarlo', await until(() => win.isVisible() && !win.isMinimized()));
 
   console.log('\n13. Actualizaciones');
   ctx.send('update:state', { phase: 'available', version: '9.9.9', name: 'Prism 9.9.9', bytes: 1e8, pct: 0 });

@@ -381,12 +381,25 @@ function showMain() {
   win.focus();
 }
 
+/** Ctrl+Alt+P: si Prism es lo que estás mirando, se va a la bandeja (igual
+    que al cerrarlo); si está tapado, minimizado o en la bandeja, viene. */
+function toggleMain() {
+  const win = ctx.win;
+  if (!win || win.isDestroyed()) return;
+  if (!win.isVisible() || win.isMinimized() || !win.isFocused()) return showMain();
+  if (!tray) return win.minimize();       // sin bandeja, ocultarla la dejaría inalcanzable
+  if (win.isFullScreen()) win.setFullScreen(false);
+  win.hide();
+  ctx.tabs?.writeSession();
+}
+
 function quit() {
   quitting = true;
   app.quit();
 }
 ctx.quit = quit;
 ctx.showMain = showMain;
+ctx.toggleMain = toggleMain;
 
 /** Una página propia (historial, ajustes…) en la ventana normal, al frente. */
 ctx.openPage = (page) => {
@@ -553,11 +566,11 @@ app.whenReady().then(async () => {
   // La bandeja no se crea en modo verificación: no tiene por qué aparecer un
   // ícono en la barra de la persona mientras corren las pruebas.
   if (!SHOTS || process.env.PRISM_TRAY) createTray();
-  /* Ctrl+Alt+P desde cualquier lado de Windows: saca a Prism de la bandeja o
-     lo trae al frente. Global de verdad, así que en las pruebas no: le
-     robaría el atajo al Prism de todos los días. */
-  if (!SHOTS && !globalShortcut.register(shortcuts.GLOBAL_SHOW, showMain)) {
-    console.error(`[atajos] ${shortcuts.GLOBAL_SHOW} ya lo tiene otra app`);
+  /* Ctrl+Alt+P desde cualquier lado de Windows: muestra u oculta Prism (ver
+     toggleMain). Global de verdad, así que en las pruebas no: le robaría el
+     atajo al Prism de todos los días. */
+  if (!SHOTS && !globalShortcut.register(shortcuts.GLOBAL_TOGGLE, toggleMain)) {
+    console.error(`[atajos] ${shortcuts.GLOBAL_TOGGLE} ya lo tiene otra app`);
   }
   updater.init({ onChange: (u) => { windows.broadcast('update:state', u); refreshTray(); } });
 
