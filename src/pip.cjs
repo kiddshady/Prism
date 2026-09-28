@@ -39,7 +39,6 @@ const MIN_W = 240;
 const DEFAULT_W = 420;
 /** Separación de los bordes de la pantalla. */
 const EDGE = 24;
-const OFF = -32000;
 const FADE_IN = 180;
 const FADE_OUT = 120;
 
@@ -183,7 +182,6 @@ function createPip({ store, icon = null }) {
     saveTimer = setTimeout(() => {
       if (!cur || cur.closing || cur.win.isDestroyed()) return;
       const b = cur.win.getBounds();
-      if (b.x <= OFF / 2) return;
       boundsDoc.write({ x: b.x, y: b.y, width: b.width }).catch(() => {});
     }, 400);
   }
@@ -207,7 +205,7 @@ function createPip({ store, icon = null }) {
     if (size.height !== b.height) {
       // Crece hacia arriba si está apoyada abajo: la base queda donde estaba.
       win.setBounds({ x: b.x, y: b.y + b.height - size.height, ...size });
-      if (b.x > OFF / 2) keepOnScreen(win);
+      keepOnScreen(win);
     }
     fit();
   }
@@ -282,11 +280,15 @@ function createPip({ store, icon = null }) {
     // Mientras tanto la pestaña se pudo cerrar o ir a otra página.
     if (!t.view || t.view.webContents !== wc || !alive(frame)) return false;
 
+    /* Nace YA en su lugar (transparente), nunca fuera de la pantalla: afuera,
+       Windows la da por tapada, la página pasa a oculta justo cuando pide la
+       pantalla completa, y al aparecer Chromium se la saca (la ventanita
+       se abría y a los 100 ms volvía sola). Las pruebas no lo veían porque
+       apagan ese cálculo de Windows (main.cjs → SHOTS). */
+    const first = await placement(w, 16 / 9);
+    if (!t.view || t.view.webContents !== wc || !alive(frame)) return false;
     const win = new BaseWindow({
-      x: OFF,
-      y: OFF,
-      width: DEFAULT_W,
-      height: Math.round(DEFAULT_W * 9 / 16),
+      ...first,
       frame: false,
       show: false,
       backgroundColor: '#000000',
@@ -357,17 +359,14 @@ function createPip({ store, icon = null }) {
     win.setAspectRatio(c.aspect);
     win.setMinimumSize(MIN_W, Math.round(MIN_W / c.aspect));
 
-    const b = await placement(w, c.aspect);
-    // Con su tamaño final pero todavía afuera: la página se acomoda sin que se vea.
-    win.setBounds({ x: OFF, y: OFF, width: b.width, height: b.height });
+    // Con su forma final pero todavía transparente: la página se acomoda sin que se vea.
+    win.setBounds(await placement(w, c.aspect));
     fit();
     await uiReady;
     c.ready = true;
     ui.webContents.send('pipui:state', c.state);
     await sleep(120);
     if (cur !== c) return false;
-    win.setBounds(b);
-    fit();
 
     win.on('resize', () => { fit(); save(); });
     win.on('move', () => { if (!drag) save(); });
