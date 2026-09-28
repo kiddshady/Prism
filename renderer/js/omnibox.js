@@ -172,8 +172,8 @@ const PERM_LABEL = {
   'idle-detection': ['clock', 'Detección de actividad'],
   'window-management': ['window', 'Ventanas'],
   openExternal: ['external', 'Abrir aplicaciones'],
-  'storage-access': ['key', 'Cookies de terceros'],
-  'top-level-storage-access': ['key', 'Cookies de terceros'],
+  'storage-access': ['passKey', 'Cookies de terceros'],
+  'top-level-storage-access': ['passKey', 'Cookies de terceros'],
 };
 
 function siteInfo() {
@@ -203,7 +203,7 @@ function siteInfo() {
       <div class="pr-pop__body">
         <div class="op-eyebrow" style="padding:10px 8px 6px">Permisos</div>
         ${perms.length ? perms.map(([k, v]) => {
-          const [icon, label] = PERM_LABEL[k] || ['key', k];
+          const [icon, label] = PERM_LABEL[k] || ['passKey', k];
           return `<div class="pr-dlrow" style="padding:6px 8px">
               <i data-icon="${icon}"></i>
               <div class="pr-dlrow__main"><div class="pr-dlrow__name">${esc(label)}</div>

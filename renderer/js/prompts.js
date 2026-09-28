@@ -22,14 +22,14 @@ const cancelled = new Set();
 const ICON = {
   camera: 'camera', microphone: 'mic', geolocation: 'location', notifications: 'bell',
   'clipboard-read': 'copy', midi: 'music', midiSysex: 'music', 'idle-detection': 'clock',
-  'window-management': 'window', openExternal: 'external', 'storage-access': 'key', 'top-level-storage-access': 'key',
+  'window-management': 'window', openExternal: 'external', 'storage-access': 'passKey', 'top-level-storage-access': 'passKey',
 };
 
 const pretty = (origin) => String(origin || '').replace(/^https:\/\//, '');
 
 async function askPermission(req) {
   const body = document.createElement('div');
-  const icon = req.keys?.length === 2 ? 'camera' : ICON[req.keys?.[0]] || 'key';
+  const icon = req.keys?.length === 2 ? 'camera' : ICON[req.keys?.[0]] || 'passKey';
   body.innerHTML = `
     <div class="pr-ask">
       <div class="pr-ask__icon">${Icons.svg(icon)}</div>
