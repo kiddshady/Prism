@@ -20,7 +20,7 @@ import * as Status from './status.js';
 import * as Prompts from './prompts.js';
 import * as Passwords from './passwords.js';
 import * as Bmbar from './bmbar.js';
-import { pageMenu } from './menus.js';
+import { pageMenu, fieldMenu, textFieldOf } from './menus.js';
 import { openPrint } from './print.js';
 
 /* ── Ventana ─────────────────────────────────────────────────────────────── */
@@ -158,6 +158,13 @@ async function boot() {
   api.downloads.onState(applyDownloads);
   api.onLibraryChanged(() => emit('library'));
   api.page.onContext((p) => pageMenu(p));
+  // Click derecho en un campo del cromo: el mismo menú que en Chrome (menus.js).
+  document.addEventListener('contextmenu', (e) => {
+    const field = !e.defaultPrevented && textFieldOf(e.target);
+    if (!field) return;
+    e.preventDefault();
+    fieldMenu(field, e.clientX, e.clientY);
+  });
   api.page.onFullscreen((on) => document.getElementById('app').classList.toggle('is-fullscreen', on));
   api.onCommand(onCommand);
   api.update.onState(onUpdate);

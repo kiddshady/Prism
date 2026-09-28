@@ -211,10 +211,12 @@ const Menu = (() => {
 
   function onKey(e) {
     if (!open) return;
+    /* Las teclas que usa el menú no siguen de largo: con el menú de un campo
+       (menus.js) el foco sigue en el campo, y Enter también lo haría ir. */
     if (e.key === 'Escape')          { e.stopPropagation(); close(); }
-    else if (e.key === 'ArrowDown')  { e.preventDefault(); move(1); }
-    else if (e.key === 'ArrowUp')    { e.preventDefault(); move(-1); }
-    else if (e.key === 'Enter')      { e.preventDefault(); open.el.querySelector('.op-menuitem.is-active')?.click(); }
+    else if (e.key === 'ArrowDown')  { e.preventDefault(); e.stopPropagation(); move(1); }
+    else if (e.key === 'ArrowUp')    { e.preventDefault(); e.stopPropagation(); move(-1); }
+    else if (e.key === 'Enter')      { e.preventDefault(); e.stopPropagation(); open.el.querySelector('.op-menuitem.is-active')?.click(); }
   }
 
   function show(anchorEl, items, { align = 'start', onClose } = {}) {
@@ -255,6 +257,9 @@ const Menu = (() => {
         ${it.key ? `<span class="op-menuitem__key">${it.key}</span>` : ''}
         ${it.selected ? Icons.svg('check', 'op-icon--sm') : ''}`;
       b.querySelector('span.op-truncate').textContent = it.label;
+      // Un menú no se lleva el foco (como uno nativo): el campo del click
+      // derecho conserva su selección, y cortar o pegar caen sobre ella.
+      b.addEventListener('mousedown', (e) => e.preventDefault());
       b.addEventListener('click', () => { close(); it.onSelect?.(it); });
       el.appendChild(b);
     });

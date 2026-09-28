@@ -117,6 +117,10 @@ contextBridge.exposeInMainWorld('prism', {
     remote: (q) => call('omni:remote', q),
   },
 
+  clip: {
+    read: () => call('clip:read'),
+  },
+
   history: {
     list: (opts) => call('history:list', opts),
     remove: (ids) => call('history:remove', ids),

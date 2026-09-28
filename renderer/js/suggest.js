@@ -57,6 +57,13 @@ function highlightRest(text, q) {
   return esc(s);
 }
 
+/* Los campos con sugerencias saben ir: el click derecho (menus.js) les pide
+   su "Pegar e ir" por acá, sin que cada uno lo arme. */
+const fields = new WeakMap();
+
+/** { go(text), close() } del campo, si es uno de dirección; si no, null. */
+export const addressField = (input) => fields.get(input) || null;
+
 /**
  * Engancha las sugerencias a un campo.
  *   anchor        el elemento bajo el que cuelga la lista (y del que toma el ancho)
@@ -272,6 +279,7 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
   input.addEventListener('keydown', onKey);
   input.addEventListener('blur', onBlur);
   window.addEventListener('resize', place);
+  fields.set(input, { go: (value) => { close(); onGo?.(value, { newTab: false }); }, close });
 
   return {
     close,
@@ -285,6 +293,7 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
       input.removeEventListener('keydown', onKey);
       input.removeEventListener('blur', onBlur);
       window.removeEventListener('resize', place);
+      fields.delete(input);
     },
   };
 }

@@ -9,6 +9,7 @@
 import { api, S, activeTab } from './state.js';
 import { menu, pointAnchor } from './layers.js';
 import { newTab } from './tabstrip.js';
+import { addressField } from './suggest.js';
 
 const ellipsis = (s, n = 28) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
@@ -140,6 +141,59 @@ export function pageMenu(p) {
 
   items.push({ label: 'Inspeccionar', icon: 'terminal', onSelect: act('inspect', { x: p.pageX, y: p.pageY }) });
   menu(pointAnchor(p.x, p.y), items, { align: 'start' });
+}
+
+/* ── Campos de texto (click derecho) ─────────────────────────────────────
+   Los del cromo: la omnibox, la barra grande de la pestaña nueva, los
+   buscadores del historial y de favoritos, los de un modal. Chromium no trae
+   menú propio en Electron, así que sin esto el click derecho no hacía nada.
+   El menú no se lleva el foco (overlays.js), así que cada acción cae sobre el
+   campo con su selección intacta. */
+
+// Los que no se escriben (number, date, color…) no llevan este menú.
+const TEXT_TYPES = new Set(['text', 'search', 'url', 'email', 'tel', 'password']);
+
+/** El campo de texto donde cayó el click, o null. */
+export function textFieldOf(target) {
+  const el = target?.closest?.('input, textarea');
+  if (!el || (el.tagName === 'INPUT' && !TEXT_TYPES.has(el.type))) return null;
+  return el;
+}
+
+const exec = (cmd, value) => document.execCommand(cmd, false, value);
+
+export async function fieldMenu(field, x, y) {
+  const addr = addressField(field);
+  addr?.close();
+  const ro = field.readOnly || field.disabled;
+  const secret = field.type === 'password';
+  const hasSel = field.selectionEnd > field.selectionStart;
+  const all = !!field.value && field.selectionStart === 0 && field.selectionEnd === field.value.length;
+  const canUndo = !ro && document.queryCommandEnabled('undo');
+  const clip = await api.clip.read().catch(() => '');
+
+  // "Pegar e ir", como Chrome: dice adónde va lo copiado antes de ir.
+  let go = null;
+  const pasted = clip.replace(/\s+/g, ' ').trim();
+  if (addr) {
+    const kind = pasted ? (await api.omni.suggest(pasted.slice(0, 500)).catch(() => null))?.classified?.type : null;
+    go = kind === 'url'
+      ? { label: `Pegar e ir a ${ellipsis(pasted, 48)}`, icon: 'globe' }
+      : { label: pasted ? `Pegar y buscar «${ellipsis(pasted, 36)}»` : 'Pegar e ir', icon: kind ? 'search' : 'arrowRight' };
+  }
+
+  menu(pointAnchor(x, y), [
+    { label: 'Deshacer', key: 'Ctrl+Z', disabled: !canUndo, onSelect: () => exec('undo') },
+    { sep: true },
+    { label: 'Cortar', key: 'Ctrl+X', disabled: ro || secret || !hasSel, onSelect: () => exec('cut') },
+    { label: 'Copiar', icon: 'copy', key: 'Ctrl+C', disabled: secret || !hasSel, onSelect: () => exec('copy') },
+    // Se vuelve a leer al elegir: lo copiado pudo cambiar con el menú abierto.
+    { label: 'Pegar', key: 'Ctrl+V', disabled: ro || !clip, onSelect: async () => exec('insertText', await api.clip.read().catch(() => clip)) },
+    ...(go ? [{ ...go, disabled: !pasted, onSelect: () => addr.go(pasted) }] : []),
+    { label: 'Suprimir', disabled: ro || !hasSel, onSelect: () => exec('delete') },
+    { sep: true },
+    { label: 'Seleccionar todo', key: 'Ctrl+A', disabled: !field.value || all, onSelect: () => field.select() },
+  ], { align: 'start' });
 }
 
 /* ── Principal ───────────────────────────────────────────────────────────── */

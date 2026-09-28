@@ -111,6 +111,11 @@
 .op-menuitem:hover, .op-menuitem.is-active { background: var(--op-wash-2); color: var(--op-text); }
 .op-menuitem:hover .op-icon, .op-menuitem.is-active .op-icon { color: var(--op-text-2); }
 .op-menuitem.is-selected .op-icon:last-child { color: var(--op-accent); }
+/* Lo que no se puede ahora (Copiar sin nada seleccionado) se ve apagado y no
+   reacciona al pasar: las flechas del teclado ya lo saltean (overlays.js). */
+.op-menuitem:disabled { opacity: .38; }
+.op-menuitem:disabled:hover { background: transparent; color: var(--op-text-2); }
+.op-menuitem:disabled:hover .op-icon { color: var(--op-text-3); }
 .op-menuitem--danger { color: var(--op-danger); }
 .op-menuitem--danger .op-icon { color: var(--op-danger); }
 .op-menuitem--danger:hover { background: var(--op-danger-wash); color: var(--op-danger); }

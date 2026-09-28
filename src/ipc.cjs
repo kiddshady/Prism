@@ -19,7 +19,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const fsp = require('fs/promises');
-const { ipcMain, app, dialog, shell, net } = require('electron');
+const { ipcMain, app, dialog, shell, net, clipboard } = require('electron');
 const store = require('./store.cjs');
 const omni = require('./omni.cjs');
 const { TABLE } = require('./shortcuts.cjs');
@@ -127,6 +127,9 @@ function register() {
   });
 
   /* ── Omnibox ───────────────────────────────────────────────────────────── */
+  /* El click derecho en un campo del cromo (menus.js) pega sin pedirle permiso
+     a Chromium, y "Pegar e ir" necesita saber qué hay antes de ofrecerlo. */
+  handle('clip:read', () => clipboard.readText().slice(0, 100000));
   handle('omni:suggest', (ctx, q) => {
     const r = ctx.library.suggest(str(q, 500), 6, { history: ctx.settings.historySuggest !== false });
     return { ...r, classified: omni.classify(str(q, 500), ctx.settings.searchEngine) };
