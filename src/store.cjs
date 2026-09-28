@@ -66,6 +66,8 @@ const DEFAULT_SETTINGS = {
   historySuggest: true,
   /** La barra de favoritos debajo de la de direcciones (Ctrl+Mayús+B). */
   bookmarksBar: true,
+  /** Mostrar "Los que más visitás" en la pestaña nueva. Apagado, solo los favoritos. */
+  ntpTopSites: true,
   /** Bloqueador de anuncios y rastreadores. */
   adblock: true,
   /** Hosts donde el bloqueador está apagado. */

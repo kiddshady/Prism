@@ -271,9 +271,12 @@ function ntpPage(t) {
   });
   surf.cleanups.push(() => sugg.detach());
 
+  const topOn = () => S.settings?.ntpTopSites !== false;
+  let shownTop = topOn();
   async function fill() {
     if (priv) return;
-    const [bm, top] = await Promise.all([api.bookmarks.list().catch(() => []), api.history.top(12).catch(() => [])]);
+    shownTop = topOn();
+    const [bm, top] = await Promise.all([api.bookmarks.list().catch(() => []), shownTop ? api.history.top(12).catch(() => []) : []]);
     const marks = bm.slice(0, 8);
     const seen = new Set(marks.map((b) => hostOf(b.url)));
     const freq = top.filter((t) => !seen.has(hostOf(t.url))).slice(0, 8);
@@ -281,7 +284,7 @@ function ntpPage(t) {
     box.innerHTML = `
       ${marks.length ? `<div class="pr-tiles__label op-eyebrow">Favoritos</div><div class="pr-tiles">${marks.map((b, i) => tileHTML(b, i, 'bookmark')).join('')}</div>` : ''}
       ${freq.length ? `<div class="pr-tiles__label op-eyebrow">Los que más visitás</div><div class="pr-tiles">${freq.map((b, i) => tileHTML(b, i + marks.length, 'top')).join('')}</div>` : ''}
-      ${!marks.length && !freq.length ? '<div class="pr-tiles__label op-meta" style="margin-top:28px">Tus favoritos y los sitios que más visitás van a aparecer acá.</div>' : ''}`;
+      ${!marks.length && !freq.length ? `<div class="pr-tiles__label op-meta" style="margin-top:28px">${shownTop ? 'Tus favoritos y los sitios que más visitás van a aparecer acá.' : 'Tus favoritos van a aparecer acá.'}</div>` : ''}`;
     box.querySelectorAll('img[data-letter]').forEach((img) => img.addEventListener('error', () => { img.replaceWith(document.createTextNode(img.dataset.letter)); }, { once: true }));
   }
   fill();
@@ -305,7 +308,9 @@ function ntpPage(t) {
     tileMenu(tile.querySelector('[data-more]') || tile, tile);
   });
 
-  return { name: 'nueva', el, refresh: fill };
+  // Solo se rearma si cambió este ajuste: con cualquier otro (el escudo del
+  // bloqueador, la barra de favoritos) las baldosas volverían a entrar.
+  return { name: 'nueva', el, refresh: fill, onSettings: () => { if (topOn() !== shownTop) fill(); } };
 }
 
 function tileMenu(anchor, tile) {
@@ -717,6 +722,9 @@ function settingsPage() {
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Barra de favoritos</div>
           <div class="pr-opt__hint">Tus favoritos a un clic, debajo de la barra de direcciones. Lo que no entra queda en la flecha de la punta. También con Ctrl+Mayús+B.</div></div>
           <div class="pr-opt__ctl"><button class="op-switch${s.bookmarksBar !== false ? ' is-on' : ''}" data-toggle="bookmarksBar" aria-label="Barra de favoritos"></button></div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Los que más visitás en la pestaña nueva</div>
+          <div class="pr-opt__hint">Apagado, la pestaña nueva solo muestra tus favoritos. El historial se sigue guardando.</div></div>
+          <div class="pr-opt__ctl"><button class="op-switch${s.ntpTopSites !== false ? ' is-on' : ''}" data-toggle="ntpTopSites" aria-label="Los que más visitás"></button></div></div>
       </section>
 
       <section class="pr-set" style="--i:2">
@@ -957,7 +965,10 @@ export function init() {
   on('tabs', render);
   on('library', () => refresh(['nueva', 'historial', 'favoritos']));
   on('downloads', () => refresh(['descargas']));
-  on('settings', () => refresh(['ajustes'], () => Date.now() > quietUntil));
+  on('settings', () => {
+    refresh(['ajustes'], () => Date.now() > quietUntil);
+    for (const sf of surfaces) sf.current?.onSettings?.();
+  });
   on('update', () => refresh(['ajustes']));
   render();
 }

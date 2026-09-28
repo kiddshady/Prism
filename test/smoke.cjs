@@ -297,6 +297,19 @@ app.whenReady().then(async () => {
   sg = await sugg('dos');
   ok('prendido otra vez, vuelve', sg.items.some((i) => i.kind === 'history'), JSON.stringify(sg.items));
 
+  console.log('\n7b3. La pestaña nueva sin "Los que más visitás"');
+  // Otro host que el del favorito: si no, la pestaña nueva lo descarta por repetido.
+  ctx.library.visit('https://ejemplo.test/', 'Ejemplo');
+  ctx.command('tab:new');
+  const topTile = `${NTP} .pr-tile[data-kind="top"]`;
+  ok('prendido, muestra los que más visitás', await until(() => js(`!!document.querySelector('${topTile}')`)));
+  await ctx.saveSettings({ ntpTopSites: false });
+  ok('apagado, se van sin reabrir la pestaña', await until(() => js(`!document.querySelector('${topTile}')`)));
+  ok('y el favorito sigue', await js(`!!document.querySelector('${NTP} .pr-tile[data-kind="bookmark"]')`));
+  await ctx.saveSettings({ ntpTopSites: true });
+  ok('prendido otra vez, vuelven', await until(() => js(`!!document.querySelector('${topTile}')`)));
+  ctx.tabs.close(ctx.tabs.active.id);
+
   console.log('\n7c. Silenciar desde el menú de la pestaña');
   ctx.tabs.create({ url: `${BASE}/sonido` });
   ok('la pestaña suena', await until(() => ctx.tabs.active.audible, 8000));
