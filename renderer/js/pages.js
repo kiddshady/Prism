@@ -189,7 +189,7 @@ function pipPage(t) {
     <div class="pr-notice"><div class="pr-notice__box">
       ${Icons.svg('pip', 'pr-notice__icon')}
       <div class="pr-notice__title">El video está en la ventanita</div>
-      <div class="pr-notice__text">Sigue a la vista, encima de todo, mientras usás otra cosa. Traelo de vuelta para seguir con la página.</div>
+      <div class="pr-notice__text">Sigue a la vista. Traelo de vuelta para seguir con la página.</div>
       <div class="pr-notice__actions"><button class="op-btn op-btn--primary op-flashable" data-a="back"><i data-icon="pipBack"></i> Traer de vuelta</button></div>
     </div></div>`, 'pip');
   el.querySelector('[data-a]').addEventListener('click', () => api.page.pipBack(t.id));
