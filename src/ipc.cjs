@@ -88,6 +88,22 @@ function register() {
   on('page:zoom', (ctx, dir) => ctx.tabs.zoom(['in', 'out', 'reset'].includes(dir) ? dir : 'reset'));
   on('page:devtools', (ctx) => ctx.tabs.devtools());
   on('page:print', (ctx) => ctx.tabs.contextAction('print'));
+  /* La pantalla de impresión (src/print.cjs). Las opciones las acota print.cjs. */
+  handle('print:printers', (ctx) => ctx.print.printers());
+  handle('print:preview', (ctx, id, opts) => ctx.print.preview(num(id), opts));
+  handle('print:run', (ctx, id, opts) => ctx.print.run(num(id), opts));
+  handle('print:save', (ctx, id, opts) => ctx.print.save(num(id), opts));
+  on('print:system', (ctx, id, opts) => ctx.print.system(num(id), opts));
+  /* El window.print() de una página (src/print-preload.cjs): la pantalla de
+     impresión en su ventana, si es una pestaña. Un popup (el comprobante que
+     un sitio abre solo para imprimir) no tiene pantalla: diálogo de Windows. */
+  ipcMain.on('page:print-request', (e) => {
+    const hit = windows.tabOf(e.sender.id);
+    if (!hit) { try { e.sender.print(); } catch { /* ya no estaba */ } return; }
+    hit.w.tabs.activate(hit.tab.id);
+    hit.w.focusChrome?.();
+    hit.w.send('cmd', 'print:page');
+  });
   on('page:capture', (ctx, kind) => ctx.capture.run(kind === 'full' ? 'full' : 'visible'));
   on('page:pip', (ctx) => ctx.pip.toggle(ctx));
   on('pip:back', (ctx, id) => ctx.pip.back(ctx, id == null ? null : num(id)));

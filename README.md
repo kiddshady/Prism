@@ -55,6 +55,11 @@ npm run release # publica en GitHub (ver abajo)
   sin mover el scroll, también en las que scrollean una caja adentro (Moodle).
   Van a Imágenes\Prism y quedan copiadas; una tarjeta en la esquina avisa, con
   la miniatura, Abrir y Mostrar en la carpeta.
+- **Imprimir con vista previa** (Ctrl+P, el menú o el botón "Imprimir" de un
+  sitio): una pantalla propia, como la de Chrome, con las hojas de verdad al
+  lado de las opciones (páginas, copias, orientación, color, papel, márgenes,
+  escala, fondos, doble faz). Imprime directo o guarda como PDF; para lo
+  propio de cada impresora queda el diálogo de Windows a un clic.
 - **Ventanita** (picture-in-picture propio): un video sale a una ventana chica
   que queda siempre arriba mientras usás otra cosa. Con el botón que aparece
   sobre el video, el clic derecho, el menú o Ctrl+Mayús+P (que también lo trae
@@ -173,6 +178,8 @@ src/
   downloads.cjs       Descargas.
   capture.cjs         Capturas: lo visible y la página entera, por tramos cosidos.
   card.cjs            La tarjeta de la esquina: un aviso que flota sobre la página.
+  print.cjs           Imprimir: la vista previa (un PDF), a la impresora o a un PDF.
+  print-preload.cjs   En cada página: su window.print() abre la pantalla de Prism.
   pip.cjs             La ventanita: el video afuera, siempre arriba, con sus controles.
   pip-preload.cjs     En cada frame: el botón sobre los videos y el manejo del que sale.
   bookmarks-import.cjs  Favoritos de Chrome/Edge/Brave o de un HTML. Puro, con tests.
@@ -191,12 +198,15 @@ renderer/
   js/toolbar.js       Navegación, buscar en la página, escudo, descargas.
   js/pages.js         Nueva pestaña, historial, favoritos, descargas, ajustes.
   js/bmbar.js         La barra de favoritos.
+  js/print.js         La pantalla de impresión: opciones y hojas (con pdf.js).
+  vendor/pdfjs/       pdf.js, copiado de node_modules (tools/vendor-pdfjs.mjs).
   js/freeze.js        El congelado.
   js/layers.js        Menú, modal y popover de Opal, con congelado.
   (el resto)          El sistema de Opal: tokens, controles, overlays, motion.
 tools/
   icons.mjs           El ícono y el de la bandeja, desde la geometría de la marca.
   release.mjs         Publicar un release entero, o nada.
+  vendor-pdfjs.mjs    Copiar pdf.js a renderer/vendor al actualizarlo.
   shot.mjs            Captura fiel (cromo + página) en modo verificación.
   cdp.mjs · main.mjs  Manejar el cromo y el proceso principal desde afuera.
 ```

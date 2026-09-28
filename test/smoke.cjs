@@ -337,6 +337,49 @@ app.whenReady().then(async () => {
   await until(() => js(`!document.querySelector('.pr-pop:not([data-state="closing"])')`));
   ctx.saveSettings = saveReal;
 
+  console.log('\n7b5. Imprimir');
+  /* La pantalla propia, con la vista previa dibujada por pdf.js. El diálogo
+     de guardar es de mentira; a una impresora de verdad no se manda nada. */
+  const { dialog } = require('electron');
+  const pdfFile = path.join(TMP, 'impreso.pdf');
+  const saveDlg = dialog.showSaveDialog;
+  dialog.showSaveDialog = async () => ({ canceled: false, filePath: pdfFile });
+  ctx.tabs.create({ url: `${BASE}/larga` });
+  await until(() => ctx.tabs.active.title === 'Larga');
+  const pt = ctx.tabs.active;
+  await until(() => !pt.view.webContents.isLoading());
+  ctx.command('page:print');
+  ok('Ctrl+P abre la pantalla de impresión', await until(() => js(`!!document.querySelector('.pr-print')`)));
+  ok('con la vista previa dibujada', await until(() => js(`!!document.querySelector('.pr-print .pr-sheet.is-drawn')`), 10000));
+  const hojas = await js(`document.querySelectorAll('.pr-print__sheets:not([data-state="closing"]) .pr-sheet').length`);
+  ok('una hoja por página', hojas > 1, String(hojas));
+  await js(`document.getElementById('pp-dest').click()`);
+  await until(() => js(`!!document.querySelector('.op-menu .op-menuitem')`));
+  await js(`[...document.querySelectorAll('.op-menu .op-menuitem')].find((b) => b.textContent.includes('Guardar como PDF')).click()`);
+  ok('con "Guardar como PDF" el botón dice Guardar', await until(() => js(`document.querySelector('.op-modal__foot .op-btn--primary').textContent === 'Guardar'`)));
+  await js(`document.querySelector('#pp-pages [data-value="custom"]').click()`);
+  await js(`(() => { const i = document.getElementById('pp-range'); i.value = '1-2'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  ok('elegir páginas pliega las otras', await until(() => js(`document.querySelectorAll('.pr-print__sheets:not([data-state="closing"]) .pr-sheet:not(.is-out)').length === 2`)));
+  await js(`(() => { const i = document.getElementById('pp-range'); i.value = '1-'; i.dispatchEvent(new Event('input', { bubbles: true })); i.value = '1-x'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  ok('un rango a medio escribir no vacía la vista previa', await js(`document.querySelectorAll('.pr-print__sheets:not([data-state="closing"]) .pr-sheet:not(.is-out)').length > 0`));
+  ok('y no deja imprimir', await js(`document.querySelector('.op-modal__foot .op-btn--primary').disabled`));
+  await js(`(() => { const i = document.getElementById('pp-range'); i.value = '1-2'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await js(`document.querySelector('.op-modal__foot .op-btn--primary').click()`);
+  ok('guarda el PDF', await until(() => fs.existsSync(pdfFile) && fs.statSync(pdfFile).size > 500, 10000));
+  const paginas = fs.existsSync(pdfFile) ? (fs.readFileSync(pdfFile, 'latin1').match(/\/Type\s*\/Page[^s]/g) || []).length : 0;
+  ok('solo con las páginas elegidas', paginas === 2, String(paginas));
+  ok('y lo avisa en la tarjeta', await until(() => ctx.card.shown));
+  ok('la pantalla se va', await until(() => js(`!document.querySelector('.pr-print')`)));
+  ok('y recuerda el destino', ctx.settings.printDest === 'pdf');
+  await sleep(1600);   // un sitio que llama a print() en bucle no la reabre enseguida
+  await pt.view.webContents.executeJavaScript('window.print()', true);
+  ok('el window.print() de un sitio abre la misma pantalla', await until(() => js(`!!document.querySelector('.pr-print')`)));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  ok('Escape la cierra', await until(() => js(`!document.querySelector('.pr-print')`)));
+  dialog.showSaveDialog = saveDlg;
+  await ctx.saveSettings({ printDest: null });
+  ctx.tabs.close(pt.id);
+
   console.log('\n7c. Silenciar desde el menú de la pestaña');
   ctx.tabs.create({ url: `${BASE}/sonido` });
   ok('la pestaña suena', await until(() => ctx.tabs.active.audible, 8000));

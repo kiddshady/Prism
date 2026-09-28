@@ -1048,7 +1048,8 @@ function createTabs(ctx) {
       case 'spell-add': return p.word && ctx.web.addWordToSpellCheckerDictionary(p.word);
       case 'inspect': return wc && (wc.inspectElement(Math.round(p.x), Math.round(p.y)), wc.isDevToolsOpened() || wc.openDevTools({ mode: 'detach' }));
       case 'source': return t && !t.internal && create({ url: `view-source:${t.url}`, index: indexOf(activeId) + 1 });
-      case 'print': return wc?.print();
+      // La pantalla de impresión propia, con vista previa (renderer/js/print.js).
+      case 'print': if (!wc || t.internal) return null; ctx.focusChrome?.(); return ctx.send('cmd', 'print:open');
       default: return null;
     }
   }

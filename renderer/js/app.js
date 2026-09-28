@@ -21,6 +21,7 @@ import * as Prompts from './prompts.js';
 import * as Passwords from './passwords.js';
 import * as Bmbar from './bmbar.js';
 import { pageMenu } from './menus.js';
+import { openPrint } from './print.js';
 
 /* ── Ventana ─────────────────────────────────────────────────────────────── */
 
@@ -106,6 +107,8 @@ function onCommand(cmd) {
   else if (cmd === 'find:open') Toolbar.openFind();
   else if (cmd === 'find:next') Toolbar.findStep(true);
   else if (cmd === 'find:prev') Toolbar.findStep(false);
+  else if (cmd === 'print:open') openPrint();
+  else if (cmd === 'print:page') openPrint({ fromPage: true });
 }
 
 /* ── Arranque ────────────────────────────────────────────────────────────── */

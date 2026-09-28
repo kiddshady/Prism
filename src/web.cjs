@@ -210,6 +210,11 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
      (src/pip.cjs). Corre en cada frame: el video puede estar en un iframe. */
   web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'pip-preload.cjs') });
 
+  /* ── Imprimir ──────────────────────────────────────────────────────────────
+     El window.print() de un sitio abre la pantalla de impresión de Prism, con
+     vista previa, en vez del diálogo de Windows (src/print-preload.cjs). */
+  web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'print-preload.cjs') });
+
   /* ── Compartir pantalla ────────────────────────────────────────────────────
      Sin este manejador, getDisplayMedia falla directo: Meet dice que no se
      puede presentar. El selector es propio, con miniaturas de cada pantalla y

@@ -18,6 +18,17 @@ filtros (EasyList, EasyPrivacy, uBlock Origin) se bajan en el primer uso y
 tienen sus propias licencias; no viajan con la app.
 
 
+pdf.js
+------
+Archivos:  renderer/vendor/pdfjs/pdf.min.mjs, pdf.worker.min.mjs (versión legacy)
+Licencia:  Apache License 2.0
+Texto:     renderer/vendor/pdfjs/LICENSE
+Copyright: Copyright Mozilla Foundation and contributors
+
+Dibuja las hojas de la vista previa de impresión. Se copia tal cual desde el
+paquete pdfjs-dist (tools/vendor-pdfjs.mjs), sin modificar.
+
+
 Roboto Mono
 -----------
 Archivos:  renderer/fonts/roboto-mono-*.woff2

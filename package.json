@@ -27,7 +27,8 @@
   },
   "devDependencies": {
     "electron": "40.10.2",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "pdfjs-dist": "^6.3.289"
   },
   "build": {
     "appId": "com.umbrovex.prism",

@@ -88,6 +88,11 @@ contextBridge.exposeInMainWorld('prism', {
     zoom: (dir) => send('page:zoom', dir),
     devtools: () => send('page:devtools'),
     print: () => send('page:print'),
+    printers: () => call('print:printers'),
+    printPreview: (id, opts) => call('print:preview', id, opts),
+    printRun: (id, opts) => call('print:run', id, opts),
+    printSave: (id, opts) => call('print:save', id, opts),
+    printSystem: (id, opts) => send('print:system', id, opts),
     /** Captura: 'visible' o 'full' (la página entera). Se guarda y se copia. */
     capture: (kind = 'visible') => send('page:capture', kind),
     /** La ventanita: saca el video de la pestaña activa, o lo trae de vuelta. */

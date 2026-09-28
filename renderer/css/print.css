@@ -1,0 +1,182 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRISM — la pantalla de impresión (renderer/js/print.js)
+   Un modal ancho: las opciones en una columna a la izquierda y las hojas a
+   la derecha, sobre un fondo hundido, como papel sobre una mesa.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* El cuerpo del modal no scrollea: scrollean sus dos columnas, cada una por
+   su lado. */
+.op-modal--print .op-modal__body.op-scroll {
+  overflow: hidden;
+  padding: 4px var(--op-5) var(--op-5);
+  mask-image: none;
+}
+.pr-print__summary { margin-right: auto; }
+
+.pr-print {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: var(--op-5);
+  height: min(600px, calc(100vh - 250px));
+  min-height: 320px;
+}
+
+/* ── Opciones ────────────────────────────────────────────────────────────── */
+
+/* Corta al aire arriba y abajo: fade de los dos lados, con su respiro. */
+.pr-print__opts {
+  --op-fade: 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 4px 14px 0;
+  /* Con PDF elegido se pliegan opciones y la barra se va: sin reservar su
+     lugar, los controles se ensanchaban de golpe al cambiar de destino. */
+  scrollbar-gutter: stable;
+}
+
+/* El espacio entre campos va ADENTRO de cada uno (no un gap): así, al
+   plegarse los que son solo de impresora, se pliega con ellos. */
+.pr-print__field { display: flex; flex-direction: column; gap: 7px; padding-bottom: var(--op-4); }
+.pr-print__label { font-size: var(--op-fs-12); color: var(--op-text-3); }
+.pr-print .op-segmented { display: grid; width: 100%; }
+.pr-print .op-select { height: 32px; }
+
+.pr-print__range { padding-top: var(--op-2); }
+.pr-print__range .op-field__hint { margin-top: 6px; transition: color var(--op-t-1) var(--op-ease-soft); }
+
+.pr-print__scale { display: flex; align-items: center; gap: var(--op-2); color: var(--op-text-3); font-size: var(--op-fs-12); }
+.pr-print__scale .op-stepper { width: 92px; }
+
+.pr-print__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--op-3);
+  min-height: 30px;
+  padding-bottom: var(--op-3);
+  font-size: var(--op-fs-13);
+  color: var(--op-text-2);
+}
+
+.pr-print__sep { height: 1px; margin: 2px 0 var(--op-4); background: var(--op-line); }
+
+.pr-print__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 var(--op-2);
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--op-text-3);
+  font-size: var(--op-fs-12);
+  cursor: pointer;
+  transition: color var(--op-t-1) var(--op-ease-soft);
+}
+.pr-print__link:hover { color: var(--op-text); }
+.pr-print__link .op-icon { width: 12px; height: 12px; }
+
+/* ── Vista previa ────────────────────────────────────────────────────────── */
+
+.pr-print__preview {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--op-r-lg);
+  background: var(--op-deep);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+  overflow: hidden;
+}
+
+/* El bloque tiene su propio borde: el scroll corta limpio contra él, sin fade. */
+.pr-print__stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-items: start;
+  overflow-y: auto;
+  padding: 24px 20px 8px;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
+}
+/* Mientras se rehace, las hojas de antes quedan, apagadas. */
+.pr-print.is-busy .pr-print__stage { opacity: .55; }
+
+/* Las hojas viejas y las nuevas ocupan la misma celda: se relevan en el
+   mismo lugar, nunca una debajo de la otra. */
+.pr-print__sheets {
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both;
+}
+.pr-print__sheets.is-after { animation-delay: 80ms; }
+.pr-print__sheets[data-state='closing'] {
+  animation: op-fade-out 160ms var(--op-ease-both) both;
+  pointer-events: none;
+}
+
+/* Una hoja que no se va a imprimir se pliega (0fr) en vez de irse de golpe. */
+.pr-sheet {
+  display: grid;
+  grid-template-rows: 1fr;
+  width: 100%;
+  transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft);
+}
+.pr-sheet.is-out { grid-template-rows: 0fr; opacity: 0; }
+/* El padding va un nivel más adentro: una fila en 0fr no achica el padding
+   de su propio hijo, y la hoja plegada dejaba un hueco. */
+.pr-sheet__in { min-height: 0; overflow: hidden; }
+.pr-sheet__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--op-2);
+  padding: 2px 14px 20px;
+}
+
+.pr-sheet__paper {
+  width: min(380px, 100%);
+  aspect-ratio: var(--ar, 210 / 297);
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .35), var(--op-e2);
+  overflow: hidden;
+}
+.is-wide .pr-sheet__paper { width: min(540px, 100%); }
+.pr-sheet__paper canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft), filter var(--op-t-2) var(--op-ease-soft);
+}
+.pr-sheet.is-drawn canvas { opacity: 1; }
+.pr-print.is-gray .pr-sheet__paper canvas { filter: grayscale(1); }
+.pr-sheet__num { font-size: var(--op-fs-11); color: var(--op-text-4); }
+
+.pr-print__busy {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 0;
+  background: transparent;
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
+}
+.pr-print.is-busy .pr-print__busy { opacity: 1; }
+
+.pr-print__note {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  text-align: center;
+  font-size: var(--op-fs-12);
+  color: var(--op-text-3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
+}
+.pr-print.has-note .pr-print__note { opacity: 1; }

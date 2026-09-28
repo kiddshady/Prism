@@ -35,6 +35,7 @@ const { createPrompts } = require('./src/prompts.cjs');
 const { createPasswords } = require('./src/passwords.cjs');
 const { createCerts } = require('./src/certs.cjs');
 const { createCapture } = require('./src/capture.cjs');
+const { createPrint } = require('./src/print.cjs');
 const { createCard } = require('./src/card.cjs');
 const { createPip } = require('./src/pip.cjs');
 const windows = require('./src/windows.cjs');
@@ -443,6 +444,7 @@ function openIncognito(url = '') {
   ctx.adblock.addSession(g.web);
   ctx.passwords.addSession(g.web);
   g.capture = createCapture(g);
+  g.print = createPrint(g);
   g.card = createCard(g);
   g.tabs = createTabs(g);
 
@@ -550,6 +552,7 @@ app.whenReady().then(async () => {
   ctx.passwords = createPasswords(ctx);
   ctx.certs = createCerts(ctx);
   ctx.capture = createCapture(ctx);
+  ctx.print = createPrint(ctx);
   ctx.card = createCard(ctx);
   // Una sola ventanita para todas las ventanas (la de incógnito la hereda).
   ctx.pip = createPip({ store, icon: path.join(__dirname, 'build', 'icon.png') });

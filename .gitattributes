@@ -1,0 +1,2 @@
+# pdf.js se guarda tal cual viene del paquete (tools/vendor-pdfjs.mjs).
+renderer/vendor/** -text

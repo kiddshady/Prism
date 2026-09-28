@@ -80,6 +80,9 @@ const DEFAULT_SETTINGS = {
   downloadDir: null,
   /** Preguntar dónde guardar cada descarga. */
   askDownload: false,
+  /** Adónde imprimir la próxima vez: el nombre de una impresora, 'pdf', o
+      null para la predeterminada de Windows. */
+  printDest: null,
   /** Ofrecer guardar y completar contraseñas en las páginas. */
   passwords: true,
   /** Sitios donde nunca se ofrece guardar (dominio registrable). */
