@@ -290,6 +290,7 @@ async function show(t) {
     const first = await next.getPage(1);
     const vp = first.getViewport({ scale: 1 });
     box.style.setProperty('--ar', `${vp.width} / ${vp.height}`);
+    box.style.setProperty('--arw', String(vp.width / vp.height));
     box.classList.toggle('is-wide', vp.width > vp.height);
     for (let n = 1; n <= next.numPages; n++) {
       box.insertAdjacentHTML('beforeend', `<div class="pr-sheet" data-n="${n}"><div class="pr-sheet__in"><div class="pr-sheet__body">

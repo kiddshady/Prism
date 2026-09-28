@@ -81,6 +81,8 @@
 .pr-print__preview {
   position: relative;
   min-width: 0;
+  /* Las hojas se miden contra su alto (cqh): una sola entra justa, sin scroll. */
+  container-type: size;
   border-radius: var(--op-r-lg);
   background: var(--op-deep);
   box-shadow: inset 0 0 0 1px var(--op-line);
@@ -134,15 +136,19 @@
   padding: 2px 14px 20px;
 }
 
+/* El ancho sale también del alto de la vista previa: el alto disponible
+   (menos el padding del escenario, el número y el aire entre hojas, 80 px)
+   por la proporción de la hoja. Así una hoja sola entra sin scroll. */
 .pr-sheet__paper {
-  width: min(380px, 100%);
+  --fit: calc((100cqh - 80px) * var(--arw, .707));
+  width: min(380px, 100%, var(--fit));
   aspect-ratio: var(--ar, 210 / 297);
   border-radius: 2px;
   background: #fff;
   box-shadow: 0 1px 2px rgb(0 0 0 / .35), var(--op-e2);
   overflow: hidden;
 }
-.is-wide .pr-sheet__paper { width: min(540px, 100%); }
+.is-wide .pr-sheet__paper { width: min(540px, 100%, var(--fit)); }
 .pr-sheet__paper canvas {
   display: block;
   width: 100%;
