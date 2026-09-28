@@ -310,6 +310,33 @@ app.whenReady().then(async () => {
   ok('prendido otra vez, vuelven', await until(() => js(`!!document.querySelector('${topTile}')`)));
   ctx.tabs.close(ctx.tabs.active.id);
 
+  console.log('\n7b4. El panel del escudo al tocar su switch');
+  /* El panel se arma asíncrono (pide los números del bloqueador): los íconos
+     se montaban sobre el contenido viejo y, al refrescarse, se asomaba un
+     instante un escudo en el encabezado. Se muestrea cuadro por cuadro. El
+     guardado es de mentira: prender el bloqueador de verdad bajaría listas. */
+  const saveReal = ctx.saveSettings;
+  ctx.saveSettings = async (p) => ({ ...ctx.settings, ...p });
+  await js(`document.getElementById('btn-shield').click()`);
+  await until(() => js(`!!document.querySelector('.pr-pop #sh-global')`));
+  const escudo = js(`new Promise((res) => {
+    let svg = 0; let crudo = 0; const t0 = performance.now();
+    const tick = () => {
+      const pop = document.querySelector('.pr-pop');
+      if (pop?.querySelector('.pr-pop__head svg')) svg++;
+      if (pop?.querySelector('i[data-icon]')) crudo++;
+      if (performance.now() - t0 < 700) requestAnimationFrame(tick); else res({ svg, crudo });
+    };
+    requestAnimationFrame(tick);
+    document.querySelector('.pr-pop #sh-global').click();
+  })`);
+  const ev4 = await escudo;
+  ok('tocar el switch no hace asomar un ícono en el encabezado', ev4.svg === 0, JSON.stringify(ev4));
+  ok('ni queda un ícono sin montar en el panel', ev4.crudo === 0, JSON.stringify(ev4));
+  await js(`document.getElementById('btn-shield').click()`);
+  await until(() => js(`!document.querySelector('.pr-pop:not([data-state="closing"])')`));
+  ctx.saveSettings = saveReal;
+
   console.log('\n7c. Silenciar desde el menú de la pestaña');
   ctx.tabs.create({ url: `${BASE}/sonido` });
   ok('la pestaña suena', await until(() => ctx.tabs.active.audible, 8000));

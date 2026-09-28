@@ -102,7 +102,6 @@ function shieldPanel() {
           <div class="pr-pop__title">Bloqueador</div>
           <div class="pr-pop__sub">${!stats.ready && global ? 'Bajando las listas de filtros…' : 'Anuncios, rastreadores y carteles de cookies'}</div>
         </div>
-        <i data-icon="${siteOn ? 'shieldCheck' : 'shieldOff'}"></i>
       </div>
       <div class="pr-shieldpop__stat">
         <span class="pr-shieldpop__num">${web ? fmtNum(n) : '—'}</span>

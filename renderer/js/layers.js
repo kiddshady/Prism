@@ -110,11 +110,19 @@ export async function popover(anchor, build, { width = 340, align = 'end', onClo
     close: () => { if (pop?.el === el) closePopover(); },
     refresh: () => render(),
   };
+  /* Un panel puede armarse asíncrono (el del escudo pide sus números antes
+     de escribir): los íconos se montan cuando ya escribió. Montados antes,
+     caían sobre el contenido VIEJO, que en un refresco mostraba un instante
+     el ícono del estado anterior. */
   const render = () => {
     const keepScroll = el.querySelector('.op-scroll')?.scrollTop || 0;
-    build(el, ctl);
-    Icons.mount(el);
-    el.querySelectorAll('.op-scroll').forEach((s) => { scrollFade(s); s.scrollTop = keepScroll; });
+    const settle = () => {
+      Icons.mount(el);
+      el.querySelectorAll('.op-scroll').forEach((s) => { scrollFade(s); s.scrollTop = keepScroll; });
+    };
+    const built = build(el, ctl);
+    if (built && typeof built.then === 'function') built.then(settle, settle);
+    else settle();
   };
   render();
 
