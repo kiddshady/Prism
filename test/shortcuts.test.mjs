@@ -56,6 +56,16 @@ is('Escape', key('Escape', {}, 'Escape'), null);
 is('keyUp nunca', { ...key('t', { control: true }), type: 'keyUp' }, null);
 is('AltGr+2 (arroba) no es "ir a la pestaña 2"', key('@', { control: true, alt: true }, 'Digit2'), null);
 
+console.log('\n3b. Dejar apretado');
+const rep = (k, mods, code) => ({ ...key(k, mods, code), isAutoRepeat: true });
+is('Ctrl+Mayús+P repetido no abre y cierra la ventanita', rep('P', { control: true, shift: true }), 'repeat');
+is('Ctrl+W repetido no cierra pestañas en ráfaga', rep('w', { control: true }), 'repeat');
+is('Ctrl+T repetido no abre pestañas en ráfaga', rep('t', { control: true }), 'repeat');
+is('Ctrl+Tab repetido sí sigue pasando de pestaña', rep('Tab', { control: true }, 'Tab'), 'tab:next');
+is('Ctrl++ repetido sí sigue acercando', rep('+', { control: true }, 'BracketRight'), 'zoom:in');
+is('F3 repetido sí sigue buscando', rep('F3', {}, 'F3'), 'find:next');
+is('Ctrl+C repetido sigue siendo de la página', rep('c', { control: true }), null);
+
 console.log('\n4. La tabla de Ajustes');
 ok('tiene filas', TABLE.length > 10);
 ok('sin glifos raros (solo texto de teclado)', TABLE.every(([, k]) => !/[←-⇿−⌃⌘⌫]/.test(k)));

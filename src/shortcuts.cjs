@@ -11,7 +11,21 @@
    Pura: recibe el input de Electron y devuelve el nombre del comando (o null).
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Dejar apretado un atajo lo repite (Windows, ~25 veces por segundo). Solo
+   lo que avanza de a pasos tiene sentido repetido; el resto son
+   interruptores: Ctrl+Mayús+P apretado un rato abría y cerraba la ventanita
+   sin parar. Y cerrar o abrir pestañas en ráfaga no lo quiere nadie. */
+const REPEATS = new Set(['tab:next', 'tab:prev', 'nav:back', 'nav:forward', 'zoom:in', 'zoom:out', 'find:next', 'find:prev']);
+
+/** El comando del input, o null si no es atajo. Una repetición de un
+    interruptor devuelve 'repeat': la tecla se come (no le llega a la página)
+    pero no hace nada. */
 function match(i) {
+  const cmd = commandOf(i);
+  return cmd && i.isAutoRepeat && !REPEATS.has(cmd) ? 'repeat' : cmd;
+}
+
+function commandOf(i) {
   if (!i || i.type !== 'keyDown') return null;
   const k = String(i.key || '').toLowerCase();
   const code = String(i.code || '');
