@@ -33,6 +33,7 @@
 const path = require('path');
 const { BaseWindow, WebContentsView, ipcMain, screen } = require('electron');
 const windows = require('./windows.cjs');
+const shortcuts = require('./shortcuts.cjs');
 
 const MIN_W = 240;
 const DEFAULT_W = 420;
@@ -311,6 +312,12 @@ function createPip({ store, icon = null }) {
     });
     ui.setBackgroundColor('#00000000');
     ui.webContents.on('will-navigate', (e) => e.preventDefault());
+    // Tocar los controles le da el teclado a la ventanita: el atajo sigue andando.
+    ui.webContents.on('before-input-event', (e, input) => {
+      if (shortcuts.match(input) !== 'page:pip') return;
+      e.preventDefault();
+      if (cur?.ui === ui) close('back');
+    });
     ui.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     const uiReady = ui.webContents.loadFile(path.join(__dirname, '..', 'renderer', 'pip.html')).catch(() => {});
 
@@ -390,7 +397,8 @@ function createPip({ store, icon = null }) {
        el tamaño viejo. */
     const home = w.tabs && w.win && !w.win.isDestroyed();
     if (t.view && home) t.view.setBounds(w.tabs.rectFor(t));
-    if (alive(frame)) await ask(frame, 'pip:leave', mode === 'close', 700);
+    // La página contesta cuando ya quedó quieta (pip-preload.cjs → settled).
+    if (alive(frame)) await ask(frame, 'pip:leave', mode === 'close', 1600);
     await sleep(60);
 
     if (home && mode === 'back') {
@@ -435,10 +443,12 @@ function createPip({ store, icon = null }) {
     open,
     close,
     drop,
-    /** Ctrl+Mayús+P y el menú: saca el video de la pestaña activa, o lo trae si ya está afuera. */
+    /** Ctrl+Mayús+P y el menú: con la ventanita abierta la trae de vuelta,
+        desde la pestaña que sea (mientras mirás el video afuera, estás en
+        otra); si no, saca el video de la pestaña activa. */
     toggle(w) {
+      if (cur) return close('back');
       const t = w.tabs?.active;
-      if (cur && cur.t === t) return close('back');
       return t ? open(w, t) : null;
     },
     /** El menú del clic derecho, sobre un video. */

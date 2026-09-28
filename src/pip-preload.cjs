@@ -257,6 +257,28 @@ async function enter(pick) {
   return { ok: true, ...state() };
 }
 
+/* Después de la pantalla completa, muchos reproductores se reacomodan solos y
+   un rato más tarde: YouTube corre el video ~170 ms después de salir. Si la
+   foto del regreso se sacaba antes, la página aparecía y el video saltaba a
+   su lugar. Se espera a que la página quede quieta un rato (con un tope). */
+const STILL_MS = 220;
+const SETTLE_MAX = 900;
+function settled(v) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let last = '';
+    let since = t0;
+    const tick = (now) => {
+      const r = v.isConnected ? v.getBoundingClientRect() : null;
+      const key = [scrollX, scrollY, innerWidth, innerHeight, r && [r.x, r.y, r.width, r.height].map(Math.round)].join();
+      if (key !== last) { last = key; since = now; }
+      if (now - since >= STILL_MS || now - t0 >= SETTLE_MAX) resolve();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
 async function leave(pause) {
   if (!target) return { ok: true };
   leaving = true;
@@ -264,6 +286,7 @@ async function leave(pause) {
   if (pause) v.pause();
   release();
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+  await settled(v);
   leaving = false;
   return { ok: true };
 }

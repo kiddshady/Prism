@@ -174,7 +174,8 @@ export function mainMenu(anchor, { openFind } = {}) {
     { label: 'Imprimir', icon: 'printer', key: 'Ctrl+P', disabled: !web, onSelect: () => api.page.print() },
     { label: 'Capturar lo visible', icon: 'capture', disabled: !web, onSelect: () => api.page.capture('visible') },
     { label: 'Capturar la página entera', icon: 'captureFull', key: 'Ctrl+Mayús+S', disabled: !web, onSelect: () => api.page.capture('full') },
-    t?.pip
+    // Con la ventanita abierta, el atajo la trae de vuelta desde cualquier pestaña.
+    S.tabs.some((x) => x.pip)
       ? { label: 'Traer el video de vuelta', icon: 'pipBack', key: 'Ctrl+Mayús+P', onSelect: () => api.page.pip() }
       : { label: 'Ver el video en una ventanita', icon: 'pip', key: 'Ctrl+Mayús+P', disabled: !web, onSelect: () => api.page.pip() },
     { sep: true },

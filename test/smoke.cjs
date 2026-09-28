@@ -901,6 +901,24 @@ app.whenReady().then(async () => {
   ctx.command('page:pip');
   ok('y otra vez lo trae de vuelta', await until(() => !ctx.pip.current && !pipWin() && win.contentView.children.includes(vt.view), 5000));
 
+  // Mientras se mira afuera, uno está en otra pestaña: el atajo igual lo trae.
+  ctx.command('page:pip');
+  await until(() => ctx.pip.current && pipWin()?.getOpacity() > 0.99 && pipWin().getBounds().x > -10000, 5000);
+  ctx.tabs.create({ url: `${BASE}/dos` });
+  await until(() => ctx.tabs.active.title === 'Página dos');
+  const lejos = ctx.tabs.active;
+  ctx.command('page:pip');
+  ok('Ctrl+Mayús+P desde otra pestaña trae el video de vuelta', await until(() => !ctx.pip.current && !pipWin() && win.contentView.children.includes(vt.view), 5000));
+  ok('y pasa a su pestaña', ctx.tabs.active.id === vt.id);
+  ctx.tabs.close(lejos.id);
+
+  // Con el teclado en la ventanita (se tocaron sus controles), también.
+  ctx.command('page:pip');
+  await until(() => ctx.pip.current && pipWin()?.getOpacity() > 0.99 && pipWin().getBounds().x > -10000, 5000);
+  const pui2 = pipWin().contentView.children[1].webContents;
+  for (const type of ['keyDown', 'keyUp']) pui2.sendInputEvent({ type, keyCode: 'P', modifiers: ['control', 'shift'] });
+  ok('Ctrl+Mayús+P con el teclado en la ventanita la trae de vuelta', await until(() => !ctx.pip.current && !pipWin() && win.contentView.children.includes(vt.view), 5000));
+
   await vwc.executeJavaScript(`document.getElementById('v').play()`);
   ctx.command('page:pip');
   await until(() => ctx.pip.current && pipWin()?.getOpacity() > 0.99 && pipWin().getBounds().x > -10000, 5000);
