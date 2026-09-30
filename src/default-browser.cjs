@@ -19,9 +19,12 @@
    rehace al registrarse: probado en la UCX (25H2), no lo refrescan
    SHChangeNotify, reiniciar Configuración ni el menú Inicio, ni un acceso
    directo nuevo. Ni siquiera una copia de las capacidades de Firefox con
-   otro nombre aparece. Hasta que se rehace (al reiniciar la sesión, según
-   todo indica), ms-settings abre la lista general en vez de la página de
-   Prism. Por eso Prism se registra apenas arranca, sin esperar al botón.
+   otro nombre aparece: en más de media hora de pruebas, nada. Reiniciar la
+   compu sí lo rehace (confirmado con la 1.3.0, el 30/9/2026: después del
+   reinicio el botón abrió directo la página de Prism). Si alcanza con cerrar
+   la sesión no se probó. Hasta entonces, ms-settings abre la lista general
+   en vez de la página de Prism. Por eso Prism se registra apenas arranca,
+   sin esperar al botón.
 
    ── Quién es el predeterminado: se le pregunta al shell ─────────────────────
    No se lee el registro a mano. En Windows 11 25H2 conviven UserChoice y

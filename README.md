@@ -182,8 +182,9 @@ sensible pasa por una pregunta y lo que no está en ninguna lista se niega
 - **Configuración se entera tarde de un navegador nuevo.** El shell lo ve en
   el acto, pero la lista de Aplicaciones predeterminadas sale de un índice
   que no se rehace al registrarse (ni con `SHChangeNotify`): hasta entonces,
-  el link lleva a la lista general. Por eso Prism se registra al arrancar,
-  sin esperar al botón.
+  el link lleva a la lista general. Reiniciar la compu lo rehace (confirmado
+  con la 1.3.0); cerrar la sesión, no se probó. Por eso Prism se registra al
+  arrancar, sin esperar al botón.
 
 ---
 
