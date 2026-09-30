@@ -25,6 +25,7 @@ const omni = require('./omni.cjs');
 const { TABLE } = require('./shortcuts.cjs');
 const windows = require('./windows.cjs');
 const importer = require('./bookmarks-import.cjs');
+const calc = require('./calc.cjs');
 
 /** La ventana que habla, si es una ventana de Prism (y no una página). */
 const fromChrome = (e) => windows.ofSender(e);
@@ -132,7 +133,8 @@ function register() {
   handle('clip:read', () => clipboard.readText().slice(0, 100000));
   handle('omni:suggest', (ctx, q) => {
     const r = ctx.library.suggest(str(q, 500), 6, { history: ctx.settings.historySuggest !== false });
-    return { ...r, classified: omni.classify(str(q, 500), ctx.settings.searchEngine) };
+    // Una cuenta o una conversión ("250/3", "500 mg a g") trae su resultado (calc.cjs).
+    return { ...r, classified: omni.classify(str(q, 500), ctx.settings.searchEngine), answer: calc.answer(str(q, 500)) };
   });
 
   handle('omni:remote', async (ctx, q) => {

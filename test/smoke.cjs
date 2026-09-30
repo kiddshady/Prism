@@ -297,6 +297,24 @@ app.whenReady().then(async () => {
   sg = await sugg('dos');
   ok('prendido otra vez, vuelve', sg.items.some((i) => i.kind === 'history'), JSON.stringify(sg.items));
 
+  console.log('\n7b2b. Cuentas y conversiones en la barra');
+  ok('una cuenta trae su resultado', (await sugg('250/3')).answer?.num === '83,33333333', JSON.stringify((await sugg('250/3')).answer));
+  ok('una búsqueda no', (await sugg('gatitos')).answer === null);
+  /* El portapapeles de verdad es de la persona: la prueba no lo pisa. Se
+     atrapa lo que la fila le mandaría. */
+  await js(`window.__copiado = null; navigator.clipboard.writeText = async (t) => { window.__copiado = t; }; true`);
+  await js(`(() => { const i = document.getElementById('omni-input'); i.focus(); i.value = '500 mg a g'; i.dispatchEvent(new InputEvent('input', { inputType: 'insertText' })); })()`);
+  const filas = () => js(`[...document.querySelectorAll('.pr-suggest:not([data-state="closing"]) .pr-sugg')].map((b) => b.textContent.replace(/\\s+/g, ' ').trim())`);
+  ok('la segunda fila es el resultado', await until(async () => (await filas())[1]?.startsWith('= 0,5 g')), JSON.stringify(await filas()));
+  ok('la primera sigue siendo lo que hace Enter', (await filas())[0].includes('Buscar en'));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Down' });
+  ok('pararse en el resultado no pisa lo escrito', await until(async () => (await js(`document.querySelectorAll('.pr-sugg')[1]?.classList.contains('is-active')`)) && (await js(`document.getElementById('omni-input').value`)) === '500 mg a g'));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+  ok('Enter en el resultado lo copia', await until(() => js(`window.__copiado === '0,5'`)), String(await js('window.__copiado')));
+  ok('sin ir a ningún lado', ctx.tabs.active.internal === 'nueva' || !String(ctx.tabs.active.url).includes('search'), ctx.tabs.active.url);
+  ok('y la statusbar lo cuenta', await until(() => js(`document.getElementById('status-left').textContent.includes('Copiado: 0,5')`)));
+  await js(`(() => { const i = document.getElementById('omni-input'); i.value = ''; i.dispatchEvent(new InputEvent('input', { inputType: 'deleteContentBackward' })); i.blur(); })()`);
+
   console.log('\n7b3. La pestaña nueva sin "Los que más visitás"');
   // Otro host que el del favorito: si no, la pestaña nueva lo descarta por repetido.
   ctx.library.visit('https://ejemplo.test/', 'Ejemplo');

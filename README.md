@@ -9,7 +9,7 @@ que falte.
 ```
 npm run dev     # con la consola del cromo en la terminal
 npm start
-npm test        # lógica pura: omnibox, historial, atajos, tokens, disco, registro de Windows
+npm test        # lógica pura: omnibox, cuentas, historial, atajos, tokens, disco, registro de Windows
 npm run smoke   # levanta Prism de verdad contra un servidor local y lo recorre
 npm run icons   # regenera build/icon.ico, icon.png y tray.ico desde el código
 npm run build   # instalador en dist/, sin publicar
@@ -37,6 +37,11 @@ npm run release # publica en GitHub (ver abajo)
 - **Omnibox**: dirección o búsqueda en un solo campo, autocompleta en línea los
   sitios que ya visitaste, sugiere de tu historial, tus favoritos y el buscador.
   Sin foco muestra la dirección partida — el host claro, el resto atenuado.
+- **Cuentas y conversiones** en la barra: `250/3`, `15% de 300`,
+  `1000 + 21%`, `-log(1,8e-5)`, `500 mg a g`, `37 c a f`, `5 mg/ml a g/l`.
+  El resultado aparece como segunda fila (la primera sigue siendo lo que hace
+  Enter) y elegirlo lo copia. Coma decimal y punto de miles, como se escribe
+  acá; sin eval, con un parser propio.
 - **Bloqueador** de anuncios, rastreadores y carteles de cookies (motor de
   Ghostery con listas de EasyList, EasyPrivacy y uBlock Origin). Cuenta lo que
   bloquea en cada página y se apaga por sitio desde el escudo.
@@ -196,6 +201,7 @@ preload.cjs           La única puerta del cromo al sistema.
 src/
   tabs.cjs            Las pestañas: vistas, navegación, congelado, sesión.
   omni.cjs            URL o búsqueda. Pura, con tests.
+  calc.cjs            Cuentas y conversiones de la barra. Pura, con tests.
   library.cjs         Historial y favoritos, con el ranking de sugerencias.
   web.cjs             La sesión de las páginas: permisos, pantalla, identidad.
   adblock.cjs         El bloqueador, con conteo por pestaña y apagado por sitio.

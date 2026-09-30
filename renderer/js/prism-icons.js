@@ -71,6 +71,11 @@ Icons.add({
   splitView: '<rect x="1.6" y="2.8" width="5.6" height="10.4" rx="1.6"/><rect x="8.8" y="2.8" width="5.6" height="10.4" rx="1.6"/>',
   unsplit: '<rect x="2.4" y="2.8" width="11.2" height="10.4" rx="2"/><path d="M8 5.4v5.2" stroke-dasharray="1.2 1.6"/>',
   swap: '<path d="M2.6 5.4h10.4M10.6 3 13 5.4l-2.4 2.4M13.4 10.6H3M5.4 8.2 3 10.6 5.4 13"/>',
+  /* La calculadora de la fila de una cuenta en la barra (calc.cjs): el
+     visor como una raya y seis teclas como puntos. La conversión usa `swap`. */
+  calc: '<rect x="3" y="1.8" width="10" height="12.4" rx="2"/><path d="M5.6 4.8h4.8"/>'
+    + '<circle cx="5.9" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="8" cy="8.4" r=".75" fill="currentColor" stroke="none"/><circle cx="10.1" cy="8.4" r=".75" fill="currentColor" stroke="none"/>'
+    + '<circle cx="5.9" cy="11.2" r=".75" fill="currentColor" stroke="none"/><circle cx="8" cy="11.2" r=".75" fill="currentColor" stroke="none"/><circle cx="10.1" cy="11.2" r=".75" fill="currentColor" stroke="none"/>',
   /* La llave del gestor de contraseñas, de contorno continuo: el ojo y el eje
      con su diente son una sola silueta, sin palito (la `key` de Opal es
      horizontal y de trazos sueltos). Se dibuja acostada, con el ojo a la

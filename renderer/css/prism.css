@@ -906,6 +906,11 @@
 .pr-sugg__key { margin-left: auto; font-size: var(--op-fs-10); color: var(--op-text-4); flex: 0 0 auto; opacity: 0; transition: opacity var(--op-t-1) var(--op-ease-soft); }
 .pr-sugg.is-active .pr-sugg__key { opacity: 1; }
 .pr-suggest__sep { height: 1px; margin: var(--op-1) var(--op-3); background: var(--op-line); }
+/* La respuesta de una cuenta o una conversión (calc.cjs): es un dato, va en
+   mono y con cifras parejas. El exponente de lo muy grande o muy chico
+   ("× 10⁻⁷") se escribe arriba, sin mover la línea. */
+.pr-sugg__answer { font-family: var(--op-mono); font-variant-numeric: tabular-nums; color: var(--op-text); }
+.pr-sugg__answer sup { font-size: .72em; line-height: 0; vertical-align: .45em; }
 
 /* Popover: hoja opaca anclada a un botón (escudo, descargas, contraseñas). */
 .pr-pop {

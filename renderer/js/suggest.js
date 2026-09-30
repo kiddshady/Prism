@@ -10,6 +10,8 @@
    · Autocompleta en línea el host de un sitio que ya visitaste, con lo
      agregado seleccionado: seguir tipeando lo pisa, Enter lo acepta.
    · La primera fila es SIEMPRE lo que va a hacer Enter.
+   · Si lo tipeado es una cuenta o una conversión ("250/3", "500 mg a g"),
+     la segunda fila es el resultado (calc.cjs). Elegirla lo copia.
    · Flechas recorren la lista y muestran en el campo a dónde lleva cada fila.
    · Tab acepta el autocompletado; Escape cierra la lista primero.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -18,6 +20,7 @@ import { api, S } from './state.js';
 import { Icons } from './icons.js';
 import { exit } from './motion.js';
 import { esc } from './ui.js';
+import { say } from './status.js';
 import * as Freeze from './freeze.js';
 
 function safeDecode(s) {
@@ -93,6 +96,8 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
     } else {
       out.push({ kind: 'search', icon: 'search', main: text, sub: `Buscar en ${engineName()}`, value: text });
     }
+    const a = local.answer;
+    if (a) out.push({ kind: 'answer', icon: a.kind === 'convert' ? 'swap' : 'calc', answer: a, sub: 'Copiar el resultado', value: text });
     const seen = new Set([c?.url]);
     for (const it of local.items) {
       if (seen.has(it.url)) continue;
@@ -120,6 +125,15 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
   }
 
   function rowHTML(r, i) {
+    if (r.kind === 'answer') {
+      const a = r.answer;
+      const value = `${esc(a.num)}${a.exp ? `<sup>${esc(a.exp)}</sup>` : ''}${a.unit ? ` ${esc(a.unit)}` : ''}`;
+      return `<button class="pr-sugg${i === sel ? ' is-active' : ''}" data-i="${i}" tabindex="-1">
+          <span class="pr-sugg__icon">${Icons.svg(r.icon)}</span>
+          <span class="pr-sugg__main pr-sugg__answer">= ${value}</span>
+          <span class="pr-sugg__sub">${esc(r.sub)}</span>
+        </button>`;
+    }
     const icon = r.favicon
       ? `<img src="${esc(r.favicon)}" alt="" referrerpolicy="no-referrer" data-fallback="${r.icon}">`
       : Icons.svg(r.icon);
@@ -214,7 +228,8 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
       input.setSelectionRange(q.length, input.value.length);
       const again = await api.omni.suggest(input.value).catch(() => null);
       if (my !== seq) return;
-      if (again) local = { ...again, items: r.items };
+      // La cuenta es la de lo que tipeaste, no la del sitio que se completó.
+      if (again) local = { ...again, items: r.items, answer: r.answer };
     }
 
     buildRows();
@@ -238,13 +253,28 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
     const r = rows[sel];
     // Moverse por la lista muestra en el campo a dónde lleva cada fila.
     if (sel === 0) input.value = typed + (local.inline && local.inline.toLowerCase().startsWith(typed.toLowerCase()) ? local.inline.slice(typed.length) : '');
+    // Pararse en el resultado no pisa la cuenta: el número se copia, no se busca.
+    else if (r.kind === 'answer') input.value = typed;
     else input.value = r.kind === 'remote' || r.kind === 'search' ? r.value : safeDecode(r.url || r.value);
     input.setSelectionRange(input.value.length, input.value.length);
     paint();
   }
 
+  /* El resultado va al portapapeles sin puntos de miles ("1210", "83,33"),
+     y la lista se cierra con la cuenta todavía escrita: se puede seguir. */
+  async function copyAnswer(a) {
+    close();
+    try {
+      await navigator.clipboard.writeText(a.copy);
+      say(`Copiado: ${a.copy}`, { icon: 'copy' });
+    } catch (err) {
+      say(`No se pudo copiar: ${err.message}`, { icon: 'alert', tone: 'error' });
+    }
+  }
+
   function go(i = sel, { newTab = false } = {}) {
     const r = rows[i];
+    if (r?.kind === 'answer') { copyAnswer(r.answer); return; }
     const value = i === 0 || !r ? input.value.trim() : (r.url || r.value);
     if (!value) return;
     close();
