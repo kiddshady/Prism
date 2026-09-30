@@ -40,6 +40,7 @@ const { createCard } = require('./src/card.cjs');
 const { createPip } = require('./src/pip.cjs');
 const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
+const { createDefaultBrowser, targetsFromArgv } = require('./src/default-browser.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
    renderer lo vuelve a mandar apenas carga (win.setBackground), así que este
@@ -88,15 +89,6 @@ nativeTheme.themeSource = 'dark';
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
-}
-
-/** Las direcciones que llegan por la línea de comandos. */
-function urlsFromArgv(argv) {
-  return argv.slice(1).filter((a) => {
-    if (/^https?:\/\//i.test(a)) return true;
-    if (/\.(html?|pdf|svg|txt|xml|json)$/i.test(a) && fs.existsSync(a)) return true;
-    return false;
-  }).map((a) => (/^https?:/i.test(a) ? a : `file:///${path.resolve(a).replace(/\\/g, '/')}`));
 }
 
 /** La fila de los guardados de ajustes (ver ctx.updateSettings). */
@@ -556,6 +548,7 @@ app.whenReady().then(async () => {
   ctx.card = createCard(ctx);
   // Una sola ventanita para todas las ventanas (la de incógnito la hereda).
   ctx.pip = createPip({ store, icon: path.join(__dirname, 'build', 'icon.png') });
+  ctx.defaultBrowser = createDefaultBrowser({ app, shell });
 
   await Promise.all([
     ctx.library.load().catch((err) => console.error('[library]', err.message)),
@@ -580,20 +573,28 @@ app.whenReady().then(async () => {
   // El bloqueador baja listas la primera vez: no puede demorar la ventana.
   ctx.adblock.load().catch((err) => console.error('[adblock] no cargó:', err.message));
 
-  const fromArgv = urlsFromArgv(process.argv);
+  const fromArgv = targetsFromArgv(process.argv);
   let restored = false;
   if (ctx.settings.startup === 'restore') {
     restored = ctx.tabs.restore(await ctx.sessionDoc.read().catch(() => null));
   }
   for (const url of fromArgv) ctx.tabs.create({ url });
   if (!restored && !fromArgv.length) ctx.tabs.create({});
+
+  /* Prism se anota como navegador de Windows (default-browser.cjs): así
+     aparece en Aplicaciones predeterminadas y en "Abrir con", y si la
+     carpeta de Prism cambió, el registro se corrige solo. Es un `reg import`
+     de fondo, un rato después de arrancar: no le roba nada a la ventana. */
+  if (ctx.defaultBrowser.supported && !SHOTS) {
+    setTimeout(() => ctx.defaultBrowser.register().catch((err) => console.error('[predeterminado]', err.message)), 5000);
+  }
 });
 
-app.on('second-instance', (_e, argv) => {
+app.on('second-instance', (_e, argv, cwd) => {
   if (!ctx.win) return;
   // Abrir Prism otra vez (o un link con Prism) lo trae de la bandeja.
   showMain();
-  const urls = urlsFromArgv(argv);
+  const urls = targetsFromArgv(argv, { cwd });
   if (urls.length) urls.forEach((url) => ctx.tabs.create({ url }));
   else ctx.command('tab:new');
 });

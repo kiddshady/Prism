@@ -18,6 +18,8 @@ export const S = {
   info: null,
   downloads: [],
   update: { phase: 'idle' },
+  /** Quién abre los links de Windows: { supported, isDefault, current }, o null si todavía no se preguntó. */
+  defaultBrowser: null,
 };
 
 const subs = new Map();   // tipo → Set de funciones

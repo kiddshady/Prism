@@ -315,6 +315,13 @@ function register() {
     engines: Object.fromEntries(Object.entries(omni.ENGINES).map(([k, v]) => [k, v.label])),
     shortcuts: TABLE,
   }));
+
+  /* ── Navegador predeterminado (default-browser.cjs) ──────────────────────
+     Windows no deja elegirlo desde acá: `make` se anota y abre la pantalla
+     de Windows donde se elige. `state` pregunta quién abre los links hoy. */
+  handle('default:state', (ctx) => ctx.defaultBrowser.state());
+  handle('default:make', (ctx) => ctx.defaultBrowser.makeDefault());
+
   handle('app:relaunch', (ctx) => { app.relaunch(); app.quit(); return true; });
   handle('app:open-data', (ctx) => shell.openPath(store.ROOT));
 

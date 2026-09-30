@@ -1022,6 +1022,45 @@ app.whenReady().then(async () => {
   ctx.toggleMain();
   ok('minimizado, lo trae en vez de ocultarlo', await until(() => win.isVisible() && !win.isMinimized()));
 
+  console.log('\n12b. Links desde Windows y navegador predeterminado');
+  /* Windows lanza `"Prism.exe" -- "%1"` (default-browser.cjs). Con Prism ya
+     abierto, Chromium le pasa esa línea a la instancia que está, con sus
+     propios switches ANTES del --. */
+  win.hide();
+  await until(() => !win.isVisible());
+  app.emit('second-instance', {}, [process.execPath, '--allow-file-access-from-files', '--', `${BASE}/dos`], TMP);
+  ok('un link desde otra app trae Prism de la bandeja', await until(() => win.isVisible()));
+  ok('y se abre en una pestaña nueva, al frente', await until(() => ctx.tabs.active?.url === `${BASE}/dos` && ctx.tabs.active.title === 'Página dos'), ctx.tabs.active?.url);
+  const apunte = path.join(TMP, 'Apuntes #3 de Tecnia.html');
+  fs.writeFileSync(apunte, '<title>Apunte tres</title><h1>Tecnia</h1>');
+  app.emit('second-instance', {}, [process.execPath, '--', apunte], TMP);
+  ok('un .html con # en el nombre llega entero', await until(() => ctx.tabs.active?.title === 'Apunte tres'), ctx.tabs.active?.url);
+
+  /* La fila de Ajustes. Acá Prism no está instalado: primero dice eso, y
+     después se le pone un Windows de mentira (no se toca el registro de nadie). */
+  ctx.tabs.openInternal('ajustes');
+  const fila = (k) => js(`!!document.querySelector('.pr-view[data-page="ajustes"]:not([data-state="closing"]) .pr-dflt__state[data-key=${JSON.stringify(k)}]:not([data-state="closing"])')`);
+  ok('sin instalar, Ajustes dice que se elige desde Prism instalado', await until(() => fila('dev')));
+  ok('y no ofrece un botón que no puede cumplir', !(await js(`!!document.querySelector('.pr-dflt [data-dflt="make"]')`)));
+  const real = { state: ctx.defaultBrowser.state, makeDefault: ctx.defaultBrowser.makeDefault };
+  let fake = { supported: true, isDefault: false, current: 'Google Chrome' };
+  let pantallas = 0;
+  ctx.defaultBrowser.state = async () => ({ ...fake });
+  ctx.defaultBrowser.makeDefault = async () => { pantallas++; return { ...fake }; };
+  await js(`window.dispatchEvent(new Event('focus'))`);
+  ok('instalado, dice quién abre los links hoy', await until(() => fila('not:Google Chrome')));
+  ok('con el nombre de ese navegador', await js(`document.querySelector('.pr-dflt').textContent.includes('Google Chrome')`));
+  await js(`document.querySelector('.pr-dflt [data-dflt="make"]').click()`);
+  ok('el botón lleva a la pantalla de Windows', await until(() => pantallas === 1));
+  ok('y la fila explica qué tocar allá', await until(() => fila('waiting')));
+  fake = { supported: true, isDefault: true, current: 'Prism' };
+  await js(`window.dispatchEvent(new Event('focus'))`);
+  ok('al volver a Prism, la fila lo muestra elegido', await until(() => fila('default')));
+  ok('una sola fila, sin la vieja colgada', await until(() => js(`document.querySelectorAll('.pr-view[data-page="ajustes"] .pr-dflt__state').length === 1`)));
+  ok('sin un alto a mano que quede pegado', await until(() => js(`document.querySelector('.pr-dflt').style.height === ''`)));
+  ok('y la statusbar lo confirma', await until(() => js(`document.getElementById('status-left').textContent.includes('predeterminado')`)));
+  Object.assign(ctx.defaultBrowser, real);
+
   console.log('\n13. Actualizaciones');
   ctx.send('update:state', { phase: 'available', version: '9.9.9', name: 'Prism 9.9.9', bytes: 1e8, pct: 0 });
   ok('el menú muestra un punto', await until(() => js(`document.getElementById('btn-menu').classList.contains('has-update')`)));

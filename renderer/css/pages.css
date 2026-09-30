@@ -248,6 +248,24 @@
 .pr-chip-x .op-iconbtn { width: 18px; height: 18px; border-radius: 50%; }
 .pr-chip-x .op-icon { width: 10px; height: 10px; }
 
+/* Navegador predeterminado: una fila que cambia de estado en su lugar
+   (pages.js, relayDefault). La vieja y la nueva ocupan la misma celda, y la
+   celda va de un alto al otro. */
+/* Sin estirar: cada fila mide lo suyo. Estirada, la nueva medía lo que la
+   vieja y al achicarse la celda no sabía adónde ir: caía de golpe. */
+.pr-dflt { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; overflow: hidden; }
+.pr-dflt.is-resizing { transition: height var(--op-t-3) var(--op-ease); }
+.pr-dflt__state { grid-area: 1 / 1; animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both; }
+/* Las dos juntas no son dos filas: sin la raya de .pr-opt + .pr-opt. */
+.pr-dflt__state + .pr-dflt__state { box-shadow: none; }
+.pr-dflt__state.is-after { animation-delay: 80ms; }
+.pr-dflt__state.is-first,
+.pr-dflt__state.is-settled { animation: none; }
+/* Después de is-settled, con la misma especificidad: salir siempre gana. */
+.pr-dflt__state[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
+.pr-dflt__ok { display: inline-flex; align-items: center; gap: 6px; font-size: var(--op-fs-12); color: var(--op-text-2); }
+.pr-dflt__ok .op-icon { width: 14px; height: 14px; }
+
 .pr-keys { display: grid; grid-template-columns: 1fr auto; gap: 0; padding: 4px 18px 12px; }
 .pr-keys > div { padding: 7px 0; font-size: var(--op-fs-12); color: var(--op-text-2); box-shadow: inset 0 -1px 0 var(--op-line); }
 .pr-keys > div:nth-last-child(-n+2) { box-shadow: none; }

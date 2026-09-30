@@ -180,6 +180,12 @@ contextBridge.exposeInMainWorld('prism', {
     forget: (host) => call('certs:forget', host),
   },
 
+  /** Ser el navegador de Windows: quién abre los links hoy, y la pantalla donde se elige. */
+  defaultBrowser: {
+    state: () => call('default:state'),
+    make: () => call('default:make'),
+  },
+
   data: {
     clear: (what) => call('data:clear', what),
     chooseFolder: (current) => call('dialog:folder', current),

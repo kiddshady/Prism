@@ -9,7 +9,7 @@ que falte.
 ```
 npm run dev     # con la consola del cromo en la terminal
 npm start
-npm test        # lógica pura: omnibox, historial, atajos, tokens, disco
+npm test        # lógica pura: omnibox, historial, atajos, tokens, disco, registro de Windows
 npm run smoke   # levanta Prism de verdad contra un servidor local y lo recorre
 npm run icons   # regenera build/icon.ico, icon.png y tray.ico desde el código
 npm run build   # instalador en dist/, sin publicar
@@ -79,6 +79,13 @@ npm run release # publica en GitHub (ver abajo)
   las pestañas vivas (la música sigue, las descargas siguen). Salir de verdad
   es *Salir de Prism* en la bandeja o en el menú, o Ctrl+Mayús+Q. Instancia
   única: abrirlo otra vez (o abrir un link con Prism) lo trae de vuelta.
+- **Navegador predeterminado**: Prism se anota en Windows como navegador (para
+  los links, los .html y los PDF), así aparece en "Abrir con" y en
+  Aplicaciones predeterminadas. Windows no deja que una app se ponga sola:
+  Ajustes dice quién abre los links hoy y un botón lleva a la página de
+  Prism en Configuración, donde se elige con "Establecer como
+  predeterminado". Al volver, la fila se entera sola. Desinstalar Prism
+  borra el registro; actualizarlo, no.
 - **Se actualiza solo** desde los releases de GitHub: busca al arrancar y
   cada seis horas, avisa con un punto en el menú y en la statusbar, y no
   baja nada sin que digas que sí.
@@ -161,6 +168,22 @@ sensible pasa por una pregunta y lo que no está en ninguna lista se niega
   humo clickea con eventos de mouse de verdad.
 - **Varias pestañas cargando a la vez** intercalan sus visitas: el historial
   deduplica mirando el último minuto entero, no solo la última visita.
+- **Un link de otra app es una línea de comandos.** Windows abre
+  `"Prism.exe" -- "%1"`. Sin el `--`, una dirección con comillas cuela
+  switches de Chromium detrás (CVE-2018-1000006); `--single-argument`, el de
+  Chrome, Electron no lo respeta. En la segunda instancia Chromium mete sus
+  propios switches ANTES del `--`: lo que viene después llega entero.
+- **Un archivo no se vuelve dirección a mano.** `Apuntes #3.pdf` armado como
+  `file:///…` cortaba la ruta en el `#` (el ancla): va con `pathToFileURL`.
+- **Quién es el predeterminado se le pregunta al shell**, no al registro: en
+  Windows 11 25H2 conviven `UserChoice` y `UserChoiceLatest` y pueden decir
+  cosas distintas. Y `reg import` devuelve 0 aunque se saltee una clave: se
+  verifica leyendo.
+- **Configuración se entera tarde de un navegador nuevo.** El shell lo ve en
+  el acto, pero la lista de Aplicaciones predeterminadas sale de un índice
+  que no se rehace al registrarse (ni con `SHChangeNotify`): hasta entonces,
+  el link lleva a la lista general. Por eso Prism se registra al arrancar,
+  sin esperar al botón.
 
 ---
 
@@ -186,6 +209,9 @@ src/
   prompts.cjs         Preguntas que nacen acá y se contestan en el cromo.
   shortcuts.cjs       Atajos. Puro, con tests.
   updater.cjs         Auto-update desde los releases de GitHub.
+  default-browser.cjs Ser el navegador de Windows: el registro, quién abre los
+                      links y lo que llega por la línea de comandos. Pura hasta
+                      Electron, con tests.
   ipc.cjs             Lo que el cromo puede pedir.
   store.cjs           JSON atómico (de Opal) y los ajustes.
   windows.cjs         Las ventanas (normal e incógnito): de cuál viene cada pedido.
@@ -203,6 +229,9 @@ renderer/
   js/freeze.js        El congelado.
   js/layers.js        Menú, modal y popover de Opal, con congelado.
   (el resto)          El sistema de Opal: tokens, controles, overlays, motion.
+build/
+  installer.nsh       Lo propio del instalador: desinstalar borra el registro
+                      de navegador (actualizar no).
 tools/
   icons.mjs           El ícono y el de la bandeja, desde la geometría de la marca.
   release.mjs         Publicar un release entero, o nada.

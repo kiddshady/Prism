@@ -710,6 +710,11 @@ function settingsPage() {
       </section>
 
       <section class="pr-set" style="--i:1">
+        <div class="pr-set__head">${Icons.svg('link')}<span class="pr-set__title">Navegador predeterminado</span></div>
+        <div class="pr-dflt">${defaultStateHTML(' is-first')}</div>
+      </section>
+
+      <section class="pr-set" style="--i:1">
         <div class="pr-set__head">${Icons.svg('tabs')}<span class="pr-set__title">Pestañas</span></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Al abrir Prism, empezar con</div>
           <div class="pr-opt__hint">Las pestañas de la última vez cargan recién cuando las mirás: abrir veinte no levanta veinte páginas.</div></div>
@@ -867,6 +872,8 @@ function settingsPage() {
     if (fg) { await api.permissions.revoke(fg.dataset.forget); S.settings = await api.settings.get(); return paint(); }
     const uc = e.target.closest('[data-uncert]');
     if (uc) { await api.certs.forget(uc.dataset.uncert); S.settings = await api.settings.get(); return paint(); }
+    const mk = e.target.closest('[data-dflt="make"]');
+    if (mk && !mk.closest('[data-state="closing"]')) return makeDefault(mk);
     const id = e.target.closest('button')?.id;
     if (id === 's-update') {
       const p = S.update?.phase;
@@ -885,7 +892,131 @@ function settingsPage() {
   });
 
   paint();
+  refreshDefault();
   return { name: 'ajustes', el, refresh: paint };
+}
+
+/* ══ Navegador predeterminado ════════════════════════════════════════════════
+   Quién abre los links se le pregunta a Windows (default-browser.cjs). Se
+   elige en una pantalla de Windows, fuera de Prism, y nadie avisa cuando
+   cambia: por eso se vuelve a preguntar cuando la ventana recupera el foco.
+   La fila cambia de estado EN SU LUGAR, con un relevo (la vieja se va, la
+   nueva entra en la misma celda) y el alto yendo de uno al otro: un repintado
+   de toda la página la haría saltar. */
+
+/** Se tocó el botón y Windows todavía no dice que es Prism. */
+let dfltWaiting = false;
+let dfltAsking = null;
+
+function defaultKey() {
+  const d = S.defaultBrowser;
+  if (!d) return 'unknown';
+  if (!d.supported) return 'dev';
+  if (d.isDefault) return 'default';
+  return dfltWaiting ? 'waiting' : `not:${d.current || ''}`;
+}
+
+function defaultStateHTML(extra = '') {
+  const d = S.defaultBrowser;
+  const key = defaultKey();
+  const btn = (label) => `<button class="op-btn op-btn--secondary op-btn--sm" data-dflt="make"><i data-icon="external"></i> ${label}</button>`;
+  const others = 'los links que tocás en otras apps (WhatsApp, Discord, el mail)';
+  let label = 'Abrir los links con Prism';
+  let hint;
+  let ctl = '';
+  if (key === 'unknown') hint = 'Preguntándole a Windows…';
+  else if (key === 'dev') hint = 'Se elige desde Prism instalado: esta copia corre desde el código, y Windows no tiene cómo abrirla.';
+  else if (key === 'default') {
+    label = 'Prism abre tus links';
+    hint = `Ahora ${others} se abren acá.`;
+    ctl = `<span class="pr-dflt__ok">${Icons.svg('check')}Predeterminado</span>`;
+  } else if (key === 'waiting') {
+    /* Windows anota los navegadores nuevos en un índice que no se actualiza
+       en el momento (default-browser.cjs): recién registrado, abre la lista
+       general en vez de la página de Prism. */
+    hint = 'En la pantalla de Windows, tocá «Establecer como predeterminado» arriba de todo. Si se abrió la lista general sin Prism, Windows todavía no lo anotó: probá de nuevo después de reiniciar la compu.';
+    ctl = btn('Abrir de nuevo');
+  } else {
+    hint = `${d.current ? `Hoy ${others} se abren en ${esc(d.current)}.` : `Hoy ${others} no se abren en Prism.`} Windows no deja que un navegador se elija solo: el botón te lleva a la pantalla donde se elige.`;
+    ctl = btn('Hacer predeterminado');
+  }
+  return `<div class="pr-opt pr-dflt__state${extra}" data-key="${esc(key)}">
+      <div class="pr-opt__text"><div class="pr-opt__label">${label}</div><div class="pr-opt__hint">${hint}</div></div>
+      ${ctl ? `<div class="pr-opt__ctl">${ctl}</div>` : ''}</div>`;
+}
+
+/** Lleva la fila al estado de ahora, si cambió. */
+function relayDefault(stage) {
+  const key = defaultKey();
+  const cur = stage.querySelector('.pr-dflt__state:not([data-state="closing"])');
+  if (cur?.dataset.key === key) return;
+  const from = stage.offsetHeight;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = defaultStateHTML(cur ? ' is-after' : '');
+  const next = tmp.firstElementChild;
+  Icons.mount(next);
+  if (cur) exit(cur, { fallback: 220 });
+  stage.appendChild(next);
+  setTimeout(() => next.classList.add('is-settled'), 420);
+  if (cur) resizeStage(stage, from, next);
+}
+
+/* De un alto al otro: con las dos filas en la celda, el alto es el de la más
+   alta, y al irse la vieja saltaría al de la nueva. */
+function resizeStage(stage, from, next) {
+  const to = next.offsetHeight;
+  if (Math.abs(to - from) < 2) return;
+  stage.style.height = `${from}px`;
+  void stage.offsetHeight;
+  stage.classList.add('is-resizing');
+  stage.style.height = `${to}px`;
+  const done = () => {
+    clearTimeout(timer);
+    stage.removeEventListener('transitionend', onEnd);
+    stage.classList.remove('is-resizing');
+    stage.style.height = '';
+  };
+  const onEnd = (e) => { if (e.target === stage && e.propertyName === 'height') done(); };
+  const timer = setTimeout(done, 500);
+  stage.addEventListener('transitionend', onEnd);
+}
+
+const relayAllDefault = () => document.querySelectorAll('.pr-dflt').forEach(relayDefault);
+
+/** Le pregunta a Windows quién abre los links y acomoda las filas a la vista. */
+function refreshDefault() {
+  if (dfltAsking) return dfltAsking;
+  dfltAsking = api.defaultBrowser.state().then((d) => {
+    S.defaultBrowser = d;
+    if (d.isDefault && dfltWaiting) {
+      dfltWaiting = false;
+      say('Listo: Prism es tu navegador predeterminado.', { icon: 'check' });
+    }
+    relayAllDefault();
+  }).catch((err) => console.error('[predeterminado]', err)).finally(() => { dfltAsking = null; });
+  return dfltAsking;
+}
+
+async function makeDefault(btn) {
+  btn.disabled = true;
+  try {
+    S.defaultBrowser = await api.defaultBrowser.make();
+    dfltWaiting = !S.defaultBrowser.isDefault;
+  } catch (err) {
+    say(`No se pudo abrir la pantalla de Windows: ${err.message}`, { icon: 'alert', tone: 'error' });
+  }
+  btn.disabled = false;
+  relayAllDefault();
+}
+
+const settingsVisible = () => surfaces.some((sf) => sf.current?.name === 'ajustes');
+
+/* La vuelta desde la pantalla de Windows. Si se esperaba el cambio, se
+   pregunta otra vez un rato después: Windows puede anotarlo un instante
+   después de que la persona ya volvió. */
+function onWindowFocus() {
+  if (!dfltWaiting && !settingsVisible()) return;
+  refreshDefault().then(() => { if (dfltWaiting) setTimeout(refreshDefault, 1200); });
 }
 
 /* La fila de actualizaciones de "Acerca de". */
@@ -971,6 +1102,8 @@ export function init() {
   });
   on('update', () => refresh(['ajustes']));
   render();
+  refreshDefault();
+  window.addEventListener('focus', onWindowFocus);
 }
 
 export { confirm };
