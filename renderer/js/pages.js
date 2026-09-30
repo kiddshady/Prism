@@ -928,7 +928,7 @@ function defaultStateHTML(extra = '') {
   else if (key === 'dev') hint = 'Se elige desde Prism instalado: esta copia corre desde el código, y Windows no tiene cómo abrirla.';
   else if (key === 'default') {
     label = 'Prism abre tus links';
-    hint = `Ahora ${others} se abren acá.`;
+    hint = 'Ahora los links que tocás en otras apps se abren acá.';
     ctl = `<span class="pr-dflt__ok">${Icons.svg('check')}Predeterminado</span>`;
   } else if (key === 'waiting') {
     /* Windows anota los navegadores nuevos en un índice que no se actualiza
