@@ -119,6 +119,13 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="archivo.bin"' });
     return res.end(Buffer.alloc(64 * 1024, 7));
   }
+  /* Un favicon que no carga y tarda en fallar (como el de un aparato de la
+     red). Contesta algo que no es una imagen: falla igual, sin dejar un 404
+     en la consola del cromo, que el humo vigila al final. */
+  if (req.url === '/icono-roto.ico') {
+    setTimeout(() => { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('no es una imagen'); }, 600);
+    return undefined;
+  }
   const body = PAGES[req.url.split('?')[0]];
   res.writeHead(body ? 200 : 404, { 'Content-Type': 'text/html; charset=utf-8' });
   res.end(body || 'no');
@@ -940,6 +947,20 @@ app.whenReady().then(async () => {
   const urlAbre = ctx.library.listBookmarks().find((b) => b.id === abre)?.url;
   ok('un clic en el menú abre el favorito', await until(() => ctx.tabs.active.url === urlAbre), `${ctx.tabs.active.url} vs ${urlAbre}`);
   ok('y lo cierra', await until(async () => (await menuAbierto()) === 0));
+
+  /* Un favorito cuyo ícono no carga muestra el mundito, y no lo pierde cada
+     vez que la barra se reacomoda (antes reintentaba el ícono y, mientras
+     tanto, quedaba vacío). */
+  ctx.library.addBookmark({ url: `${BASE}/?roto`, title: 'Ícono roto', favicon: `${BASE}/icono-roto.ico` });
+  ctx.send('library:changed');
+  const iconoRoto = () => js(`(() => { const b = [...document.querySelectorAll('.pr-bm:not([data-state="closing"])')].find((x) => x.textContent.trim() === 'Ícono roto'); const i = b?.querySelector('img, .op-icon'); return !i ? 'nada' : i.tagName === 'IMG' ? 'img' : 'mundito'; })()`);
+  ok('un ícono que no carga cae al mundito', await until(async () => (await iconoRoto()) === 'mundito', 4000), await iconoRoto());
+  const todos = ids();
+  ctx.library.moveBookmark(todos[todos.length - 1], 0);   // reordenar repinta la barra entera
+  ctx.send('library:changed');
+  const visto = new Set();
+  for (let t = 0; t < 12; t++) { visto.add(await iconoRoto()); await sleep(80); }
+  ok('y al reacomodar la barra no pestañea', visto.size === 1 && visto.has('mundito'), [...visto].join(', '));
 
   console.log('\n11d. Incógnito');
   const g = ctx.openIncognito();

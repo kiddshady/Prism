@@ -60,20 +60,27 @@ const svgNode = (name) => {
   return t.content.firstChild;
 };
 
-/** El ícono cambia solo si cambió el favicon: un <img> nuevo se recargaría. */
+/* Los favicons que ya fallaron en esta sesión. Antes, uno que no cargaba
+   volvía al globo pero se olvidaba: cada repintado (cambiar uno de lugar) lo
+   reintentaba, y mientras el intento duraba el ícono quedaba vacío. En la
+   UCX, el de Umbral tardaba 2 s en fallar: el globo desaparecía y volvía. */
+const brokenIcons = new Set();
+
+/** El ícono cambia solo si cambió el favicon: un <img> nuevo se recargaría.
+    Sirve para los botones de la barra y para las filas del menú de la punta. */
 function setIcon(el, favicon) {
   const want = favicon || '';
   if (el.dataset.icon === want && el.firstElementChild?.matches('img, .op-icon')) return;
   el.dataset.icon = want;
   let node;
-  if (want) {
+  if (want && !brokenIcons.has(want)) {
     node = new Image();
     node.alt = '';
     node.referrerPolicy = 'no-referrer';
     node.draggable = false;
     node.src = want;
-    // Un favicon que no carga vuelve al globo en vez de quedar roto.
-    node.addEventListener('error', () => { el.dataset.icon = ''; node.replaceWith(svgNode('globe')); }, { once: true });
+    // Un favicon que no carga vuelve al globo y queda anotado: no se reintenta.
+    node.addEventListener('error', () => { brokenIcons.add(want); node.replaceWith(svgNode('globe')); }, { once: true });
   } else {
     node = svgNode('globe');
   }
@@ -384,17 +391,23 @@ let opening = false;
 let mdrag = null;     // el arrastre de una fila del menú
 let swallowRowClick = false;
 
-const iconHTML = (b) => (b.favicon
+/** El ícono del fantasma: el favicon, salvo que ya se sepa que no carga. */
+const iconHTML = (b) => (b.favicon && !brokenIcons.has(b.favicon)
   ? `<img src="${esc(b.favicon)}" alt="" referrerpolicy="no-referrer" draggable="false">`
   : Icons.svg('globe'));
 
-function makeRow(b) {
+/** Una fila del menú: el ícono lo pone setIcon (el mismo de la barra) y el nombre, el texto. */
+function syncRow(row, b) {
+  setIcon(row, b.favicon);
+  let l = row.querySelector('.op-truncate');
+  if (!l) { l = document.createElement('span'); l.className = 'op-truncate'; row.appendChild(l); }
+  if (l.textContent !== labelOf(b)) l.textContent = labelOf(b);
+}
+
+function makeRow() {
   const el = document.createElement('button');
   el.className = 'op-menuitem pr-bmmenu__item';
   el.setAttribute('role', 'menuitem');
-  el.innerHTML = `${iconHTML(b)}<span class="op-truncate"></span>`;
-  el.querySelector('.op-truncate').textContent = labelOf(b);
-  el.querySelector('img')?.addEventListener('error', (e) => { e.target.outerHTML = Icons.svg('globe'); }, { once: true });
   return el;
 }
 
@@ -408,8 +421,9 @@ function fillMore() {
   if (cut >= marks.length) { closeMore(); return; }   // ya entran todos
   const had = new Map([...pan.el.querySelectorAll(ROW)].map((r) => [r.dataset.id, r]));
   marks.slice(cut).forEach((b, j) => {
-    const row = had.get(b.id) || makeRow(b);
+    const row = had.get(b.id) || makeRow();
     had.delete(b.id);
+    syncRow(row, b);   // si cambió su nombre o su ícono, también en una fila reusada
     row.dataset.id = b.id;
     row.dataset.i = cut + j;
     row.classList.remove('is-dragging', 'is-dropping', 'is-away');
