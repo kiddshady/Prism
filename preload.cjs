@@ -194,7 +194,7 @@ contextBridge.exposeInMainWorld('prism', {
   /** Contraseñas: la ventana nunca recibe una contraseña salvo que la pida revelar. */
   pass: {
     list: () => call('pass:list'),
-    reveal: (id) => call('pass:reveal', id),
+    reveal: (id, field) => call('pass:reveal', id, field),
     save: (item) => call('pass:save', item),
     remove: (id) => call('pass:remove', id),
     copy: (id, field) => call('pass:copy', id, field),

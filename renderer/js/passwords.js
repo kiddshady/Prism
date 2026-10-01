@@ -9,6 +9,10 @@
    (y se olvida al cambiar de elemento), y copiar la copia el proceso
    principal, que además la saca del portapapeles a los 45 s.
 
+   Las tarjetas viven en la misma hoja, del otro lado del segmentado de
+   arriba de la lista. Igual que con las contraseñas: la lista trae la marca
+   y los últimos cuatro, y el número, el código y el PIN se piden de a uno.
+
    También vive acá el "¿guardar la contraseña?" que llega después de un login.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -18,17 +22,19 @@ import { esc } from './ui.js';
 import { plural } from './format.js';
 import { popover, popoverOpen, closePopover } from './layers.js';
 import { say } from './status.js';
-import { scrollFade } from './motion.js';
+import { scrollFade, bindSwitcher } from './motion.js';
 
 let btn;
 
 const P = {
   items: [],
   broken: null,
+  kind: 'login',         // login · card: qué lado de la hoja se mira
+  selBy: {},             // lo elegido en cada lado, para volver a encontrarlo
   q: '',
   sel: null,
   mode: 'view',          // view · edit · new
-  revealed: null,        // { id, value } mientras se ve una contraseña
+  revealed: null,        // { id, values: { campo: valor } } mientras se ve algo secreto
   confirmDel: false,
   banner: null,          // resultado de una importación
 };
@@ -54,8 +60,25 @@ function when(ts) {
 const loginOf = (it) => it.username || it.email || '';
 const letter = (it) => (it.host || it.title || '?').replace(/^www\./, '').charAt(0).toUpperCase();
 
+const BRANDS = {
+  visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express', naranja: 'Naranja', cabal: 'Cabal',
+  maestro: 'Maestro', diners: 'Diners Club', discover: 'Discover',
+};
+const isCard = (it) => it?.kind === 'card';
+/** "2029-08" → "08/29". */
+const shortExpiry = (e) => (e ? `${e.slice(5, 7)}/${e.slice(2, 4)}` : '');
+/** De a cuatro, y la American Express en 4-6-5, como viene impresa. */
+function groupNumber(n) {
+  const s = String(n || '');
+  if (/^3[47]/.test(s) && s.length === 15) return `${s.slice(0, 4)} ${s.slice(4, 10)} ${s.slice(10)}`;
+  return s.replace(/(\d{4})(?=\d)/g, '$1 ');
+}
+/** "Visa · termina en 4242", lo que identifica una tarjeta sin mostrarla. */
+const cardLine = (it) => [BRANDS[it.brand], it.last4 && `termina en ${it.last4}`].filter(Boolean).join(' · ') || 'Sin número';
+
 function tile(it, big = false) {
   const cls = `pr-pass__tile${big ? ' pr-pass__tile--lg' : ''}`;
+  if (isCard(it)) return `<span class="${cls} pr-pass__tile--card">${Icons.svg('card')}</span>`;
   return it.favicon
     ? `<span class="${cls}"><img src="${esc(it.favicon)}" alt="" draggable="false"></span>`
     : `<span class="${cls}"><span class="pr-pass__letter">${esc(letter(it))}</span></span>`;
@@ -70,10 +93,13 @@ async function load() {
   if (P.sel && !P.items.some((it) => it.id === P.sel)) P.sel = null;
 }
 
+const ofKind = () => P.items.filter((it) => (P.kind === 'card') === isCard(it));
+
 function filtered() {
   const q = P.q.trim().toLowerCase();
-  if (!q) return P.items;
-  return P.items.filter((it) => [it.title, it.host, it.username, it.email, it.note, ...(it.urls || [])]
+  const list = ofKind();
+  if (!q) return list;
+  return list.filter((it) => [it.title, it.host, it.username, it.email, it.holder, BRANDS[it.brand], it.last4, it.note, ...(it.urls || [])]
     .some((s) => String(s || '').toLowerCase().includes(q)));
 }
 
@@ -84,8 +110,8 @@ const selected = () => P.items.find((it) => it.id === P.sel) || null;
 export async function openPanel() {
   if (popoverOpen(btn)) { closePopover(); return; }
   await load();
-  if (!P.sel && P.items.length) P.sel = filtered()[0]?.id || null;
-  P.mode = P.items.length ? 'view' : P.mode === 'new' ? 'new' : 'view';
+  if (!filtered().some((it) => it.id === P.sel)) P.sel = filtered()[0]?.id || null;
+  P.mode = ofKind().length ? 'view' : P.mode === 'new' ? 'new' : 'view';
   P.revealed = null;
   P.confirmDel = false;
   const width = Math.min(720, window.innerWidth - 24);
@@ -93,13 +119,18 @@ export async function openPanel() {
     if (el.dataset.built) return;
     el.dataset.built = '1';
     el.classList.add('pr-pop--pass');
+    const card = P.kind === 'card';
     el.innerHTML = `
       <div class="pr-pass">
         <aside class="pr-pass__side">
+          <div class="pr-pass__kinds"><div class="op-segmented" id="pp-kind">
+            <button class="op-segmented__opt${card ? '' : ' is-active'}" data-value="login">${Icons.svg('passKey')} Contraseñas</button>
+            <button class="op-segmented__opt${card ? ' is-active' : ''}" data-value="card">${Icons.svg('card')} Tarjetas</button>
+          </div></div>
           <div class="pr-pass__top">
             <div class="op-inputwrap pr-pass__search"><i data-icon="search"></i>
-              <input class="op-input" id="pp-q" type="text" spellcheck="false" autocomplete="off" placeholder="Buscar" aria-label="Buscar en tus contraseñas"></div>
-            <button class="op-iconbtn op-iconbtn--sm" id="pp-new" aria-label="Agregar" data-tip="Agregar una contraseña"><i data-icon="plus"></i></button>
+              <input class="op-input" id="pp-q" type="text" spellcheck="false" autocomplete="off" placeholder="Buscar" aria-label="Buscar"></div>
+            <button class="op-iconbtn op-iconbtn--sm" id="pp-new" aria-label="Agregar" data-tip="${card ? 'Agregar una tarjeta' : 'Agregar una contraseña'}"><i data-icon="plus"></i></button>
           </div>
           <div class="pr-pass__list op-scroll op-scroll--line-bottom" id="pp-list" role="listbox"></div>
           <div class="pr-pass__foot">
@@ -130,15 +161,16 @@ function paintList() {
   if (!root) return;
   const list = root.querySelector('#pp-list');
   const items = filtered();
-  root.querySelector('#pp-count').textContent = P.items.length ? plural(P.items.length, 'elemento', 'elementos') : '';
+  const all = ofKind().length;
+  root.querySelector('#pp-count').textContent = all ? (P.kind === 'card' ? plural(all, 'tarjeta', 'tarjetas') : plural(all, 'contraseña', 'contraseñas')) : '';
   list.innerHTML = items.length
     ? items.map((it) => `
       <button class="pr-pass__row${it.id === P.sel ? ' is-selected' : ''}" data-id="${esc(it.id)}" role="option" aria-selected="${it.id === P.sel}">
         ${tile(it)}
         <span class="pr-pass__rowtext"><span class="pr-pass__rowtitle">${esc(it.title)}</span>
-          <span class="pr-pass__rowsub">${esc(loginOf(it) || it.host || 'Sin usuario')}</span></span>
+          <span class="pr-pass__rowsub">${esc(isCard(it) ? cardLine(it) : loginOf(it) || it.host || 'Sin usuario')}</span></span>
       </button>`).join('')
-    : `<div class="pr-pass__none">${P.items.length ? 'Nada coincide con la búsqueda.' : 'Todavía no hay nada.'}</div>`;
+    : `<div class="pr-pass__none">${all ? 'Nada coincide con la búsqueda.' : 'Todavía no hay nada.'}</div>`;
 }
 
 /** Marca la fila elegida sin repintar la lista (así no salta el scroll). */
@@ -159,25 +191,29 @@ function paintMain() {
   if (P.banner) html += bannerHTML();
   if (P.broken) html += `<div class="pr-pass__warn">${Icons.svg('alert')}<div>No se pudo abrir la bóveda guardada (${esc(P.broken)}). Para no pisarla, Prism no guarda cambios hasta que se resuelva.</div></div>`;
 
-  if (P.mode === 'new' || (P.mode === 'edit' && it)) html += formHTML(P.mode === 'edit' ? it : null);
-  else if (!P.items.length) html += welcomeHTML();
-  else if (it) html += detailHTML(it);
-  else html += `<div class="pr-pass__empty"><i data-icon="passKey"></i><div>Elegí un elemento de la lista.</div></div>`;
+  const card = P.kind === 'card';
+  if (P.mode === 'new' || (P.mode === 'edit' && it)) html += (card ? cardFormHTML : formHTML)(P.mode === 'edit' ? it : null);
+  else if (!ofKind().length) html += welcomeHTML();
+  else if (it) html += (card ? cardHTML : detailHTML)(it);
+  else html += `<div class="pr-pass__empty"><i data-icon="${card ? 'card' : 'passKey'}"></i><div>Elegí un elemento de la lista.</div></div>`;
 
   main.innerHTML = `<div class="pr-pass__view op-scroll" id="pp-view">${html}</div>`;
   Icons.mount(main);
   const view = main.querySelector('#pp-view');
   scrollFade(view);
   if (P.mode !== 'view') view.querySelector('input')?.focus();
-  if (P.mode === 'edit' && it) fillPasswordField(it.id);
+  if (P.mode === 'edit' && it) fillSecrets(it);
 }
 
 function welcomeHTML() {
+  const card = P.kind === 'card';
   return `
     <div class="pr-pass__welcome">
-      <div class="pr-pass__hero">${Icons.svg('passKey')}</div>
-      <div class="pr-pass__welcometitle">Tus contraseñas, adentro de Prism</div>
-      <div class="pr-pass__welcometext">Cuando entres a un sitio, Prism te ofrece guardarla, y la próxima vez la completa. Se guardan cifradas con tu cuenta de Windows.</div>
+      <div class="pr-pass__hero">${Icons.svg(card ? 'card' : 'passKey')}</div>
+      <div class="pr-pass__welcometitle">${card ? 'Tus tarjetas, adentro de Prism' : 'Tus contraseñas, adentro de Prism'}</div>
+      <div class="pr-pass__welcometext">${card
+        ? 'Al pagar, Prism completa el número, el vencimiento y el código, también adentro del recuadro de Mercado Pago o de Stripe. Se guardan cifradas con tu cuenta de Windows.'
+        : 'Cuando entres a un sitio, Prism te ofrece guardarla, y la próxima vez la completa. Se guardan cifradas con tu cuenta de Windows.'}</div>
       <div class="pr-pass__welcomeactions">
         <button class="op-btn op-btn--primary" data-a="import"><i data-icon="download"></i> Importar de Proton Pass</button>
         <button class="op-btn op-btn--secondary" data-a="new"><i data-icon="plus"></i> Agregar una</button>
@@ -187,10 +223,12 @@ function welcomeHTML() {
 
 function bannerHTML() {
   const b = P.banner;
+  const logins = b.added - (b.cards || 0);
+  const parts = [logins && plural(logins, 'contraseña', 'contraseñas'), b.cards && plural(b.cards, 'tarjeta', 'tarjetas')].filter(Boolean);
   return `
     <div class="pr-pass__banner">
-      <div class="pr-pass__bannerhead">${Icons.svg('check')}<span>${b.added ? `Se importaron ${plural(b.added, 'contraseña', 'contraseñas')}` : 'No había nada nuevo para importar'}${b.repeated ? ` · ${plural(b.repeated, 'ya estaba', 'ya estaban')}` : ''}</span></div>
-      <div class="pr-pass__bannertext">El archivo <b>${esc(b.file)}</b> tiene tus contraseñas sin cifrar. Ya no hace falta: conviene borrarlo.</div>
+      <div class="pr-pass__bannerhead">${Icons.svg('check')}<span>${b.added ? `Se importaron ${parts.join(' y ')}` : 'No había nada nuevo para importar'}${b.repeated ? ` · ${plural(b.repeated, 'ya estaba', 'ya estaban')}` : ''}</span></div>
+      <div class="pr-pass__bannertext">El archivo <b>${esc(b.file)}</b> tiene tus datos sin cifrar. Ya no hace falta: conviene borrarlo.</div>
       <div class="pr-pass__banneractions">
         <button class="op-btn op-btn--ghost op-btn--sm" data-a="banner-close">Lo borro yo</button>
         <button class="op-btn op-btn--secondary op-btn--sm" data-a="forget-import"><i data-icon="trash"></i> Borrar el archivo</button>
@@ -198,40 +236,36 @@ function bannerHTML() {
     </div>`;
 }
 
-function field(label, icon, value, { copy = null, mono = false, secret = false, id = null } = {}) {
+/** Lo que se ve de un secreto: tapado (los puntos dibujados, y en el número los últimos cuatro) o él. */
+function secretHTML(it, f) {
+  const v = P.revealed?.id === it.id ? P.revealed.values[f] : null;
+  if (v != null) return esc(f === 'number' ? groupNumber(v) : v);
+  if (f === 'number') return `<span class="pr-pass__dots pr-pass__dots--4"></span> ${esc(it.last4)}`;
+  return `<span class="pr-pass__dots${f === 'password' ? '' : ' pr-pass__dots--4'}"></span>`;
+}
+
+function field(label, icon, value, { copy = null, mono = false, secret = null } = {}) {
+  const shown = !!secret && P.revealed?.id === P.sel && P.revealed.values[secret] != null;
   return `
     <div class="pr-pass__field">
       <span class="pr-pass__fieldicon">${Icons.svg(icon)}</span>
       <div class="pr-pass__fieldbody">
         <div class="pr-pass__label">${esc(label)}</div>
-        <div class="pr-pass__value${mono ? ' is-mono' : ''}${secret ? ' is-secret' : ''}"${id ? ` id="${id}"` : ''}>${value}</div>
+        <div class="pr-pass__value${mono || shown ? ' is-mono' : ''}${secret ? ' is-secret' : ''}"${secret ? ` id="pp-secret-${secret}"` : ''}>${value}</div>
       </div>
-      ${secret ? `<button class="op-iconbtn op-iconbtn--sm pr-pass__eye${P.revealed?.id === P.sel ? ' is-on' : ''}" data-a="reveal" aria-label="Mostrar" data-tip="${P.revealed?.id === P.sel ? 'Ocultar' : 'Mostrar'}">${Icons.svg('eye', 'pr-eye__a')}${Icons.svg('eyeOff', 'pr-eye__b')}</button>` : ''}
+      ${secret ? `<button class="op-iconbtn op-iconbtn--sm pr-pass__eye${shown ? ' is-on' : ''}" data-a="reveal" data-f="${secret}" aria-label="Mostrar" data-tip="${shown ? 'Ocultar' : 'Mostrar'}">${Icons.svg('eye', 'pr-eye__a')}${Icons.svg('eyeOff', 'pr-eye__b')}</button>` : ''}
       ${copy ? `<button class="op-iconbtn op-iconbtn--sm pr-pass__copy" data-copy="${copy}" aria-label="Copiar" data-tip="Copiar">${Icons.svg('copy', 'pr-copy__a')}${Icons.svg('check', 'pr-copy__b')}</button>` : ''}
     </div>`;
 }
 
-function detailHTML(it) {
-  const shown = P.revealed?.id === it.id;
-  const fields = [];
-  if (it.username) fields.push(field('Usuario', 'user', esc(it.username), { copy: 'username' }));
-  if (it.email) fields.push(field('Correo', 'mail', esc(it.email), { copy: 'email' }));
-  fields.push(it.hasPassword
-    ? field('Contraseña', 'passKey', shown ? esc(P.revealed.value) : '<span class="pr-pass__dots"></span>', { copy: 'password', mono: shown, secret: true, id: 'pp-secret' })
-    : field('Contraseña', 'passKey', '<span class="pr-pass__muted">Ninguna</span>'));
-
-  const meta = [
-    it.lastUsedAt && ['wand', 'Último completado automático', when(it.lastUsedAt)],
-    ['edit', 'Última modificación', when(it.modifiedAt)],
-    ['zap', 'Creado', when(it.createdAt)],
-  ].filter(Boolean);
-
+/** La cabecera de un elemento: baldosa, título, editar y borrar (con su confirmación). */
+function headHTML(it, sub) {
   return `
     <div class="pr-pass__head">
       ${tile(it, true)}
       <div class="pr-pass__headtext">
         <div class="pr-pass__title op-copyable">${esc(it.title)}</div>
-        ${it.host ? `<div class="pr-pass__sub">${esc(it.host)}</div>` : ''}
+        ${sub ? `<div class="pr-pass__sub">${esc(sub)}</div>` : ''}
       </div>
       <button class="op-btn op-btn--secondary op-btn--sm" data-a="edit"><i data-icon="edit"></i> Editar</button>
       <button class="op-iconbtn op-iconbtn--sm pr-pass__del${P.confirmDel ? ' is-open' : ''}" data-a="delete" aria-label="Eliminar" data-tip="Eliminar"><i data-icon="trash"></i></button>
@@ -240,16 +274,17 @@ function detailHTML(it) {
       <span class="op-grow">¿Eliminar <b>${esc(it.title)}</b>? No se puede deshacer.</span>
       <button class="op-btn op-btn--ghost op-btn--sm" data-a="delete-no">Cancelar</button>
       <button class="op-btn op-btn--danger-solid op-btn--sm" data-a="delete-yes">Eliminar</button>
-    </div></div></div>
+    </div></div></div>`;
+}
 
-    <div class="pr-pass__card">${fields.join('')}</div>
-
-    ${it.urls?.length ? `<div class="pr-pass__card"><div class="pr-pass__field pr-pass__field--top">
-      <span class="pr-pass__fieldicon">${Icons.svg('globe')}</span>
-      <div class="pr-pass__fieldbody"><div class="pr-pass__label">Sitios web</div>
-        <div class="pr-pass__urls">${it.urls.map((u) => `<button class="pr-pass__url" data-open="${esc(u)}" data-tip="Abrir en una pestaña nueva">${esc(u)}</button>`).join('')}</div></div>
-    </div></div>` : ''}
-
+/** La nota y las fechas, iguales en las dos clases. */
+function tailHTML(it, usedLabel) {
+  const meta = [
+    it.lastUsedAt && ['wand', usedLabel, when(it.lastUsedAt)],
+    ['edit', 'Última modificación', when(it.modifiedAt)],
+    ['zap', 'Creado', when(it.createdAt)],
+  ].filter(Boolean);
+  return `
     ${it.note ? `<div class="pr-pass__card"><div class="pr-pass__field pr-pass__field--top">
       <span class="pr-pass__fieldicon">${Icons.svg('note')}</span>
       <div class="pr-pass__fieldbody"><div class="pr-pass__label">Nota</div>
@@ -262,6 +297,59 @@ function detailHTML(it) {
         <div class="pr-pass__fieldbody"><div class="pr-pass__metalabel">${esc(label)}</div><div class="pr-pass__metavalue op-copyable">${esc(v)}</div></div>
       </div>`).join('')}</div>`;
 }
+
+function detailHTML(it) {
+  const fields = [];
+  if (it.username) fields.push(field('Usuario', 'user', esc(it.username), { copy: 'username' }));
+  if (it.email) fields.push(field('Correo', 'mail', esc(it.email), { copy: 'email' }));
+  fields.push(it.hasPassword
+    ? field('Contraseña', 'passKey', secretHTML(it, 'password'), { copy: 'password', secret: 'password' })
+    : field('Contraseña', 'passKey', '<span class="pr-pass__muted">Ninguna</span>'));
+
+  return `
+    ${headHTML(it, it.host)}
+    <div class="pr-pass__card">${fields.join('')}</div>
+
+    ${it.urls?.length ? `<div class="pr-pass__card"><div class="pr-pass__field pr-pass__field--top">
+      <span class="pr-pass__fieldicon">${Icons.svg('globe')}</span>
+      <div class="pr-pass__fieldbody"><div class="pr-pass__label">Sitios web</div>
+        <div class="pr-pass__urls">${it.urls.map((u) => `<button class="pr-pass__url" data-open="${esc(u)}" data-tip="Abrir en una pestaña nueva">${esc(u)}</button>`).join('')}</div></div>
+    </div></div>` : ''}
+    ${tailHTML(it, 'Último completado automático')}`;
+}
+
+function cardHTML(it) {
+  const none = '<span class="pr-pass__muted">Ninguno</span>';
+  const fields = [
+    field('Titular', 'user', it.holder ? esc(it.holder) : none, { copy: it.holder ? 'holder' : null }),
+    it.hasNumber
+      ? field('Número', 'card', secretHTML(it, 'number'), { copy: 'number', secret: 'number', mono: true })
+      : field('Número', 'card', none),
+    field('Vencimiento', 'calendar', it.expiry ? esc(shortExpiry(it.expiry)) : none, { copy: it.expiry ? 'expiry' : null, mono: !!it.expiry }),
+    it.hasCvv
+      ? field('Código de seguridad', 'lock', secretHTML(it, 'cvv'), { copy: 'cvv', secret: 'cvv' })
+      : field('Código de seguridad', 'lock', none),
+  ];
+  if (it.hasPin) fields.push(field('PIN', 'hash', secretHTML(it, 'pin'), { copy: 'pin', secret: 'pin' }));
+  return `
+    ${headHTML(it, BRANDS[it.brand] || '')}
+    <div class="pr-pass__card">${fields.join('')}</div>
+    ${tailHTML(it, 'Último pago completado')}`;
+}
+
+/** Un campo secreto del formulario, con su ojo. */
+const secretInput = (name, { label, mono = true, attrs = '' }) => `
+  <label class="op-field"><span class="op-field__label">${label}</span>
+    <span class="pr-pass__pwwrap">
+      <input class="op-input${mono ? ' op-input--mono' : ''}" name="${name}" type="password" spellcheck="false" autocomplete="new-password" ${attrs}>
+      <button type="button" class="op-iconbtn op-iconbtn--sm pr-pass__eye" data-a="form-eye" aria-label="Mostrar">${Icons.svg('eye', 'pr-eye__a')}${Icons.svg('eyeOff', 'pr-eye__b')}</button>
+    </span></label>`;
+
+const formActions = `
+  <div class="pr-pass__formactions">
+    <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-a="cancel">Cancelar</button>
+    <button type="submit" class="op-btn op-btn--primary op-btn--sm"><i data-icon="check"></i> Guardar</button>
+  </div>`;
 
 function formHTML(it) {
   const v = (k) => esc(it?.[k] || '');
@@ -276,27 +364,48 @@ function formHTML(it) {
         <label class="op-field"><span class="op-field__label">Correo</span>
           <input class="op-input" name="email" value="${v('email')}" spellcheck="false"></label>
       </div>
-      <label class="op-field"><span class="op-field__label">Contraseña</span>
-        <span class="pr-pass__pwwrap">
-          <input class="op-input op-input--mono" name="password" type="password" spellcheck="false" autocomplete="new-password">
-          <button type="button" class="op-iconbtn op-iconbtn--sm pr-pass__eye" data-a="form-eye" aria-label="Mostrar">${Icons.svg('eye', 'pr-eye__a')}${Icons.svg('eyeOff', 'pr-eye__b')}</button>
-        </span></label>
+      ${secretInput('password', { label: 'Contraseña' })}
       <label class="op-field"><span class="op-field__label">Sitios web</span>
         <textarea class="op-textarea pr-pass__urlsinput" name="urls" spellcheck="false" placeholder="https://ejemplo.com (uno por renglón)">${esc((it?.urls || []).join('\n'))}</textarea></label>
       <label class="op-field"><span class="op-field__label">Nota</span>
         <textarea class="op-textarea" name="note" placeholder="Lo que quieras recordar de esta cuenta">${v('note')}</textarea></label>
-      <div class="pr-pass__formactions">
-        <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-a="cancel">Cancelar</button>
-        <button type="submit" class="op-btn op-btn--primary op-btn--sm"><i data-icon="check"></i> Guardar</button>
-      </div>
+      ${formActions}
     </form>`;
 }
 
-/* Editando, la contraseña se pide recién al abrir el formulario. */
-async function fillPasswordField(id) {
-  const value = await api.pass.reveal(id).catch(() => '');
-  const input = root?.querySelector('#pp-form [name=password]');
-  if (input && P.sel === id) input.value = value;
+function cardFormHTML(it) {
+  const v = (k) => esc(it?.[k] || '');
+  const digits = 'inputmode="numeric"';
+  return `
+    <form class="pr-pass__form" id="pp-form" autocomplete="off">
+      <div class="pr-pass__formtitle">${it ? 'Editar' : 'Nueva tarjeta'}</div>
+      <label class="op-field"><span class="op-field__label">Título</span>
+        <input class="op-input" name="title" value="${v('title')}" placeholder="Se completa con la marca si lo dejás vacío" spellcheck="false"></label>
+      <label class="op-field"><span class="op-field__label">Titular</span>
+        <input class="op-input" name="holder" value="${v('holder')}" placeholder="Como figura en la tarjeta" spellcheck="false"></label>
+      ${secretInput('number', { label: 'Número', attrs: `${digits} maxlength="23"` })}
+      <div class="pr-pass__formrow pr-pass__formrow--3">
+        <label class="op-field"><span class="op-field__label">Vencimiento</span>
+          <input class="op-input op-input--mono" name="expiry" value="${esc(shortExpiry(it?.expiry))}" placeholder="MM/AA" ${digits} maxlength="7" spellcheck="false"></label>
+        ${secretInput('cvv', { label: 'Código', attrs: `${digits} maxlength="4"` })}
+        ${secretInput('pin', { label: 'PIN', attrs: 'maxlength="12"' })}
+      </div>
+      <label class="op-field"><span class="op-field__label">Nota</span>
+        <textarea class="op-textarea" name="note" placeholder="Lo que quieras recordar de esta tarjeta">${v('note')}</textarea></label>
+      ${formActions}
+    </form>`;
+}
+
+/* Editando, los secretos se piden recién al abrir el formulario. Un campo se
+   manda al guardar solo si ya llegó: guardar antes no lo borra. */
+async function fillSecrets(it) {
+  for (const f of isCard(it) ? ['number', 'cvv', 'pin'] : ['password']) {
+    const value = await api.pass.reveal(it.id, f).catch(() => null);
+    const input = root?.querySelector(`#pp-form [name=${f}]`);
+    if (!input || P.sel !== it.id || value == null) return;
+    if (!input.value) input.value = value;
+    input.dataset.loaded = '1';
+  }
 }
 
 /* ── Acciones ────────────────────────────────────────────────────────────── */
@@ -323,8 +432,29 @@ async function copyField(field, b = null) {
   const done = await api.pass.copy(it.id, field).catch(() => false);
   if (!done) return;
   if (b) flashCopied(b);
-  if (field === 'password') say('Contraseña copiada: se borra del portapapeles en 45 s', { icon: 'copy' });
-  else say(`${field === 'email' ? 'Correo' : 'Usuario'} copiado`, { icon: 'copy' });
+  const SECRET = { password: 'Contraseña copiada', number: 'Número copiado', cvv: 'Código copiado', pin: 'PIN copiado' };
+  const PLAIN = { username: 'Usuario copiado', email: 'Correo copiado', holder: 'Titular copiado', expiry: 'Vencimiento copiado' };
+  if (SECRET[field]) say(`${SECRET[field]}: se borra del portapapeles en 45 s`, { icon: 'copy' });
+  else say(PLAIN[field] || 'Copiado', { icon: 'copy' });
+}
+
+/** Pasa al otro lado de la hoja (contraseñas o tarjetas), volviendo a lo que se miraba ahí. */
+function setKind(kind) {
+  if (kind === P.kind) return;
+  P.selBy[P.kind] = P.sel;
+  P.kind = kind;
+  const list = filtered();
+  P.sel = list.some((it) => it.id === P.selBy[kind]) ? P.selBy[kind] : list[0]?.id || null;
+  P.mode = 'view';
+  P.revealed = null;
+  P.confirmDel = false;
+  if (!root) return;
+  const seg = root.querySelector('#pp-kind');
+  seg.querySelectorAll('.op-segmented__opt').forEach((o) => o.classList.toggle('is-active', o.dataset.value === kind));
+  root.querySelector('#pp-new').dataset.tip = kind === 'card' ? 'Agregar una tarjeta' : 'Agregar una contraseña';
+  paintList();
+  markSelected();
+  paintMain();
 }
 
 async function doImport() {
@@ -338,7 +468,9 @@ async function doImport() {
   if (!r) return;
   P.banner = r;
   await load();
-  if (!P.sel) P.sel = filtered()[0]?.id || null;
+  // Si lo único que entró fueron tarjetas, se muestran las tarjetas.
+  if (r.cards && r.cards === r.added && P.kind !== 'card') setKind('card');
+  if (!filtered().some((it) => it.id === P.sel)) P.sel = filtered()[0]?.id || null;
   P.mode = 'view';
   paintList();
   paintMain();
@@ -347,14 +479,26 @@ async function doImport() {
 async function submitForm(form) {
   const f = new FormData(form);
   const it = P.mode === 'edit' ? selected() : null;
+  const card = P.kind === 'card';
+  // Un secreto que todavía no llegó (editando) no se manda: undefined es "dejalo como está".
+  const secret = (name) => {
+    const input = form.querySelector(`[name=${name}]`);
+    return !it || input.dataset.loaded || input.value ? input.value : undefined;
+  };
   try {
-    const saved = await api.pass.save({
-      id: it?.id,
-      title: f.get('title'), username: f.get('username'), email: f.get('email'),
-      password: f.get('password'),
-      urls: String(f.get('urls') || '').split('\n'),
-      note: f.get('note'),
-    });
+    const saved = await api.pass.save(card
+      ? {
+        id: it?.id, kind: 'card',
+        title: f.get('title'), holder: f.get('holder'), expiry: f.get('expiry'), note: f.get('note'),
+        number: secret('number'), cvv: secret('cvv'), pin: secret('pin'),
+      }
+      : {
+        id: it?.id,
+        title: f.get('title'), username: f.get('username'), email: f.get('email'),
+        password: secret('password'),
+        urls: String(f.get('urls') || '').split('\n'),
+        note: f.get('note'),
+      });
     await load();
     P.sel = saved.id;
     P.mode = 'view';
@@ -362,7 +506,7 @@ async function submitForm(form) {
     paintList();
     markSelected();
     paintMain();
-    say(it ? 'Cambios guardados' : 'Contraseña guardada', { icon: 'check' });
+    say(it ? 'Cambios guardados' : card ? 'Tarjeta guardada' : 'Contraseña guardada', { icon: 'check' });
   } catch (err) {
     say(err.message, { icon: 'alert', tone: 'error', ms: 8000 });
   }
@@ -385,9 +529,12 @@ function wire(el) {
       if (next) select(next.id);
     } else if (e.key === 'Enter' && selected()) {
       e.preventDefault();
-      copyField(selected().hasPassword ? 'password' : selected().username ? 'username' : 'email');
+      const it = selected();
+      if (isCard(it)) copyField('number');
+      else copyField(it.hasPassword ? 'password' : it.username ? 'username' : 'email');
     }
   });
+  bindSwitcher(el.querySelector('#pp-kind'), setKind);
 
   el.querySelector('#pp-new').addEventListener('click', () => {
     P.mode = 'new';
@@ -432,13 +579,16 @@ function wire(el) {
     }
     if (!it) return null;
     if (a === 'reveal') {
-      if (P.revealed?.id === it.id) P.revealed = null;
-      else P.revealed = { id: it.id, value: await api.pass.reveal(it.id).catch(() => '') };
-      const shown = P.revealed?.id === it.id;
-      const v = main.querySelector('#pp-secret');
+      const f = b.dataset.f;
+      if (P.revealed?.id !== it.id) P.revealed = { id: it.id, values: {} };
+      if (P.revealed.values[f] != null) delete P.revealed.values[f];
+      else P.revealed.values[f] = await api.pass.reveal(it.id, f).catch(() => '');
+      if (P.revealed?.id !== it.id) return null;    // se cambió de elemento mientras llegaba
+      const shown = P.revealed.values[f] != null;
+      const v = main.querySelector(`#pp-secret-${f}`);
       if (v) {
-        v.classList.toggle('is-mono', shown);
-        v.innerHTML = shown ? esc(P.revealed.value) : '<span class="pr-pass__dots"></span>';
+        v.classList.toggle('is-mono', shown || f === 'number');
+        v.innerHTML = secretHTML(it, f);
       }
       b.classList.toggle('is-on', shown);
       b.dataset.tip = shown ? 'Ocultar' : 'Mostrar';

@@ -115,5 +115,50 @@ const r2 = await v3.importItems(c.items);
 ok('la primera suma todo', r1.added === 2 && r1.repeated === 0);
 ok('la segunda no suma nada', r2.added === 0 && r2.repeated === 2 && v3.size === 2);
 
+console.log('\n7. Tarjetas');
+ok('Visa por el 4', V.brandOf('4242 4242 4242 4242') === 'visa');
+ok('Mastercard, también la serie 2', V.brandOf('5555555555554444') === 'mastercard' && V.brandOf('2223003122003222') === 'mastercard');
+ok('American Express', V.brandOf('378282246310005') === 'amex');
+ok('Naranja antes que Maestro', V.brandOf('5895620000000002') === 'naranja');
+const exp = (s, e) => ok(`vencimiento ${JSON.stringify(s)} → ${JSON.stringify(e)}`, V.parseExpiry(s) === e, V.parseExpiry(s));
+exp('2029-08', '2029-08');
+exp('082029', '2029-08');
+exp('08/29', '2029-08');
+exp('8 / 2029', '2029-08');
+exp('13/29', '');
+exp('mañana', '');
+ok('el vencimiento corto es MM/AA', V.shortExpiry('2029-08') === '08/29');
+
+const vc = V.createVault({ doc: { read: async () => null, write: async () => {} }, ...plain });
+await vc.load();
+await vc.save({ title: 'Google', email: 'fran@gmail.com', password: 'uno', urls: ['https://accounts.google.com/'] });
+const tc = await vc.save({ kind: 'card', holder: 'Francisco Pavez', number: '4242 4242 4242 4242', expiry: '08/29', cvv: '123', pin: '' });
+ok('el título sale de la marca y los últimos cuatro', tc.title === 'Visa terminada en 4242', tc.title);
+ok('lo público no lleva número, código ni PIN', tc.kind === 'card' && !('number' in tc) && !('cvv' in tc) && !('pin' in tc) && tc.last4 === '4242' && tc.brand === 'visa' && tc.hasCvv && !tc.hasPin);
+ok('ni la lista', vc.list().every((it) => !('number' in it) && !('cvv' in it) && !('password' in it)));
+ok('el número se guarda sin espacios', vc.get(tc.id).number === '4242424242424242' && vc.get(tc.id).expiry === '2029-08');
+ok('una tarjeta no se ofrece como contraseña', vc.findFor('https://accounts.google.com/').length === 1);
+ok('cards() trae solo las tarjetas', vc.cards().length === 1 && vc.cards()[0].id === tc.id);
+await vc.save({ id: tc.id, note: 'la de débito' });
+ok('editar sin mandar lo secreto lo conserva', vc.get(tc.id).number === '4242424242424242' && vc.get(tc.id).cvv === '123' && vc.get(tc.id).note === 'la de débito');
+await vc.save({ id: tc.id, kind: 'login', password: 'x' });
+ok('editar no cambia la clase', vc.get(tc.id).kind === 'card' && !('password' in vc.get(tc.id)));
+
+const conTarjeta = structuredClone(proton);
+conTarjeta.vaults.s1.items.push(
+  { state: 1, createTime: 1771789800, modifyTime: 1771789800,
+    data: { type: 'creditCard', metadata: { name: 'Débito Galicia', note: '' },
+      content: { cardholderName: 'FRANCISCO PAVEZ', cardType: 0, number: '5555555555554444', verificationNumber: '321', expirationDate: '2030-11', pin: '1234' } } },
+  { state: 2, data: { type: 'creditCard', metadata: { name: 'Vieja' }, content: { number: '4000056655665556' } } },
+);
+const jc = V.fromProtonJson(conTarjeta);
+const jcard = jc.items.find((it) => it.kind === 'card');
+ok('de Proton trae la tarjeta y saltea la de la papelera', jc.items.length === 2 && jc.skipped === 3 && !!jcard);
+ok('con titular, número, código, vencimiento y PIN', jcard.holder === 'FRANCISCO PAVEZ' && jcard.number === '5555555555554444' && jcard.cvv === '321' && jcard.expiry === '2030-11' && jcard.pin === '1234');
+const ri1 = await vc.importItems(jc.items);
+const ri2 = await vc.importItems(jc.items);
+ok('importar cuenta las tarjetas aparte', ri1.added === 2 && ri1.cards === 1, JSON.stringify(ri1));
+ok('y la misma tarjeta no entra dos veces', ri2.added === 0 && ri2.repeated === 2 && vc.cards().length === 2);
+
 console.log(`\n═══ ${pass} ok · ${fail} fallas ═══`);
 process.exit(fail ? 1 : 0);

@@ -18,6 +18,23 @@
      sitio. El sitio no lo dicen ellas: sale del frame que manda el mensaje
      (senderFrame), que es lo que Chromium sabe que está cargado ahí. Una
      página no puede pedir la contraseña de otro sitio aunque mienta.
+
+   ── Tarjetas ───────────────────────────────────────────────────────────────
+   Una tarjeta no es de ningún sitio, así que no la cuida el sitio: la
+   cuidan tres cosas.
+   · Solo en páginas seguras: el frame que pide, y la página que lo contiene,
+     son https (o la compu misma, para probar).
+   · Solo con un gesto de verdad: completar exige un clic o un Enter de la
+     persona en esa pestaña, visto por el proceso principal (input-event). Un
+     renderer comprometido puede mandar cualquier IPC, pero no puede inventar
+     un clic del lado de Chromium.
+   · Solo a quien corresponde: el número viaja al frame donde se pidió, a los
+     del mismo sitio que él o que la página, y a los de los procesadores de
+     pago conocidos (el número de Stripe o Mercado Pago vive en su iframe).
+     Un iframe de publicidad en la misma página no recibe nada.
+   Los checkouts ponen el campo en un iframe chiquito: la lista no entra ahí.
+   Se dibuja en el documento principal, y el iframe le pasa por acá las
+   flechas, el Enter y el "me fui" (pay:key, pay:blur).
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { ipcMain, safeStorage, clipboard, dialog } = require('electron');
@@ -31,6 +48,26 @@ const windows = require('./windows.cjs');
 const CLIPBOARD_MS = 45 * 1000;
 /** Cuánto se recuerda el usuario del primer paso de un login en dos pasos. */
 const STEP_MS = 10 * 60 * 1000;
+/** Cuánto vale el campo de tarjeta enfocado para elegir de la lista. */
+const PAY_MS = 2 * 60 * 1000;
+/** Cuánto antes de completar tiene que haber un clic o un Enter de verdad. */
+const GESTURE_MS = 1500;
+
+/** Procesadores de pago que ponen los campos de la tarjeta en su propio iframe. */
+const PAY_SITES = new Set([
+  'stripe.com', 'mercadopago.com', 'mercadopago.com.ar', 'mercadolibre.com', 'mercadolibre.com.ar', 'mlstatic.com',
+  'braintreegateway.com', 'braintree-api.com', 'paypal.com', 'adyen.com', 'checkout.com', 'squareup.com',
+  'squarecdn.com', 'recurly.com', 'chargebee.com', 'paddle.com', 'dlocal.com', 'decidir.com', 'mobbex.com',
+  'payway.com.ar', 'getnet.com.ar', 'worldpay.com', 'cybersource.com', 'authorize.net', 'spreedly.com',
+]);
+
+/** Una dirección segura para completar una tarjeta: https, o la compu misma. */
+function securePay(url) {
+  const host = V.hostOf(url);
+  if (!host) return false;
+  if (/^https:/i.test(url)) return true;
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host.endsWith('.localhost');
+}
 
 function createPasswords(ctx) {
   const vault = V.createVault({
@@ -103,6 +140,112 @@ function createPasswords(ctx) {
     steps.set(e.sender.id, { site: V.siteOf(V.hostOf(url)), login: l, at: Date.now() });
   });
 
+  /* ── Tarjetas en las páginas ───────────────────────────────────────────── */
+
+  /** Cuándo fue el último clic o Enter de la persona, por pestaña. */
+  const gestures = new Map();   // wcId → ms
+  /** El campo de tarjeta enfocado, por pestaña: de qué frame y cuándo. */
+  const pays = new Map();       // wcId → { frame, url, at }
+  const watched = new WeakSet();
+  function watchInput(wc) {
+    if (watched.has(wc)) return;
+    watched.add(wc);
+    const id = wc.id;
+    const mark = () => gestures.set(id, Date.now());
+    wc.on('input-event', (_e, ev) => { if (ev.type === 'mouseUp' || ev.type === 'gestureTap') mark(); });
+    wc.on('before-input-event', (_e, input) => { if (input.type === 'keyDown' && input.key === 'Enter') mark(); });
+    wc.once('destroyed', () => { gestures.delete(id); pays.delete(id); });
+  }
+
+  /** El frame que habla, si es de una página de verdad y segura (también un iframe). */
+  function payFrame(e) {
+    const wc = e.sender;
+    if (!enabled() || windows.ofSender(e) || !windows.ofSession(wc.session)) return null;
+    const frame = e.senderFrame;
+    if (!frame || !securePay(frame.url) || !securePay(wc.mainFrame.url)) return null;
+    return frame;
+  }
+  // Un frame que ya se fue tira al tocarlo: se lo toma como "no es el mismo".
+  const sameFrame = (a, b) => {
+    try { return !!a && !!b && a.processId === b.processId && a.routingId === b.routingId; } catch { return false; }
+  };
+  const isPayer = (url) => {
+    const s = V.siteOf(V.hostOf(url));
+    return [...PAY_SITES].some((p) => s === p || s.endsWith(`.${p}`));
+  };
+  /** El campo enfocado de esta pestaña, si sigue vigente. */
+  function payOf(wc) {
+    const p = pays.get(wc.id);
+    if (!p || Date.now() - p.at > PAY_MS) return null;
+    try { if (p.frame.detached) return null; } catch { return null; }
+    return p;
+  }
+  const cardList = () => vault.cards().map((it) => ({
+    id: it.id, title: it.title, brand: V.brandName(V.brandOf(it.number)), last4: it.number.slice(-4), expiry: V.shortExpiry(it.expiry),
+  }));
+
+  /* Se enfocó un campo de tarjeta (en la página o en un iframe). */
+  ipcMain.handle('pay:query', (e) => {
+    const frame = payFrame(e);
+    if (!frame) return [];
+    const list = cardList();
+    if (!list.length) return [];
+    watchInput(e.sender);
+    pays.set(e.sender.id, { frame, url: frame.url, at: Date.now() });
+    return list;
+  });
+
+  /* El documento principal pide la lista para colgarla sobre el iframe que la pidió. */
+  ipcMain.handle('pay:menu', (e) => {
+    const frame = payFrame(e);
+    if (!frame || frame.parent || !payOf(e.sender)) return [];
+    return cardList();
+  });
+
+  /* Las flechas, el Enter y la salida del iframe, al documento principal. */
+  ipcMain.on('pay:key', (e, key) => {
+    const p = payOf(e.sender);
+    if (!p || !sameFrame(p.frame, e.senderFrame) || !['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'].includes(key)) return;
+    e.sender.mainFrame.send('pay:key', key);
+  });
+  ipcMain.on('pay:blur', (e) => {
+    const p = payOf(e.sender);
+    if (p && sameFrame(p.frame, e.senderFrame)) e.sender.mainFrame.send('pay:blur');
+  });
+  /* Y al revés: el iframe sabe si la lista está abierta (y si hay una fila
+     elegida), así sabe si un Enter es para la lista o para su formulario. */
+  ipcMain.on('pay:open', (e, state) => {
+    const p = payOf(e.sender);
+    if (!p || !e.senderFrame || e.senderFrame.parent || sameFrame(p.frame, e.senderFrame)) return;
+    try { p.frame.send('pay:open', Number(state) || 0); } catch { /* el iframe ya no está */ }
+  });
+
+  ipcMain.handle('pay:fill', (e, id) => {
+    const wc = e.sender;
+    const frame = payFrame(e);
+    const p = payOf(wc);
+    // Elige la lista: la del frame enfocado, o la del documento principal sobre el iframe.
+    if (!frame || !p || !(sameFrame(frame, p.frame) || !frame.parent)) return false;
+    if (Date.now() - (gestures.get(wc.id) || 0) > GESTURE_MS) return false;
+    const it = vault.get(String(id));
+    if (!it || !V.isCard(it)) return false;
+    const sites = new Set([V.siteOf(V.hostOf(p.url)), V.siteOf(V.hostOf(wc.mainFrame.url))]);
+    const card = {
+      holder: it.holder, number: it.number, cvv: it.cvv, brand: V.brandName(V.brandOf(it.number)),
+      month: it.expiry ? Number(it.expiry.slice(5, 7)) : 0, year: it.expiry ? Number(it.expiry.slice(0, 4)) : 0,
+    };
+    let sent = 0;
+    for (const f of wc.mainFrame.framesInSubtree) {
+      if (!securePay(f.url)) continue;
+      if (!sameFrame(f, p.frame) && !sites.has(V.siteOf(V.hostOf(f.url))) && !isPayer(f.url)) continue;
+      f.send('pay:put', card, sameFrame(f, p.frame));
+      sent++;
+    }
+    gestures.delete(wc.id);
+    vault.markUsed(it.id).then(changed);
+    return sent > 0;
+  });
+
   /* ── "¿Guardar la contraseña?" ─────────────────────────────────────────── */
   let offer = null;           // una por vez: la última gana
   let offerSeq = 0;
@@ -152,18 +295,31 @@ function createPasswords(ctx) {
     });
   }
 
-  const withIcon = (it) => ({ ...it, favicon: it.urls[0] ? ctx.library.faviconFor(it.urls[0]) : null });
+  const withIcon = (it) => ({ ...it, favicon: it.urls?.[0] ? ctx.library.faviconFor(it.urls[0]) : null });
+
+  /** Lo secreto de cada clase: lo único que se pide aparte, de a un campo. */
+  const SECRET = { login: ['password'], card: ['number', 'cvv', 'pin'] };
+  const kindOf = (it) => (V.isCard(it) ? 'card' : 'login');
 
   chrome('pass:list', () => ({ items: vault.list().map(withIcon), broken: vault.broken }));
-  chrome('pass:reveal', (id) => vault.get(String(id))?.password ?? '');
+  chrome('pass:reveal', (id, field = 'password') => {
+    const it = vault.get(String(id));
+    return it && SECRET[kindOf(it)].includes(field) ? it[field] ?? '' : '';
+  });
 
   chrome('pass:save', async (raw = {}) => {
-    const it = await vault.save({
-      id: raw.id ? String(raw.id) : undefined,
-      title: raw.title, username: raw.username, email: raw.email, urls: raw.urls, note: raw.note,
-      // Editar sin tocar la contraseña no la manda: undefined es "dejala como está".
-      ...(raw.password != null ? { password: String(raw.password) } : {}),
-    });
+    const prev = raw.id ? vault.get(String(raw.id)) : null;
+    const card = prev ? V.isCard(prev) : raw.kind === 'card';
+    // Editar sin tocar un secreto no lo manda: undefined es "dejalo como está".
+    const secrets = Object.fromEntries(SECRET[card ? 'card' : 'login'].filter((k) => raw[k] != null).map((k) => [k, String(raw[k])]));
+    if (card) {
+      if (secrets.number && !/^\d{12,19}$/.test(secrets.number.replace(/[\s-]/g, ''))) throw new Error('El número de la tarjeta tiene que tener entre 12 y 19 dígitos.');
+      if (String(raw.expiry || '').trim() && !V.parseExpiry(raw.expiry)) throw new Error('El vencimiento va como MM/AA (por ejemplo 08/29).');
+      if (secrets.cvv && !/^\d{3,4}$/.test(secrets.cvv.trim())) throw new Error('El código de seguridad tiene 3 o 4 dígitos.');
+    }
+    const it = await vault.save(card
+      ? { id: raw.id ? String(raw.id) : undefined, kind: 'card', title: raw.title, holder: raw.holder, expiry: raw.expiry, note: raw.note, ...secrets }
+      : { id: raw.id ? String(raw.id) : undefined, title: raw.title, username: raw.username, email: raw.email, urls: raw.urls, note: raw.note, ...secrets });
     changed();
     return withIcon(it);
   });
@@ -171,15 +327,17 @@ function createPasswords(ctx) {
   chrome('pass:remove', async (id) => { const r = await vault.remove(String(id)); changed(); return r; });
 
   /* Copiar pasa por acá y no por el portapapeles del cromo: así la contraseña
-     no viaja a la interfaz, y a los 45 s se borra si seguía siendo ella. */
+     no viaja a la interfaz, y a los 45 s se borra si seguía siendo ella. Lo
+     mismo con el número, el código y el PIN de una tarjeta. */
+  const COPY = { login: ['username', 'email', 'password'], card: ['holder', 'number', 'expiry', 'cvv', 'pin'] };
   let clipTimer = null;
   chrome('pass:copy', (id, field) => {
     const it = vault.get(String(id));
-    if (!it) return false;
-    const value = field === 'password' ? it.password : field === 'email' ? it.email : it.username;
+    if (!it || !COPY[kindOf(it)].includes(field)) return false;
+    const value = field === 'expiry' ? V.shortExpiry(it.expiry) : it[field];
     if (!value) return false;
     clipboard.writeText(value);
-    if (field === 'password') {
+    if (SECRET[kindOf(it)].includes(field)) {
       clearTimeout(clipTimer);
       clipTimer = setTimeout(() => { if (clipboard.readText() === value) clipboard.clear(); }, CLIPBOARD_MS);
     }
@@ -189,7 +347,7 @@ function createPasswords(ctx) {
   let lastImport = null;
   chrome('pass:import', async () => {
     const r = await dialog.showOpenDialog(ctx.win, {
-      title: 'Importar contraseñas',
+      title: 'Importar contraseñas y tarjetas',
       buttonLabel: 'Importar',
       filters: [{ name: 'Exportación de Proton Pass', extensions: ['zip', 'csv', 'json'] }],
       properties: ['openFile'],

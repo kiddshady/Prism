@@ -20,6 +20,13 @@
    donde cada subdominio es de otra persona (github.io, vercel.app…). Ahí el
    sitio es el subdominio: la contraseña de tu-blog.github.io NO se ofrece en
    el-de-otro.github.io.
+
+   ── Tarjetas ───────────────────────────────────────────────────────────────
+   Viven en la misma bóveda (kind: 'card'), así que van en el mismo blob
+   cifrado. No son de ningún sitio: se ofrecen en cualquier checkout seguro,
+   y por eso lo que las cuida está en otro lado (src/passwords.cjs). Lo
+   secreto de una tarjeta es el número, el código y el PIN: nada de eso sale
+   en la lista, que muestra la marca y los últimos cuatro.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const crypto = require('crypto');
@@ -80,6 +87,7 @@ function normalize(raw = {}, now = Date.now()) {
   const title = clip(raw.title, 200).trim() || prettyHost(hostOf(urls[0])) || 'Sin título';
   const time = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
   return {
+    kind: 'login',
     title,
     username: clip(raw.username, 300).trim(),
     email: clip(raw.email, 300).trim(),
@@ -92,13 +100,81 @@ function normalize(raw = {}, now = Date.now()) {
   };
 }
 
+/* ── Tarjetas ────────────────────────────────────────────────────────────── */
+
+const isCard = (it) => it?.kind === 'card';
+const digits = (v, max) => String(v ?? '').replace(/\D/g, '').slice(0, max);
+
+/** La marca por los primeros dígitos. '' si no se reconoce. */
+function brandOf(number) {
+  const n = digits(number, 19);
+  if (/^4/.test(n)) return 'visa';
+  if (/^3[47]/.test(n)) return 'amex';
+  if (/^589562/.test(n)) return 'naranja';
+  if (/^(589657|60420[1-3]|6271(70|71))/.test(n)) return 'cabal';
+  if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(n)) return 'mastercard';
+  if (/^(5018|5020|5038|5893|6304|6759|676[1-3])/.test(n)) return 'maestro';
+  if (/^3(0[0-5]|[689])/.test(n)) return 'diners';
+  if (/^(6011|65|64[4-9])/.test(n)) return 'discover';
+  return '';
+}
+const BRANDS = {
+  visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express', naranja: 'Naranja', cabal: 'Cabal',
+  maestro: 'Maestro', diners: 'Diners Club', discover: 'Discover',
+};
+const brandName = (b) => BRANDS[b] || '';
+
+/** Un vencimiento como venga ("2029-08", "082029", "08/29", "8/2029") → "2029-08". '' si no se entiende. */
+function parseExpiry(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  let r = s.match(/^(\d{4})-(\d{1,2})$/);
+  let m; let y;
+  if (r) [, y, m] = r;
+  else if ((r = s.match(/^(\d{1,2})\s*[/\-. ]\s*(\d{2}|\d{4})$/) || s.match(/^(\d{2})(\d{4}|\d{2})$/))) [, m, y] = r;
+  else return '';
+  const mm = Number(m);
+  const yy = Number(y) + (y.length === 2 ? 2000 : 0);
+  if (!(mm >= 1 && mm <= 12) || yy < 2000 || yy > 2099) return '';
+  return `${yy}-${String(mm).padStart(2, '0')}`;
+}
+
+/** "2029-08" → "08/29". */
+const shortExpiry = (e) => (e ? `${e.slice(5, 7)}/${e.slice(2, 4)}` : '');
+
+/** Una tarjeta que entra (del panel, de una importación), saneada. */
+function normalizeCard(raw = {}, now = Date.now()) {
+  const number = digits(raw.number, 19);
+  const brand = brandOf(number);
+  const last4 = number.slice(-4);
+  const end = last4 ? ` terminada en ${last4}` : '';
+  const time = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
+  return {
+    kind: 'card',
+    title: clip(raw.title, 200).trim() || `${brandName(brand) || 'Tarjeta'}${end}`,
+    holder: clip(raw.holder, 200).trim(),
+    number,
+    expiry: parseExpiry(raw.expiry),
+    cvv: digits(raw.cvv, 4),
+    pin: clip(raw.pin, 12).trim(),
+    note: clip(raw.note, 20000),
+    createdAt: time(raw.createdAt) || now,
+    modifiedAt: time(raw.modifiedAt) || time(raw.createdAt) || now,
+    lastUsedAt: time(raw.lastUsedAt),
+  };
+}
+
 /** Con qué se entra: el usuario si hay, si no el correo. */
 const loginOf = (it) => it.username || it.email || '';
 
-/** Un elemento para mostrar: todo menos la contraseña. */
+/** Un elemento para mostrar: todo menos lo secreto (la contraseña; el número, el código y el PIN). */
 function publicItem(it) {
+  if (isCard(it)) {
+    const { number, cvv, pin, ...rest } = it;
+    return { ...rest, brand: brandOf(number), last4: number.slice(-4), hasNumber: !!number, hasCvv: !!cvv, hasPin: !!pin };
+  }
   const { password, ...rest } = it;
-  return { ...rest, hasPassword: !!password, host: prettyHost(hostOf(it.urls[0])) };
+  return { ...rest, kind: 'login', hasPassword: !!password, host: prettyHost(hostOf(it.urls[0])) };
 }
 
 /* ── La bóveda ───────────────────────────────────────────────────────────── */
@@ -139,7 +215,9 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
     const prev = raw.id ? get(String(raw.id)) : null;
     if (raw.id && !prev) throw new Error('Ese elemento ya no existe.');
     const t = now();
-    const it = { ...normalize({ ...prev, ...raw }, t), id: prev?.id || newId() };
+    // Editar no cambia la clase: una contraseña no se vuelve tarjeta.
+    const card = prev ? isCard(prev) : raw.kind === 'card';
+    const it = { ...(card ? normalizeCard : normalize)({ ...prev, ...raw }, t), id: prev?.id || newId() };
     if (prev) {
       it.createdAt = prev.createdAt;
       it.lastUsedAt = prev.lastUsedAt;
@@ -167,6 +245,7 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
     const site = siteOf(host);
     const scored = [];
     for (const it of items) {
+      if (isCard(it)) continue;
       let score = 0;
       for (const u of it.urls) {
         const h = hostOf(u);
@@ -180,6 +259,10 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
       .map((x) => x.it);
   }
 
+  /** Las tarjetas, primero las usadas hace poco. */
+  const cards = () => items.filter(isCard)
+    .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0) || a.title.localeCompare(b.title, 'es', { sensitivity: 'base' }));
+
   async function markUsed(id) {
     const it = get(id);
     if (!it) return;
@@ -187,21 +270,24 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
     await persist().catch(() => {});
   }
 
-  /** Suma lo importado, salteando lo que ya está igual (mismo sitio, login y contraseña). */
+  /** Suma lo importado, salteando lo que ya está igual (mismo sitio, login y
+      contraseña; en una tarjeta, el mismo número). */
   async function importItems(list) {
-    const key = (it) => `${siteOf(hostOf(it.urls[0]))}|${loginOf(it).toLowerCase()}|${it.password}`;
+    const key = (it) => (isCard(it) ? `card|${it.number}` : `${siteOf(hostOf(it.urls[0]))}|${loginOf(it).toLowerCase()}|${it.password}`);
     const seen = new Set(items.map(key));
-    let added = 0; let repeated = 0;
+    let added = 0; let repeated = 0; let cardsAdded = 0;
     for (const raw of list) {
-      const it = { ...normalize(raw, now()), id: newId() };
+      const card = raw?.kind === 'card';
+      const it = { ...(card ? normalizeCard : normalize)(raw, now()), id: newId() };
       const k = key(it);
       if (seen.has(k)) { repeated++; continue; }
       seen.add(k);
       items.push(it);
       added++;
+      if (card) cardsAdded++;
     }
     if (added) await persist();
-    return { added, repeated };
+    return { added, repeated, cards: cardsAdded };
   }
 
   return {
@@ -213,6 +299,7 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
     save,
     remove,
     findFor,
+    cards,
     markUsed,
     importItems,
   };
@@ -298,9 +385,25 @@ function fromProtonJson(data) {
   for (const vault of Object.values(data.vaults)) {
     for (const item of vault?.items || []) {
       const d = item?.data || {};
-      // state 2 es la papelera de Proton Pass.
-      if (d.type !== 'login' || item.state === 2) { skipped++; continue; }
       const c = d.content || {};
+      // state 2 es la papelera de Proton Pass.
+      if (item.state === 2 || (d.type !== 'login' && d.type !== 'creditCard')) { skipped++; continue; }
+      if (d.type === 'creditCard') {
+        out.push({
+          kind: 'card',
+          title: d.metadata?.name,
+          holder: c.cardholderName,
+          number: c.number,
+          expiry: c.expirationDate,
+          cvv: c.verificationNumber,
+          pin: c.pin,
+          note: d.metadata?.note,
+          createdAt: timeOf(item.createTime),
+          modifiedAt: timeOf(item.modifyTime),
+          lastUsedAt: timeOf(item.lastUseTime),
+        });
+        continue;
+      }
       out.push({
         title: d.metadata?.name,
         username: c.itemUsername ?? (c.itemEmail == null ? c.username : ''),
@@ -366,5 +469,6 @@ function parseExport(name, buf) {
 
 module.exports = {
   createVault, hostOf, siteOf, prettyHost, loginOf, publicItem, normalize,
+  isCard, brandOf, brandName, parseExpiry, shortExpiry, normalizeCard,
   parseCsv, fromCsv, fromProtonJson, unzip, parseExport, timeOf,
 };

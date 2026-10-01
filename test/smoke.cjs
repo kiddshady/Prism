@@ -65,6 +65,31 @@ const PAGES = {
   '/titulo-largo': `<title>${'Un título larguísimo como el de un posteo de X, que no entra en una línea '.repeat(3)}</title><body></body>`,
   '/login': '<title>Login</title><body><form action="/bienvenida" method="post"><input id="u" name="usuario" autocomplete="username"><input id="p" type="password" name="clave"><button id="b">Entrar</button></form></body>',
   '/bienvenida': '<title>Bienvenida</title><body><h1>Adentro</h1></body>',
+  /* Un checkout sin autocomplete (todo por nombres), con el vencimiento en dos
+     selects, el código en un campo de contraseña y el DNI del titular, que se
+     parece pero no es de la tarjeta. */
+  '/pago': `<title>Pago</title><body style="font:16px sans-serif"><form id="f">
+    <input id="nom" name="cardholder" placeholder="Nombre como figura en la tarjeta">
+    <input id="num" name="numeroTarjeta" placeholder="1234 1234 1234 1234">
+    <select id="mes" name="mesVencimiento"><option value="">Mes</option>${Array.from({ length: 12 }, (_, i) => `<option value="${String(i + 1).padStart(2, '0')}">${String(i + 1).padStart(2, '0')}</option>`).join('')}</select>
+    <select id="anio" name="anioVencimiento"><option value="">Año</option>${Array.from({ length: 10 }, (_, i) => `<option>${2026 + i}</option>`).join('')}</select>
+    <input id="cvv" type="password" name="cvv" maxlength="4">
+    <input id="dni" name="dniTitular" placeholder="DNI del titular">
+    <button id="pagar">Pagar</button></form></body>`,
+  /* Como Stripe o Mercado Pago: el titular en la página, el número en un
+     iframe de otro sitio, y al lado un iframe de un tercero (publicidad) con
+     un campo que dice ser de tarjeta. */
+  '/pago-iframe': `<title>Pago iframe</title><body style="margin:0;font:16px sans-serif"><div style="padding:40px">
+    <input id="nom" autocomplete="cc-name" placeholder="Titular">
+    <iframe id="pay" width="420" height="44" style="border:0;display:block;margin-top:20px"></iframe>
+    <iframe id="ad" width="300" height="44" style="border:0;display:block;margin-top:160px"></iframe></div>
+    <script>const p = location.port; pay.src = 'http://localhost:' + p + '/campos'; ad.src = 'http://ads.localhost:' + p + '/anuncio';</script></body>`,
+  '/campos': '<body style="margin:0"><input id="n" autocomplete="cc-number" style="width:200px;height:30px"><input id="e" autocomplete="cc-exp" placeholder="MM / AA" style="width:80px;height:30px"><input id="c" autocomplete="cc-csc" style="width:60px;height:30px"></body>',
+  /* El mismo checkout con el iframe del mismo origen (mismo proceso): ahí
+     sendInputEvent sí llega con el teclado, y se prueba el camino de las
+     flechas y el Enter que el iframe le pasa a la lista de arriba. */
+  '/pago-iframe-mismo': '<title>Pago mismo</title><body style="margin:0"><div style="padding:40px"><iframe id="pay" src="/campos" width="420" height="44" style="border:0;display:block"></iframe></div></body>',
+  '/anuncio': '<body style="margin:0"><input id="n" autocomplete="cc-number" style="width:200px;height:30px"></body>',
   '/geo': '<title>Geo</title><body><script>navigator.geolocation.getCurrentPosition(()=>{},()=>{})</script></body>',
   /* Lo que hace una videollamada al entrar: mira el permiso, pide cámara y
      micrófono, y lista los dispositivos. */
@@ -640,9 +665,92 @@ app.whenReady().then(async () => {
   ok('con el detalle, la nota y las fechas', await until(() => js(`(() => { const t = document.querySelector('#pp-main').innerText; return t.includes('Prueba') && t.includes('una notita') && t.includes('Último completado automático'); })()`)));
   ok('la contraseña no está en el cromo hasta que se pide', await js(`!document.querySelector('.pr-pass').innerText.includes('nueva')`));
   await js(`document.querySelector('[data-a=reveal]').click()`);
-  ok('mostrarla la trae', await until(() => js(`document.getElementById('pp-secret').textContent === 'nueva'`)));
+  ok('mostrarla la trae', await until(() => js(`document.getElementById('pp-secret-password').textContent === 'nueva'`)));
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   ok('Escape cierra el panel', await until(() => js(`!document.querySelector('.pr-pass')`)));
+  ctx.tabs.close(ctx.tabs.active.id);
+
+  console.log('\n9b2. Tarjetas');
+  /* La de prueba de Stripe: no es de nadie. */
+  const tarjetaPrueba = await V.save({ kind: 'card', title: 'Débito de prueba', holder: 'Fran Pavez', number: '4242 4242 4242 4242', expiry: '08/29', cvv: '123' });
+  ok('la tarjetaPrueba tampoco queda a la vista en disco', !fs.readFileSync(path.join(process.env.PRISM_DATA, 'vault.json'), 'utf8').includes('4242'));
+  /** Un clic de verdad (mouseDown + mouseUp) en un campo; de un iframe, solo dónde está. */
+  const clickIn = async (wc, sel, frame = null, { click = true } = {}) => {
+    const rect = (code, f) => (f ? f.executeJavaScript(code) : wc.executeJavaScript(code));
+    const of = (s) => `(() => { const r = document.querySelector('${s}').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; })()`;
+    const r = await rect(of(sel), frame?.f);
+    const o = frame ? await wc.executeJavaScript(`(() => { const r = document.querySelector('${frame.sel}').getBoundingClientRect(); return { x: r.left, y: r.top }; })()`) : { x: 0, y: 0 };
+    const at = { x: Math.round(o.x + r.x + r.w / 2), y: Math.round(o.y + r.y + r.h / 2) };
+    wc.focus();
+    if (click) for (const type of ['mouseDown', 'mouseUp']) wc.sendInputEvent({ type, x: at.x, y: at.y, button: 'left', clickCount: 1 });
+    return { ...at, bottom: Math.round(o.y + r.y + r.h) };
+  };
+  const conLista = (wc) => wc.executeJavaScript(`[...document.documentElement.children].some((e) => e.tagName === 'DIV' && !e.shadowRoot)`);
+  const elegir = async (wc) => {
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Down' });
+    await sleep(250);
+    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+  };
+
+  ctx.tabs.create({ url: `${BASE}/pago` });
+  ok('carga el checkout', await until(() => ctx.tabs.active.title === 'Pago' && !ctx.tabs.active.loading));
+  const cwc = ctx.tabs.active.view.webContents;
+  await clickIn(cwc, '#num');
+  ok('enfocar el número cuelga la lista de tarjetas', await until(() => conLista(cwc)));
+  await elegir(cwc);
+  const valores = () => cwc.executeJavaScript(`['nom', 'num', 'mes', 'anio', 'cvv', 'dni'].map((id) => document.getElementById(id).value).join('|')`);
+  ok('elegir completa titular, número, vencimiento (en selects) y código', await until(async () => (await valores()) === 'Fran Pavez|4242424242424242|08|2029|123|'), await valores());
+  ok('y anota el último pago', await until(() => !!V.get(tarjetaPrueba.id).lastUsedAt));
+  await clickIn(cwc, '#pagar');
+  await sleep(2500);
+  ok('un código en un campo de contraseña no ofrece guardarse', await js(`!document.querySelector('.pr-offer')`));
+  ctx.tabs.close(ctx.tabs.active.id);
+
+  ctx.tabs.create({ url: `${BASE}/pago-iframe` });
+  ok('carga el checkout con iframes', await until(() => ctx.tabs.active.title === 'Pago iframe' && !ctx.tabs.active.loading));
+  const iwc = ctx.tabs.active.view.webContents;
+  const frameDe = (p) => iwc.mainFrame.framesInSubtree.find((f) => f.url.includes(p));
+  ok('los dos iframes cargan (localhost y ads.localhost)', await until(async () => {
+    const a = frameDe('/campos'); const b = frameDe('/anuncio');
+    return !!a && !!b && await a.executeJavaScript('!!document.getElementById("c")') && await b.executeJavaScript('!!document.getElementById("n")');
+  }, 8000));
+  const pay = { f: frameDe('/campos'), sel: '#pay' };
+  /* sendInputEvent no lleva un clic adentro de un iframe de otro proceso:
+     enfoca el <iframe> y nada más. Así que el clic va (le da el foco al
+     iframe) y el campo se enfoca por script. El clic en la lista y las
+     teclas, que son los que tienen que ser de verdad, van por sendInputEvent. */
+  const enfocar = () => pay.f.executeJavaScript(`document.getElementById('n').focus(); true`);
+  const campo = await clickIn(iwc, '#n', pay);
+  await sleep(150);
+  await enfocar();
+  ok('el campo del iframe cuelga la lista en la página de arriba', await until(() => conLista(iwc)));
+  await sleep(250);
+  // La primera fila: debajo del campo, 4 de margen + 4 de relleno + la mitad de 44.
+  for (const type of ['mouseDown', 'mouseUp']) iwc.sendInputEvent({ type, x: campo.x, y: campo.bottom + 30, button: 'left', clickCount: 1 });
+  const enIframe = () => pay.f.executeJavaScript(`['n', 'e', 'c'].map((id) => document.getElementById(id).value).join('|')`);
+  ok('un clic en la lista completa número, vencimiento y código en el iframe', await until(async () => (await enIframe()) === '4242424242424242|08 / 29|123'), await enIframe());
+  ok('y el titular en la página', await iwc.executeJavaScript(`document.getElementById('nom').value`) === 'Fran Pavez');
+  ok('el iframe de un tercero no recibe nada', await frameDe('/anuncio').executeJavaScript(`document.getElementById('n').value`) === '');
+  await pay.f.executeJavaScript(`['n', 'e', 'c'].forEach((id) => { document.getElementById(id).value = ''; }); document.activeElement.blur(); true`);
+  await sleep(300);
+  await enfocar();
+  ok('volver al campo la cuelga de nuevo', await until(() => conLista(iwc)));
+  ctx.tabs.close(ctx.tabs.active.id);
+
+  ctx.tabs.create({ url: `${BASE}/pago-iframe-mismo` });
+  ok('carga el checkout con un iframe del mismo origen', await until(() => ctx.tabs.active.title === 'Pago mismo' && !ctx.tabs.active.loading));
+  const mwc = ctx.tabs.active.view.webContents;
+  const mismo = () => mwc.mainFrame.framesInSubtree.find((f) => f.url.includes('/campos'));
+  await until(async () => !!mismo() && await mismo().executeJavaScript('!!document.getElementById("c")'));
+  await sleep(600);   // que la pestaña nueva termine de pintarse: antes, el clic no encuentra el iframe
+  await clickIn(mwc, '#n', { f: mismo(), sel: '#pay' });
+  ok('el clic en el campo del iframe cuelga la lista arriba', await until(() => conLista(mwc)), JSON.stringify({
+    arriba: await mwc.executeJavaScript('document.activeElement?.tagName'), adentro: await mismo().executeJavaScript('document.activeElement?.id'),
+    url: mismo().url, cards: V.cards().length, foco: mwc.isFocused(),
+  }));
+  await elegir(mwc);
+  const enMismo = () => mismo().executeJavaScript(`['n', 'e', 'c'].map((id) => document.getElementById(id).value).join('|')`);
+  ok('las flechas y el Enter desde el iframe eligen y completan', await until(async () => (await enMismo()) === '4242424242424242|08 / 29|123'), await enMismo());
   ctx.tabs.close(ctx.tabs.active.id);
 
   console.log('\n9c. El IPC del cromo no atiende a las páginas');
@@ -665,6 +773,8 @@ app.whenReady().then(async () => {
   ok('bookmarks:add tampoco', r2?.ok === false && !ctx.library.listBookmarks().some((b) => b.url === 'https://malo.example/'), JSON.stringify(r2));
   const r3 = await desde(`__ipc.invoke('pass:list')`);
   ok('ni la lista de contraseñas', r3?.ok === false && !r3.data, JSON.stringify(r3));
+  const rt = await desde(`__ipc.invoke('pay:query').then((l) => __ipc.invoke('pay:fill', l[0]?.id).then((r) => ({ n: l.length, r })))`);
+  ok('una página puede ver qué tarjetas hay, pero no completarlas sin un clic de la persona', rt?.n === 1 && rt.r === false, JSON.stringify(rt));
   const r4 = await desde(`__ipc.invoke('update:state')`);
   ok('los canales de main.cjs rechazan', !!r4?.rechazado, JSON.stringify(r4));
   await desde(`__ipc.send('win:minimize'); __ipc.send('win:toggle-maximize'); true`);

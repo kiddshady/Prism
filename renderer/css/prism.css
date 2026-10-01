@@ -1037,6 +1037,10 @@
   background: rgb(0 0 0 / .12);
   box-shadow: inset -1px 0 0 var(--op-line);
 }
+/* Contraseñas o tarjetas: el segmentado ocupa el ancho de la columna. */
+.pr-pass__kinds { padding: var(--op-3) var(--op-3) 0; }
+.pr-pass__kinds .op-segmented { display: grid; width: 100%; }
+.pr-pass__kinds + .pr-pass__top { padding-top: var(--op-2); }
 .pr-pass__top { display: flex; align-items: center; gap: var(--op-1); padding: var(--op-3) var(--op-2) var(--op-1) var(--op-3); }
 .pr-pass__search { flex: 1 1 auto; min-width: 0; }
 .pr-pass__list { --op-fade: 12px; flex: 1 1 auto; min-height: 0; padding-left: var(--op-2); padding-right: var(--op-2); }
@@ -1085,6 +1089,9 @@
 .pr-pass__tile--lg { width: 42px; height: 42px; border-radius: var(--op-r-lg); }
 .pr-pass__tile--lg img { width: 22px; height: 22px; }
 .pr-pass__tile--lg .pr-pass__letter { font-size: var(--op-fs-15); }
+.pr-pass__tile--card { color: var(--op-text-2); }
+.pr-pass__tile--card .op-icon { width: 16px; height: 16px; }
+.pr-pass__tile--lg.pr-pass__tile--card .op-icon { width: 21px; height: 21px; }
 
 .pr-pass__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .pr-pass__view {
@@ -1158,6 +1165,8 @@
   color: var(--op-text-2);
   background: radial-gradient(circle, currentColor 2.2px, transparent 2.8px) 0 50% / 9px 8px repeat-x;
 }
+/* Cuatro puntos: lo tapado de un número de tarjeta, de un código, de un PIN. */
+.pr-pass__dots--4 { width: 36px; }
 
 /* Copiar y mostrar: los dos íconos apilados cruzan de uno al otro. */
 .pr-pass__copy,
@@ -1241,6 +1250,7 @@
 .pr-pass__pwwrap .op-input { padding-right: 38px; }
 .pr-pass__pwwrap .pr-pass__eye { position: absolute; right: 3px; }
 .pr-pass__urlsinput { min-height: 60px; font-family: var(--op-mono); font-size: 12px; }
+.pr-pass__formrow--3 { grid-template-columns: 1fr 1fr 1fr; }
 .pr-pass__formactions { display: flex; justify-content: flex-end; gap: var(--op-2); }
 
 /* "¿Guardar la contraseña?" */
