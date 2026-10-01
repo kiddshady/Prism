@@ -772,6 +772,42 @@
 .pr-bmbar__more { flex: 0 0 auto; margin-top: 2px; color: var(--op-text-3); }
 .pr-bmbar__more[hidden] { display: none; }
 
+/* El menú de la punta (bmbar.js): un menú de Opal con los favicons de la
+   barra, cuyas filas se arrastran. Mismo trato que el arrastre de la barra:
+   las del camino se corren con transición, la que se arrastra va opaca y
+   levantada, y al soltar viaja a su hueco. La que sale hacia la barra queda
+   tenue en su lugar mientras un fantasma sigue al mouse. */
+.pr-bmmenu { max-width: 320px; }
+.pr-bmmenu__item > img { width: 14px; height: 14px; flex: 0 0 auto; border-radius: 3px; }
+.pr-bmmenu.is-sorting .pr-bmmenu__item { transition: var(--tr-color), transform var(--op-t-2) var(--op-ease), opacity var(--op-t-1) var(--op-ease-soft); }
+.pr-bmmenu.is-sorting .pr-bmmenu__item:not(.is-dragging):hover { background: transparent; color: var(--op-text-2); }
+.pr-bmmenu .pr-bmmenu__item.is-dragging,
+.pr-bmmenu .pr-bmmenu__item.is-dropping {
+  position: relative;
+  z-index: 2;
+  background: color-mix(in srgb, #fff 10%, var(--op-bg));
+  color: var(--op-text);
+  box-shadow: var(--op-sheet), 0 2px 6px rgb(0 0 0 / .35);
+}
+.pr-bmmenu .pr-bmmenu__item.is-dragging { transition: var(--tr-color); cursor: grabbing; }
+.pr-bmmenu .pr-bmmenu__item.is-away { opacity: .35; }
+/* El fantasma: un favorito de la barra que viaja pegado al mouse. Entra y se
+   va solo con opacidad: el transform es su posición (y el `.pr-bm` que se va
+   con escala lo correría a la esquina). */
+.pr-bm.pr-bm--ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 10;
+  pointer-events: none;
+  background: color-mix(in srgb, #fff 10%, var(--op-bg));
+  color: var(--op-text);
+  box-shadow: var(--op-sheet), 0 4px 12px rgb(0 0 0 / .45);
+  animation: op-fade-in var(--op-t-1) var(--op-ease-soft) both;
+}
+.pr-bm.pr-bm--ghost.is-landing { transition: transform var(--op-t-2) var(--op-ease); }
+.pr-bm.pr-bm--ghost[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
+
 /* Sin favoritos: cómo sumar uno. */
 .pr-bmbar__empty {
   display: flex;

@@ -51,7 +51,8 @@ npm run release # publica en GitHub (ver abajo)
 - **Barra de favoritos** debajo de la de direcciones, como en Chrome
   (Ctrl+Mayús+B la muestra u oculta). Lo que no entra queda en la flecha de la
   punta; se arrastran para cambiarlos de lugar, y el botón del medio abre en
-  una pestaña nueva.
+  una pestaña nueva. Los de la flecha también se arrastran: adentro del menú
+  para reordenarlos, o afuera hasta la barra para ponerlos a la vista.
 - **Incógnito** (Ctrl+Mayús+N), con su fantasmita: una ventana aparte con su
   propia sesión en memoria, nueva cada vez. No anota historial, no recuerda
   permisos ni ofrece guardar contraseñas, y al cerrarla se borra todo. Los

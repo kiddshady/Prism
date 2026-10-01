@@ -889,6 +889,58 @@ app.whenReady().then(async () => {
     JSON.stringify({ orden: ctx.library.listBookmarks().map((x) => x.title), primero, desde: [bx, by, bx1], barra: await js(`[...document.querySelectorAll('.pr-bm')].map((e) => e.textContent.trim() + '|' + e.className + '|' + Math.round(e.getBoundingClientRect().x))`) }));
   ok('y soltarlo no lo abre', ctx.tabs.active.url === urlAntes);
 
+  /* El menú de la flecha: los que no entran también se arrastran, adentro del
+     menú para reordenarlos y afuera hasta la barra para ponerlos a la vista. */
+  for (let i = 1; i <= 14; i++) ctx.library.addBookmark({ url: `${BASE}/?n=${i}`, title: `Favorito número ${i} con un nombre largo` });
+  ctx.send('library:changed');
+  ok('los que no entran van a la flecha', await until(() => js(`!document.getElementById('bmbar-more').hidden && !document.querySelector('.pr-bm.is-entering, .pr-bm.is-flipping')`)));
+  await sleep(350);
+  const centro = (sel) => js(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)]; })()`);
+  const clic = async ([x, y]) => { for (const type of ['mouseDown', 'mouseUp']) win.webContents.sendInputEvent({ type, x, y, button: 'left', clickCount: 1 }); };
+  const arrastrar = async ([x0, y0], [x1, y1], pasos = 10) => {
+    win.webContents.sendInputEvent({ type: 'mouseDown', x: x0, y: y0, button: 'left', clickCount: 1 });
+    for (let i = 1; i <= pasos; i++) {
+      win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(x0 + ((x1 - x0) * i) / pasos), y: Math.round(y0 + ((y1 - y0) * i) / pasos), button: 'left', modifiers: ['leftButtonDown'] });
+      await sleep(30);
+    }
+  };
+  const soltar = ([x, y]) => win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+  const ids = () => ctx.library.listBookmarks().map((b) => b.id);
+  const menuAbierto = () => js(`document.querySelectorAll('.pr-bmmenu:not([data-state="closing"]) .pr-bmmenu__item').length`);
+
+  await clic(await centro('#bmbar-more'));
+  ok('la flecha abre el menú de los escondidos', await until(async () => (await menuAbierto()) > 2));
+  const filasMenu = await js(`[...document.querySelectorAll('.pr-bmmenu__item')].map((r) => { const b = r.getBoundingClientRect(); return { id: r.dataset.id, x: Math.round(b.x + 40), y: Math.round(b.y + b.height / 2), h: Math.round(b.height) }; })`);
+  const [filaA, filaB] = filasMenu;
+  // La primera fila, un lugar y medio para abajo: cae después de la segunda.
+  await arrastrar([filaA.x, filaA.y], [filaA.x, Math.round(filaA.y + filaA.h * 1.4)]);
+  ok('la fila que se arrastra va opaca', await js(`(() => { const e = document.querySelector('.pr-bmmenu__item.is-dragging'); return !!e && !/rgba\\(|\\/\\s*0?\\.\\d/.test(getComputedStyle(e).backgroundColor); })()`));
+  soltar([filaA.x, Math.round(filaA.y + filaA.h * 1.4)]);
+  ok('arrastrar adentro del menú los cambia de lugar', await until(() => { const o = ids(); return o.indexOf(filaA.id) === o.indexOf(filaB.id) + 1; }), JSON.stringify(ctx.library.listBookmarks().map((b) => b.title)));
+  ok('y el menú sigue abierto, con las filas en su lugar', await until(async () => (await menuAbierto()) > 2 && (await js(`[...document.querySelectorAll('.pr-bmmenu__item')].map((r) => r.dataset.id).indexOf(${JSON.stringify(filaA.id)})`)) === 1 && await js(`![...document.querySelectorAll('.pr-bmmenu__item')].some((r) => r.style.transform)`)));
+
+  // Ahora la primera del menú (la que era segunda), afuera, hasta el principio de la barra.
+  const [bx0, by0] = await js(`(() => { const r = document.querySelector('.pr-bm:not([hidden])').getBoundingClientRect(); return [Math.round(r.x + 6), Math.round(r.y + r.height / 2)]; })()`);
+  const fila0 = await js(`(() => { const r = document.querySelector('.pr-bmmenu__item').getBoundingClientRect(); return [Math.round(r.x + 40), Math.round(r.y + r.height / 2)]; })()`);
+  await arrastrar(fila0, [bx0, by0], 14);
+  ok('afuera del menú la sigue un fantasma', await js(`!!document.querySelector('.pr-bm--ghost:not([data-state="closing"])')`));
+  ok('y la barra le abre un hueco al principio', await until(() => js(`/translateX\\(\\d/.test(document.querySelector('.pr-bm:not([hidden])').style.transform)`)));
+  soltar([bx0, by0]);
+  ok('soltarlo en la barra lo pone a la vista ahí', await until(() => ids()[0] === filaB.id), JSON.stringify(ctx.library.listBookmarks().slice(0, 3).map((b) => b.title)));
+  ok('primero en la barra', await until(() => js(`document.querySelector('.pr-bm:not([hidden]):not([data-state="closing"])')?.dataset.id === ${JSON.stringify(filaB.id)} && !document.querySelector('.pr-bm.is-entering, .pr-bm.is-flipping')`)));
+  ok('el menú se cierra y no queda ningún fantasma', await until(async () => (await menuAbierto()) === 0 && await js(`!document.querySelector('.pr-bm--ghost')`)));
+  ok('ni la barra corrida', await until(() => js(`![...document.querySelectorAll('.pr-bm')].some((b) => b.style.transform) && !document.getElementById('bmbar').classList.contains('is-sorting')`)));
+
+  // Un clic, sin arrastrar, sigue abriendo el favorito.
+  await sleep(300);
+  await clic(await centro('#bmbar-more'));
+  await until(async () => (await menuAbierto()) > 0);
+  const abre = await js(`document.querySelector('.pr-bmmenu__item').dataset.id`);
+  await clic(await centro('.pr-bmmenu__item'));
+  const urlAbre = ctx.library.listBookmarks().find((b) => b.id === abre)?.url;
+  ok('un clic en el menú abre el favorito', await until(() => ctx.tabs.active.url === urlAbre), `${ctx.tabs.active.url} vs ${urlAbre}`);
+  ok('y lo cierra', await until(async () => (await menuAbierto()) === 0));
+
   console.log('\n11d. Incógnito');
   const g = ctx.openIncognito();
   const gjs = (c) => g.win.webContents.executeJavaScript(c);
