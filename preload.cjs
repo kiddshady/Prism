@@ -186,6 +186,12 @@ contextBridge.exposeInMainWorld('prism', {
     make: () => call('default:make'),
   },
 
+  /** Arrancar con Windows, escondido en la bandeja. */
+  autostart: {
+    state: () => call('autostart:state'),
+    set: (on) => call('autostart:set', on),
+  },
+
   data: {
     clear: (what) => call('data:clear', what),
     chooseFolder: (current) => call('dialog:folder', current),

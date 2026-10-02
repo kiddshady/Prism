@@ -710,8 +710,9 @@ function settingsPage() {
       </section>
 
       <section class="pr-set" style="--i:1">
-        <div class="pr-set__head">${Icons.svg('link')}<span class="pr-set__title">Navegador predeterminado</span></div>
+        <div class="pr-set__head">${Icons.svg('window')}<span class="pr-set__title">Windows</span></div>
         <div class="pr-dflt">${defaultStateHTML(' is-first')}</div>
+        ${autostartHTML()}
       </section>
 
       <section class="pr-set" style="--i:1">
@@ -840,6 +841,20 @@ function settingsPage() {
   }
 
   col.addEventListener('click', async (e) => {
+    const as = e.target.closest('[data-autostart]');
+    if (as) {
+      // Como los otros switches: se mueve ya, y solo la última respuesta lo acomoda.
+      const on = as.classList.toggle('is-on');
+      const seq = ++autostartSeq;
+      try {
+        S.autostart = await api.autostart.set(on);
+      } catch (err) {
+        say(`No se pudo cambiar el arranque con Windows: ${err.message}`, { icon: 'alert', tone: 'error' });
+        S.autostart = await api.autostart.state().catch(() => S.autostart);
+      }
+      if (seq === autostartSeq) as.classList.toggle('is-on', !!S.autostart?.on);
+      return;
+    }
     const tg = e.target.closest('[data-toggle]');
     if (tg) {
       // Se guarda lo que muestra el switch, no "lo contrario de S.settings":
@@ -1009,12 +1024,40 @@ async function makeDefault(btn) {
   relayAllDefault();
 }
 
+/* ══ Arrancar con Windows ═══════════════════════════════════════════════════
+   Lo sabe Windows, no un ajuste (autostart.cjs): se puede apagar también
+   desde Configuración → Aplicaciones → Inicio. Por eso se pregunta al abrir
+   y cada vez que la ventana vuelve con Ajustes a la vista. */
+
+let autostartSeq = 0;
+
+function autostartHTML() {
+  const a = S.autostart;
+  const hint = a && !a.supported
+    ? 'Se prende desde Prism instalado: esta copia corre desde el código, y Windows no tiene cómo abrirla.'
+    : 'Al iniciar sesión, Prism carga escondido en la bandeja: aparece al instante con un clic en su ícono o con Ctrl+Alt+P.';
+  const ctl = a && !a.supported ? '' : `<div class="pr-opt__ctl"><button class="op-switch${a?.on ? ' is-on' : ''}" data-autostart aria-label="Arrancar con Windows"></button></div>`;
+  return `<div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Arrancar con Windows</div>
+      <div class="pr-opt__hint">${hint}</div></div>${ctl}</div>`;
+}
+
+/** Le pregunta a Windows y mueve el switch en su lugar (con su transición). */
+function refreshAutostart() {
+  return api.autostart.state().then((a) => {
+    const was = S.autostart;
+    S.autostart = a;
+    if (was?.supported !== a.supported) return refresh(['ajustes']);
+    document.querySelectorAll('[data-autostart]').forEach((b) => b.classList.toggle('is-on', a.on));
+  }).catch((err) => console.error('[arranque]', err));
+}
+
 const settingsVisible = () => surfaces.some((sf) => sf.current?.name === 'ajustes');
 
 /* La vuelta desde la pantalla de Windows. Si se esperaba el cambio, se
    pregunta otra vez un rato después: Windows puede anotarlo un instante
    después de que la persona ya volvió. */
 function onWindowFocus() {
+  if (settingsVisible()) refreshAutostart();
   if (!dfltWaiting && !settingsVisible()) return;
   refreshDefault().then(() => { if (dfltWaiting) setTimeout(refreshDefault, 1200); });
 }
@@ -1103,6 +1146,7 @@ export function init() {
   on('update', () => refresh(['ajustes']));
   render();
   refreshDefault();
+  refreshAutostart();
   window.addEventListener('focus', onWindowFocus);
 }
 

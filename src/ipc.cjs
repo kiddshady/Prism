@@ -324,6 +324,10 @@ function register() {
   handle('default:state', (ctx) => ctx.defaultBrowser.state());
   handle('default:make', (ctx) => ctx.defaultBrowser.makeDefault());
 
+  /* Arrancar con Windows (autostart.cjs): lo que diga Windows, no un ajuste. */
+  handle('autostart:state', (ctx) => ctx.autostart.state());
+  handle('autostart:set', (ctx, on) => ctx.autostart.set(on === true));
+
   handle('app:relaunch', (ctx) => { app.relaunch(); app.quit(); return true; });
   handle('app:open-data', (ctx) => shell.openPath(store.ROOT));
 

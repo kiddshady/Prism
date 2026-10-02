@@ -41,6 +41,7 @@ const { createPip } = require('./src/pip.cjs');
 const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
 const { createDefaultBrowser, targetsFromArgv } = require('./src/default-browser.cjs');
+const { createAutostart, HIDDEN } = require('./src/autostart.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
    renderer lo vuelve a mandar apenas carga (win.setBackground), así que este
@@ -242,6 +243,18 @@ function saveWindowState() {
   }, 400);
 }
 
+/* El primer show() de una ventana: nace FUERA de pantalla (x/y -20000) y se
+   muestra ahí, donde el destello del compositor no lo ve nadie; recién
+   después va a su lugar. */
+function place(win, state) {
+  win.show();
+  setTimeout(() => {
+    if (win.isDestroyed()) return;
+    win.setPosition(state.x, state.y);
+    if (state.maximized) win.maximize();
+  }, 200);
+}
+
 /* La misma ventana para las dos: la normal (que recuerda dónde estaba y se va
    a la bandeja al cerrarla) y la de incógnito (que se cierra de verdad). */
 function createWindow(w, state) {
@@ -273,13 +286,13 @@ function createWindow(w, state) {
 
   win.once('ready-to-show', () => {
     if (SHOTS) { win.showInactive(); return; }
-    win.show();
-    setTimeout(() => {
-      if (win.isDestroyed()) return;
-      win.setPosition(state.x, state.y);
-      if (state.maximized) win.maximize();
-    }, 200);
+    /* Arrancó con Windows: carga escondida en la bandeja. El primer show()
+       (fuera de pantalla, y recién después a su lugar) queda para cuando la
+       persona la llame — ver showMain. */
+    if (state.hidden) return;
+    place(win, state);
   });
+  if (state.hidden) w.unplaced = state;
 
   if (process.argv.includes('--dev')) {
     win.webContents.on('console-message', (e) => {
@@ -369,6 +382,13 @@ let quitting = false;
 function showMain() {
   const win = ctx.win;
   if (!win || win.isDestroyed()) return;
+  // Escondida desde el arranque con Windows: este es su primer show().
+  if (ctx.unplaced) {
+    const state = ctx.unplaced;
+    ctx.unplaced = null;
+    place(win, state);
+    return;
+  }
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
@@ -549,6 +569,7 @@ app.whenReady().then(async () => {
   // Una sola ventanita para todas las ventanas (la de incógnito la hereda).
   ctx.pip = createPip({ store, icon: path.join(__dirname, 'build', 'icon.png') });
   ctx.defaultBrowser = createDefaultBrowser({ app, shell });
+  ctx.autostart = createAutostart({ app });
 
   await Promise.all([
     ctx.library.load().catch((err) => console.error('[library]', err.message)),
@@ -558,10 +579,14 @@ app.whenReady().then(async () => {
 
   ipc.register();
   ctx.tabs = createTabs(ctx);
-  createWindow(ctx, await loadWindowState());
+  /* Lanzado por el arranque con Windows (autostart.cjs): carga escondido. */
+  const hidden = !SHOTS && process.argv.includes(HIDDEN);
+  createWindow(ctx, { ...(await loadWindowState()), hidden });
   // La bandeja no se crea en modo verificación: no tiene por qué aparecer un
   // ícono en la barra de la persona mientras corren las pruebas.
   if (!SHOTS || process.env.PRISM_TRAY) createTray();
+  // Sin bandeja no habría de dónde sacarlo: se muestra igual.
+  if (hidden && !tray) showMain();
   /* Ctrl+Alt+P desde cualquier lado de Windows: muestra u oculta Prism (ver
      toggleMain). Global de verdad, así que en las pruebas no: le robaría el
      atajo al Prism de todos los días. */
@@ -587,6 +612,9 @@ app.whenReady().then(async () => {
      de fondo, un rato después de arrancar: no le roba nada a la ventana. */
   if (ctx.defaultBrowser.supported && !SHOTS) {
     setTimeout(() => ctx.defaultBrowser.register().catch((err) => console.error('[predeterminado]', err.message)), 5000);
+  }
+  if (!SHOTS) {
+    try { ctx.autostart.refresh(); } catch (err) { console.error('[arranque]', err.message); }
   }
 });
 
