@@ -43,7 +43,7 @@
    video está afuera.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { WebContentsView, clipboard, nativeImage, shell } = require('electron');
+const { WebContentsView, clipboard, nativeImage, screen, shell } = require('electron');
 const omni = require('./omni.cjs');
 
 const BG = '#0a0a0a';
@@ -517,6 +517,30 @@ function createTabs(ctx) {
         create({ url, active: true });
         return { action: 'deny' };
       });
+      child.webContents.on('dom-ready', () => growIfPdf(child));
+    });
+  }
+
+  /* El campus abre sus PDF en una ventanita con tamaño (window.open con
+     width/height), y Prism le da 520 px. Ahí, con la columna de miniaturas
+     abierta, al visor de Chromium le quedan ~200 px para la hoja y la ajusta
+     al mínimo: 25 %. Si lo que cargó es un PDF, la ventana crece en dom-ready,
+     antes de que el visor calcule su zoom: con lugar, abre en 100 % (ajustar
+     al ancho nunca pasa de ahí). Los popups que no son PDF (un login, un
+     pago) quedan como estaban. */
+  async function growIfPdf(win) {
+    if (win.isDestroyed() || win.grownForPdf) return;
+    const type = await win.webContents.executeJavaScript('document.contentType', true).catch(() => '');
+    if (type !== 'application/pdf' || win.isDestroyed()) return;
+    win.grownForPdf = true;
+    const area = screen.getDisplayMatching(win.getBounds()).workArea;
+    const width = Math.round(area.width * 0.85);
+    const height = Math.round(area.height * 0.9);
+    win.setBounds({
+      x: area.x + Math.round((area.width - width) / 2),
+      y: area.y + Math.round((area.height - height) / 2),
+      width,
+      height,
     });
   }
 
