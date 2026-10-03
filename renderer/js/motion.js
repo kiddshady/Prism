@@ -319,8 +319,16 @@ export function glideSize(el, from, { ignore = [], width = true, height = true }
   const a = {}; const b = {};
   if (dw) { a.width = `${from.w}px`; b.width = `${to.w}px`; }
   if (dh) { a.height = `${from.h}px`; b.height = `${to.h}px`; }
+  /* Si se ACHICA con algo yéndose adentro, primero se va lo de adentro y
+     recién después se pliega la caja. Al revés, la caja cortaba lo que todavía
+     se veía casi entero (ocultar una contraseña larga: el segundo renglón
+     salía partido al medio a los 30 ms), y eso se lee como un deslizamiento.
+     Para crecer no hace falta esperar: primero se abre, después entra. */
+  const shrinks = ignore.length > 0 && ((dw && to.w < from.w) || (dh && to.h < from.h));
   // Mientras viaja, lo que todavía no entra no se desborda de la caja.
-  el.__glide = el.animate([{ ...a, overflow: 'hidden' }, { ...b, overflow: 'hidden' }], { duration: T.size, easing: EASE });
+  el.__glide = el.animate([{ ...a, overflow: 'hidden' }, { ...b, overflow: 'hidden' }], shrinks
+    ? { duration: T.size - 40, delay: T.out - 50, easing: EASE_BOTH, fill: 'backwards' }
+    : { duration: T.size, easing: EASE });
 }
 
 /* ── Relevo de contenido ────────────────────────────────────────────────────
