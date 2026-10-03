@@ -158,6 +158,14 @@
   grid-area: 1 / 1;
   min-width: 0;
   animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both;
+  /* Siempre en su capa. Mientras se anima, Chromium la dibuja aparte; al
+     asentarse volvía a la página, que redondea distinto una posición con
+     decimales (y = 54,75): el valor saltaba un píxel justo al terminar. Con la
+     capa fija se dibuja igual antes y después. Medido en píxeles: la cuenta
+     de buscar cambiaba al asentarse (120 → 0), y los puntos de una contraseña
+     bajaban y subían un píxel. Prism ya dibuja el texto en grises, así que la
+     capa no lo cambia. */
+  will-change: opacity;
 }
 /* Un texto que se corta con puntos suspensivos se sigue cortando adentro. */
 .op-truncate.op-swap > .op-swap__item,

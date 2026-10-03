@@ -1204,8 +1204,15 @@
 .pr-pass__fieldicon { display: grid; flex: 0 0 auto; color: var(--op-text-3); }
 .pr-pass__fieldicon .op-icon { width: 15px; height: 15px; }
 .pr-pass__fieldbody { flex: 1 1 auto; min-width: 0; }
-.pr-pass__label { font-size: var(--op-fs-11); color: var(--op-text-3); margin-bottom: 3px; }
-.pr-pass__value { font-size: var(--op-fs-13); color: var(--op-text); overflow-wrap: anywhere; user-select: text; cursor: text; }
+/* Renglones de alto ENTERO (16 y 20 px): así el valor cae justo en un píxel.
+   Con los altos de fábrica quedaba en y = 253,5, y al ocultar una contraseña
+   los puntos bajaban un píxel durante el relevo y volvían a subir al
+   terminar: mientras se animan Chromium los dibuja en una capa aparte, que
+   redondea distinto que la página. Además los puntos (19,5) y el texto
+   (19,8) medían distinto y el valor se corría al irse uno. Medido en píxeles
+   (fila 17 → 18 → 17); con estos altos se queda en la 17 todo el relevo. */
+.pr-pass__label { font-size: var(--op-fs-11); line-height: 16px; color: var(--op-text-3); margin-bottom: 3px; }
+.pr-pass__value { font-size: var(--op-fs-13); line-height: 20px; color: var(--op-text); overflow-wrap: anywhere; user-select: text; cursor: text; }
 .pr-pass__value.is-mono,
 .pr-pass__secret { font-family: var(--op-mono); font-size: 12.5px; letter-spacing: .02em; }
 /* Lo tapado y lo visible se relevan en su lugar (swap): alineados a la izquierda. */
