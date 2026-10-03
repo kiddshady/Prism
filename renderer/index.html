@@ -83,7 +83,7 @@
 
     <div class="op-wincontrols">
       <button class="op-wincontrol" id="win-min"   aria-label="Minimizar"><i data-icon="winMin"></i></button>
-      <button class="op-wincontrol" id="win-max"   aria-label="Maximizar"><i data-icon="winMax"></i></button>
+      <button class="op-wincontrol pr-winmax" id="win-max"   aria-label="Maximizar"><i data-icon="winMax" data-icon-class="pr-winmax__a"></i><i data-icon="winRestore" data-icon-class="pr-winmax__b"></i></button>
       <button class="op-wincontrol op-wincontrol--close" id="win-close" aria-label="Cerrar"><i data-icon="winClose"></i></button>
     </div>
   </header>
@@ -131,7 +131,7 @@
     <div class="pr-toolbar__end">
       <button class="op-iconbtn pr-tool" id="btn-pass" aria-label="Contraseñas y tarjetas" data-tip="Contraseñas y tarjetas"><i data-icon="passKey"></i></button>
       <button class="op-iconbtn pr-tool pr-shield" id="btn-shield" aria-label="Bloqueador" data-tip="Bloqueador">
-        <i data-icon="shield"></i><span class="pr-badge op-num" id="shield-count"></span>
+        <i data-icon="shield" data-icon-class="pr-shield__a"></i><i data-icon="shieldOff" data-icon-class="pr-shield__b"></i><span class="pr-badge op-num" id="shield-count"></span>
       </button>
       <button class="op-iconbtn pr-tool pr-dl" id="btn-downloads" aria-label="Descargas" data-tip="Descargas" data-tip-key="Ctrl+J">
         <i data-icon="download"></i>
@@ -148,7 +148,7 @@
        va al menú de la punta. -->
   <nav class="pr-bmbar" id="bmbar" aria-label="Barra de favoritos">
     <div class="pr-bmbar__items" id="bmbar-items"></div>
-    <button class="op-iconbtn op-iconbtn--sm pr-bmbar__more" id="bmbar-more" aria-label="Más favoritos" hidden><i data-icon="chevronRight"></i></button>
+    <button class="op-iconbtn op-iconbtn--sm pr-bmbar__more" id="bmbar-more" aria-label="Más favoritos"><i data-icon="chevronRight"></i></button>
   </nav>
 
   <!-- ── La página ──────────────────────────────────────────────────────────

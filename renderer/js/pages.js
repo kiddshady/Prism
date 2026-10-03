@@ -14,7 +14,7 @@
 
 import { api, S, on, activeTab } from './state.js';
 import { Icons } from './icons.js';
-import { exit, scrollFade, bindSwitcher, raf2 } from './motion.js';
+import { exit, scrollFade, bindSwitcher, raf2, reconcile, roll, swap, swapText, glideSize } from './motion.js';
 import { esc } from './ui.js';
 import { fmtBytes, fmtDur, relTime, plural, locale } from './format.js';
 import { menu, modal, confirm } from './layers.js';
@@ -39,10 +39,16 @@ function favIcon(url, favicon, fallback = 'globe') {
     : Icons.svg(fallback);
 }
 
-/** Un <img> de favicon que no carga vuelve a su ícono en vez de quedar roto. */
+/** Un <img> de favicon que no carga vuelve a su ícono (que aparece, no salta) en vez de quedar roto. */
 function wireFallbacks(root) {
   root.querySelectorAll('img[data-fallback]').forEach((img) => {
-    img.addEventListener('error', () => { img.outerHTML = Icons.svg(img.dataset.fallback); }, { once: true });
+    img.addEventListener('error', () => {
+      const t = document.createElement('template');
+      t.innerHTML = Icons.svg(img.dataset.fallback);
+      const icon = t.content.firstElementChild;
+      icon.classList.add('op-in-fade');
+      img.replaceWith(icon);
+    }, { once: true });
   });
 }
 
@@ -135,7 +141,8 @@ function waitingPage(t) {
 function syncWaiting(t) {
   if (surf.current?.name !== 'waiting') return;
   const dot = surf.current.el.querySelector('.pr-waiting__dot');
-  if (t.favicon && !dot.querySelector('img')) { dot.innerHTML = favIcon(t.url, t.favicon); wireFallbacks(dot); }
+  // El globo se releva por el favicon apenas llega (swap), sin cortar la respiración.
+  if (t.favicon && !dot.querySelector('img')) { swap(dot, favIcon(t.url, t.favicon)); wireFallbacks(dot); }
 }
 
 /* ══ Avisos ══════════════════════════════════════════════════════════════════ */
@@ -246,7 +253,7 @@ function ntpPage(t) {
       <label class="pr-fakebox" id="fakebox">${Icons.svg('search')}
         <input class="pr-fakebox__input" id="ntp-input" type="text" spellcheck="false" autocomplete="off"
                placeholder="Buscá o escribí una dirección" aria-label="Buscar o ir a una dirección"></label>
-      ${priv ? incognitoHTML() : '<div id="ntp-tiles" style="display:contents"></div>'}
+      ${priv ? incognitoHTML() : '<div class="pr-ntp__tiles" id="ntp-tiles"></div>'}
     </div>`, 'nueva');
 
   /* La barra grande es un campo de verdad, con sus propias sugerencias
@@ -280,12 +287,25 @@ function ntpPage(t) {
     const marks = bm.slice(0, 8);
     const seen = new Set(marks.map((b) => hostOf(b.url)));
     const freq = top.filter((t) => !seen.has(hostOf(t.url))).slice(0, 8);
+    /* Por piezas (reconcile, motion.js): quitar un favorito saca SU baldosa y
+       las demás se corren a llenar el hueco; prender o apagar "los que más
+       visitás" despliega o retira ese bloque. Antes se rehacía todo, y todas
+       las baldosas volvían a entrar. */
     const box = el.querySelector('#ntp-tiles');
-    box.innerHTML = `
-      ${marks.length ? `<div class="pr-tiles__label op-eyebrow">Favoritos</div><div class="pr-tiles">${marks.map((b, i) => tileHTML(b, i, 'bookmark')).join('')}</div>` : ''}
-      ${freq.length ? `<div class="pr-tiles__label op-eyebrow">Los que más visitás</div><div class="pr-tiles">${freq.map((b, i) => tileHTML(b, i + marks.length, 'top')).join('')}</div>` : ''}
-      ${!marks.length && !freq.length ? `<div class="pr-tiles__label op-meta" style="margin-top:28px">${shownTop ? 'Tus favoritos y los sitios que más visitás van a aparecer acá.' : 'Tus favoritos van a aparecer acá.'}</div>` : ''}`;
-    box.querySelectorAll('img[data-letter]').forEach((img) => img.addEventListener('error', () => { img.replaceWith(document.createTextNode(img.dataset.letter)); }, { once: true }));
+    const sections = [];
+    if (marks.length) sections.push({ key: 'label:fav', html: '<div class="pr-tiles__label op-eyebrow">Favoritos</div>' }, { key: 'grid:fav', html: '<div class="pr-tiles"></div>' });
+    if (freq.length) sections.push({ key: 'label:top', html: '<div class="pr-tiles__label op-eyebrow">Los que más visitás</div>' }, { key: 'grid:top', html: '<div class="pr-tiles"></div>' });
+    if (!marks.length && !freq.length) sections.push({ key: `empty:${shownTop}`, html: `<div class="pr-tiles__label op-meta" style="margin-top:28px">${shownTop ? 'Tus favoritos y los sitios que más visitás van a aparecer acá.' : 'Tus favoritos van a aparecer acá.'}</div>` });
+    reconcile(box, sections);
+    const wire = (t) => t.querySelectorAll('img[data-letter]').forEach((img) => img.addEventListener('error', () => {
+      const s = document.createElement('span');
+      s.className = 'op-in-fade';
+      s.textContent = img.dataset.letter;
+      img.replaceWith(s);
+    }, { once: true }));
+    const grid = (k) => box.querySelector(`[data-key="grid:${k}"]:not([data-state="closing"])`);
+    if (grid('fav')) reconcile(grid('fav'), marks.map((b, i) => ({ key: `b:${b.id}`, html: tileHTML(b, i, 'bookmark') })), { created: wire });
+    if (grid('top')) reconcile(grid('top'), freq.map((b, i) => ({ key: `t:${b.url}`, html: tileHTML(b, i + marks.length, 'top') })), { created: wire });
   }
   fill();
 
@@ -364,41 +384,44 @@ function historyPage(t) {
   let loading = false;
   let query = '';
 
-  function rowsHTML(from) {
-    let html = '';
-    let lastDay = from > 0 ? dayLabel(items[from - 1].t) : null;
-    items.slice(from).forEach((v, j) => {
+  /* Filas y títulos de día como piezas de reconcile() (motion.js): al buscar,
+     lo que sigue coincidiendo se queda y se acomoda, lo demás se va y lo
+     nuevo entra. Antes la lista se rehacía entera con cada búsqueda. */
+  function rowItems() {
+    const out = [];
+    let lastDay = null;
+    for (const v of items) {
       const day = dayLabel(v.t);
-      if (day !== lastDay) { html += `<div class="pr-day op-eyebrow">${esc(day)}</div>`; lastDay = day; }
-      html += `<div class="pr-row" style="--i:${Math.min(j, 24)}" data-id="${v.id}" data-url="${esc(v.url)}">
+      if (day !== lastDay) { out.push({ key: `day:${day}`, html: `<div class="pr-day op-eyebrow">${esc(day)}</div>` }); lastDay = day; }
+      out.push({ key: `v:${v.id}`, html: `<div class="pr-row" data-id="${v.id}" data-url="${esc(v.url)}">
           <span class="pr-row__time">${clock(v.t)}</span>
           <span class="pr-row__fav">${favIcon(v.url, v.favicon)}</span>
           <span class="pr-row__title">${esc(v.title || v.url)}</span>
           <span class="pr-row__host">${esc(hostOf(v.url))}</span>
           <div class="op-rowactions"><button class="op-iconbtn op-iconbtn--sm" data-more aria-label="Más">${Icons.svg('more')}</button></div>
-        </div>`;
-    });
-    return html;
+        </div>` });
+    }
+    return out.length ? out : [{ key: `empty:${query}`, html: `<div class="op-empty">${Icons.svg(query ? 'search' : 'history')}
+          <div class="op-empty__title">${query ? 'Nada coincide' : 'El historial está vacío'}</div>
+          <div class="op-empty__text">${query ? `No visitaste nada que diga «${esc(query)}».` : 'Lo que visites va a aparecer acá, ordenado por día.'}</div></div>` }];
   }
 
-  async function load(reset = false) {
-    if (loading || (done && !reset)) return;
+  const paint = () => reconcile(list, rowItems(), { created: wireFallbacks });
+
+  let seq = 0;
+  async function load(reset = false, keepScroll = false) {
+    // Una búsqueda nueva no espera a la página que estaba bajando: la deja vieja.
+    if (!reset && (loading || done)) return;
+    const my = ++seq;
     loading = true;
-    if (reset) { items = []; done = false; }
-    const before = items.length ? items[items.length - 1].t : undefined;
+    const before = !reset && items.length ? items[items.length - 1].t : undefined;
     const page = await api.history.list({ query, before, limit: 150 }).catch(() => []);
-    const from = items.length;
-    items = items.concat(page);
+    if (my !== seq) return;
+    items = reset ? page : items.concat(page);
     done = page.length < 150;
-    if (reset) {
-      list.classList.remove('is-settled');
-      list.innerHTML = items.length ? rowsHTML(0) : `<div class="op-empty">${Icons.svg(query ? 'search' : 'history')}
-          <div class="op-empty__title">${query ? 'Nada coincide' : 'El historial está vacío'}</div>
-          <div class="op-empty__text">${query ? `No visitaste nada que diga «${esc(query)}».` : 'Lo que visites va a aparecer acá, ordenado por día.'}</div></div>`;
-      scroller.scrollTop = 0;
-      setTimeout(() => list.classList.add('is-settled'), 600);
-    } else list.insertAdjacentHTML('beforeend', rowsHTML(from));
-    wireFallbacks(list);
+    paint();
+    // Arriba de todo, pero deslizándose: el salto se leía como otra página.
+    if (reset && !keepScroll && scroller.scrollTop > 0) scroller.scrollTo({ top: 0, behavior: 'smooth' });
     loading = false;
   }
 
@@ -413,13 +436,13 @@ function historyPage(t) {
   io.observe(el.querySelector('#h-more'));
   surf.cleanups.push(() => io.disconnect());
 
+  // La fila se va con su salida y las de abajo suben; un día que quedó sin
+  // filas se va con ella.
   async function removeRow(row) {
     const id = Number(row.dataset.id);
-    await exit(row, { fallback: 200 });
     items = items.filter((v) => v.id !== id);
+    paint();
     await api.history.remove([id]).catch(() => null);
-    // Un día que quedó sin filas no deja su título colgando.
-    list.querySelectorAll('.pr-day').forEach((d) => { if (!d.nextElementSibling || d.nextElementSibling.classList.contains('pr-day')) exit(d, { fallback: 160 }); });
   }
 
   el.addEventListener('click', (e) => {
@@ -448,7 +471,8 @@ function historyPage(t) {
   el.querySelector('#h-clear').addEventListener('click', () => clearDataModal());
 
   load(true);
-  return { name: 'historial', el, refresh: () => load(true) };
+  // Un cambio de afuera (una visita nueva) no te saca de donde estabas leyendo.
+  return { name: 'historial', el, refresh: () => load(true, true) };
 }
 
 /* ══ Favoritos ═══════════════════════════════════════════════════════════════ */
@@ -513,25 +537,27 @@ function bookmarksPage(t) {
   const list = el.querySelector('#b-list');
   const q = el.querySelector('#b-q');
   let all = [];
-  let first = true;
+  let painted = false;
 
+  /* Fila por fila (reconcile): filtrar deja las que siguen coincidiendo en su
+     lugar y las acomoda; mover, editar o quitar un favorito también viaja. */
   function paint() {
     const f = q.value.trim().toLowerCase();
     const shown = f ? all.filter((b) => `${b.title} ${b.url}`.toLowerCase().includes(f)) : all;
-    el.querySelector('#b-sub').textContent = all.length ? plural(all.length, 'sitio guardado', 'sitios guardados') : 'Los sitios que guardás para volver';
-    list.classList.toggle('is-settled', !first);
-    list.innerHTML = shown.length ? shown.map((b, i) => `
-      <div class="pr-row" style="--i:${Math.min(i, 24)}" data-id="${esc(b.id)}" data-url="${esc(b.url)}">
+    const sub = el.querySelector('#b-sub');
+    const subText = all.length ? plural(all.length, 'sitio guardado', 'sitios guardados') : 'Los sitios que guardás para volver';
+    if (painted) swapText(sub, subText); else sub.textContent = subText;
+    painted = true;
+    reconcile(list, shown.length ? shown.map((b) => ({ key: b.id, html: `
+      <div class="pr-row" data-id="${esc(b.id)}" data-url="${esc(b.url)}">
         <span class="pr-row__fav">${favIcon(b.url, b.favicon, 'star')}</span>
         <span class="pr-row__title">${esc(b.title || hostOf(b.url) || b.url)}</span>
         <span class="pr-row__host">${esc(b.url.replace(/^https?:\/\/(www\.)?/, ''))}</span>
         <div class="op-rowactions"><button class="op-iconbtn op-iconbtn--sm" data-more aria-label="Más">${Icons.svg('more')}</button></div>
-      </div>`).join('')
-      : `<div class="op-empty">${Icons.svg(f ? 'search' : 'star')}
+      </div>` }))
+      : [{ key: f ? 'empty:q' : 'empty', html: `<div class="op-empty">${Icons.svg(f ? 'search' : 'star')}
           <div class="op-empty__title">${f ? 'Nada coincide' : 'Todavía no guardaste favoritos'}</div>
-          <div class="op-empty__text">${f ? '' : 'Tocá la estrella de la barra de direcciones, apretá Ctrl+D en cualquier sitio, o traé los de Chrome con Importar.'}</div></div>`;
-    wireFallbacks(list);
-    first = false;
+          <div class="op-empty__text">${f ? '' : 'Tocá la estrella de la barra de direcciones, apretá Ctrl+D en cualquier sitio, o traé los de Chrome con Importar.'}</div></div>` }], { created: wireFallbacks });
   }
 
   async function fill() {
@@ -558,7 +584,8 @@ function bookmarksPage(t) {
         { label: 'Subir', icon: 'chevronUp', disabled: i <= 0, onSelect: () => api.bookmarks.move(id, i - 1) },
         { label: 'Bajar', icon: 'chevronDown', disabled: i >= all.length - 1, onSelect: () => api.bookmarks.move(id, i + 1) },
         { sep: true },
-        { label: 'Quitar de favoritos', icon: 'trash', danger: true, onSelect: async () => { await exit(row, { fallback: 200 }); api.bookmarks.remove(id); } },
+        // La lista que vuelve la saca con su salida (reconcile) y las de abajo suben.
+        { label: 'Quitar de favoritos', icon: 'trash', danger: true, onSelect: () => api.bookmarks.remove(id) },
       ], { align: 'end' });
       return;
     }
@@ -602,6 +629,82 @@ export function dlMeta(d) {
   return `${fmtBytes(d.total || d.received)} · ${from} · ${relTime(d.endedAt)}`;
 }
 
+/* Una descarga como fila de reconcile() (motion.js), para la página y para el
+   panel de la barra (`compact`: acciones de solo ícono). La fila se crea una
+   vez y después se pone al día EN SU LUGAR (dlUpdate): rehecha con cada dato
+   que llega, la barra saltaba en vez de avanzar y los números cambiaban de
+   un cuadro al otro. */
+const dlMode = (d) => `${d.state}:${!!d.paused}:${!!d.missing}`;
+const dlPct = (d) => (d.total ? Math.round((d.received / d.total) * 100) : 0);
+
+function dlActionsHTML(d, compact) {
+  const ib = (a, icon, tip) => `<button class="op-iconbtn op-iconbtn--sm" data-a="${a}" data-tip="${tip}">${Icons.svg(icon)}</button>`;
+  const tb = (a, icon, label) => `<button class="op-btn op-btn--ghost op-btn--sm" data-a="${a}">${Icons.svg(icon)} ${label}</button>`;
+  if (d.state === 'progressing') {
+    const [a, icon, label] = d.paused ? ['resume', 'resume', 'Seguir'] : ['pause', 'pause', 'Pausar'];
+    return compact ? `${ib(a, icon, label)}${ib('cancel', 'close', 'Cancelar')}` : `${tb(a, icon, label)}${tb('cancel', 'close', 'Cancelar')}`;
+  }
+  const done = d.state === 'completed' && !d.missing;
+  if (compact) return done ? ib('show', 'folder', 'Mostrar en la carpeta') : ib('retry', 'retry', 'Reintentar');
+  return `${done ? `${tb('open', 'external', 'Abrir')}${ib('show', 'folder', 'Mostrar en la carpeta')}` : tb('retry', 'retry', 'Reintentar')}${ib('remove', 'close', 'Quitar de la lista')}`;
+}
+
+export function dlItem(d, compact = false) {
+  const live = d.state === 'progressing';
+  return {
+    key: String(d.id),
+    d,
+    compact,
+    html: `<div class="pr-dlrow${d.state === 'interrupted' ? ' is-failed' : ''}${d.state === 'cancelled' || d.missing ? ' is-muted' : ''}" data-id="${d.id}">
+        <div class="pr-dlrow__icon">${Icons.svg(dlIcon(d))}</div>
+        <div class="pr-dlrow__main">
+          <div class="pr-dlrow__name op-copyable">${esc(d.filename)}</div>
+          <div class="pr-dlrow__meta"><span class="pr-dlrow__metatext">${esc(dlMeta(d))}</span></div>
+          <div class="pr-dlrow__bar op-reveal${live ? ' is-open' : ''}"><div><div class="op-meter${live && !d.total ? ' op-meter--indeterminate' : ''}"><div class="op-meter__fill" style="--op-pct:${dlPct(d)}%"></div></div></div></div>
+        </div>
+        <div class="pr-dlrow__actions op-swap--row">${dlActionsHTML(d, compact)}</div>
+      </div>`,
+  };
+}
+
+export function dlUpdate(el, { d, compact }) {
+  const live = d.state === 'progressing';
+  el.classList.toggle('is-failed', d.state === 'interrupted');
+  el.classList.toggle('is-muted', d.state === 'cancelled' || !!d.missing);
+  swap(el.querySelector('.pr-dlrow__icon'), Icons.svg(dlIcon(d)));
+  const name = el.querySelector('.pr-dlrow__name');
+  if (name.textContent.trim() !== d.filename) swapText(name, d.filename);
+  // El dato cambia de forma (bajando → terminada): se releva. Mientras baja, corre.
+  const meta = el.querySelector('.pr-dlrow__meta');
+  if (el.dataset.mode !== dlMode(d)) {
+    el.dataset.mode = dlMode(d);
+    const next = swap(meta, `<span class="pr-dlrow__metatext">${esc(dlMeta(d))}</span>`);
+    seedRoll(next?.querySelector('.pr-dlrow__metatext'), d);
+  } else {
+    const spans = meta.querySelectorAll('.pr-dlrow__metatext');
+    const text = spans[spans.length - 1];
+    if (live) roll(text, { received: d.received || 0, speed: d.speed || 0 }, (v) => { text.textContent = dlMeta({ ...d, received: Math.round(v.received), speed: v.speed }); });
+    else text.textContent = dlMeta(d);
+  }
+  el.querySelector('.pr-dlrow__bar').classList.toggle('is-open', live);
+  if (live) {
+    el.querySelector('.op-meter').classList.toggle('op-meter--indeterminate', !d.total);
+    el.querySelector('.op-meter__fill').style.setProperty('--op-pct', `${dlPct(d)}%`);
+  }
+  swap(el.querySelector('.pr-dlrow__actions'), dlActionsHTML(d, compact), { size: true });
+}
+
+/* Lo que dice el texto al nacer es de donde arranca a correr el próximo dato. */
+function seedRoll(text, d) {
+  if (text) text.__roll = { cur: { received: d.received || 0, speed: d.speed || 0 }, to: null, raf: 0 };
+}
+
+/** Una fila recién creada nace en el modo de su dato. */
+export const dlCreated = (el, it) => {
+  el.dataset.mode = dlMode(it.d);
+  seedRoll(el.querySelector('.pr-dlrow__metatext'), it.d);
+};
+
 function downloadsPage() {
   const el = mount(`
     <div class="op-scroll op-scroll--line-top op-scroll--line-bottom pr-view__scroll"><div class="pr-view__col">
@@ -616,44 +719,21 @@ function downloadsPage() {
     </div></div>`, 'descargas');
 
   const list = el.querySelector('#d-list');
-  let first = true;
 
   function paint() {
-    el.querySelector('#d-sub').textContent = S.downloadsDir ? `Se guardan en ${S.downloadsDir}` : '';
+    swapText(el.querySelector('#d-sub'), S.downloadsDir ? `Se guardan en ${S.downloadsDir}` : '');
     el.querySelector('#d-clear').disabled = !S.downloads.some((d) => d.state !== 'progressing');
-    list.classList.toggle('is-settled', !first);
-    list.innerHTML = S.downloads.length ? S.downloads.map((d, i) => `
-      <div class="pr-dlrow${d.state === 'interrupted' ? ' is-failed' : ''}${d.state === 'cancelled' || d.missing ? ' is-muted' : ''}" style="animation-delay:${Math.min(i, 20) * 14}ms" data-id="${d.id}">
-        <div class="pr-dlrow__icon">${Icons.svg(dlIcon(d))}</div>
-        <div class="pr-dlrow__main">
-          <div class="pr-dlrow__name op-copyable">${esc(d.filename)}</div>
-          <div class="pr-dlrow__meta">${esc(dlMeta(d))}</div>
-          ${d.state === 'progressing' ? `<div class="op-meter${d.total ? '' : ' op-meter--indeterminate'}"><div class="op-meter__fill" style="--op-pct:${d.total ? Math.round((d.received / d.total) * 100) : 0}%"></div></div>` : ''}
-        </div>
-        <div class="pr-dlrow__actions">
-          ${d.state === 'progressing' ? `
-            <button class="op-btn op-btn--ghost op-btn--sm" data-a="${d.paused ? 'resume' : 'pause'}"><i data-icon="${d.paused ? 'resume' : 'pause'}"></i> ${d.paused ? 'Seguir' : 'Pausar'}</button>
-            <button class="op-btn op-btn--ghost op-btn--sm" data-a="cancel"><i data-icon="close"></i> Cancelar</button>`
-            : d.state === 'completed' && !d.missing ? `
-            <button class="op-btn op-btn--ghost op-btn--sm" data-a="open"><i data-icon="external"></i> Abrir</button>
-            <button class="op-iconbtn op-iconbtn--sm" data-a="show" data-tip="Mostrar en la carpeta"><i data-icon="folder"></i></button>`
-            : `<button class="op-btn op-btn--ghost op-btn--sm" data-a="retry"><i data-icon="retry"></i> Reintentar</button>`}
-          ${d.state !== 'progressing' ? `<button class="op-iconbtn op-iconbtn--sm" data-a="remove" data-tip="Quitar de la lista"><i data-icon="close"></i></button>` : ''}
-        </div>
-      </div>`).join('')
-      : `<div class="op-empty">${Icons.svg('download')}<div class="op-empty__title">Todavía no bajaste nada</div>
-          <div class="op-empty__text">Lo que descargues va a aparecer acá, con su progreso.</div></div>`;
-    Icons.mount(list);
-    first = false;
+    reconcile(list, S.downloads.length ? S.downloads.map((d) => dlItem(d)) : [{ key: '__empty', html: `<div class="op-empty">${Icons.svg('download')}<div class="op-empty__title">Todavía no bajaste nada</div>
+          <div class="op-empty__text">Lo que descargues va a aparecer acá, con su progreso.</div></div>` }], { update: dlUpdate, created: dlCreated });
   }
 
+  // Quitar una fila es avisarle al proceso principal: la lista que vuelve la
+  // saca con su salida, y las de abajo suben en vez de saltar.
   el.addEventListener('click', async (e) => {
     const b = e.target.closest('[data-a]');
     if (!b) return;
     const id = Number(b.closest('.pr-dlrow')?.dataset.id);
-    const a = b.dataset.a;
-    if (a === 'remove') { await exit(b.closest('.pr-dlrow'), { fallback: 200 }); }
-    await api.downloads[a](id).catch((err) => say(err.message, { icon: 'alert', tone: 'error' }));
+    await api.downloads[b.dataset.a](id).catch((err) => say(err.message, { icon: 'alert', tone: 'error' }));
   });
   el.querySelector('#d-folder').addEventListener('click', () => api.downloads.folder());
   el.querySelector('#d-clear').addEventListener('click', () => api.downloads.clear());
@@ -681,17 +761,40 @@ function kbdHTML(combo) {
   return combo.split(' · ').map((c) => c.split(/\+(?!$)/).map((k) => `<span class="op-kbd">${esc(k)}</span>`).join('')).join('<span class="pr-or">o</span>');
 }
 
+/* Ajustes se arma UNA vez (build) y después se pone al día en su lugar
+   (sync): los switches se mueven, la cápsula de los segmentados viaja, las
+   listas (sitios apagados, permisos, certificados) suman y sacan filas con
+   su entrada y su salida, y lo que aparece o se va según otro ajuste se
+   despliega. Antes cada cambio rehacía la página entera: los chips volvían a
+   aparecer, una fila olvidada desaparecía de golpe y las de abajo saltaban. */
+const isOn = (s, k) => (['historySuggest', 'bookmarksBar', 'ntpTopSites', 'passwords'].includes(k) ? s[k] !== false : !!s[k]);
+
+const chipHTML = (h, attr, label) => `<span class="pr-chip-x">${esc(h)}<button class="op-iconbtn" ${attr}="${esc(h)}" aria-label="${label}">${Icons.svg('close')}</button></span>`;
+
+function permRowHTML(origin, map) {
+  return `<div class="pr-opt pr-opt--item">
+      <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(origin.replace(/^https:\/\//, ''))}</div>
+        <div class="pr-opt__hint">${Object.entries(map).map(([k, v]) => `${esc(PERM_NAMES[k] || k)}: ${v === 'allow' ? 'permitido' : 'bloqueado'}`).join(' · ')}</div></div>
+      <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-forget="${esc(origin)}">Olvidar</button></div></div>`;
+}
+
+function certRowHTML(c) {
+  return `<div class="pr-opt pr-opt--item">
+      <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(c.host)}</div>
+        <div class="pr-opt__hint">Aceptado el ${esc(new Date(c.at || Date.now()).toLocaleDateString(locale.tag, { day: 'numeric', month: 'short', year: 'numeric' }))}</div></div>
+      <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-uncert="${esc(c.host)}">Olvidar</button></div></div>`;
+}
+
 function settingsPage() {
   if (launchForceDark == null) launchForceDark = !!S.settings.forceDark;
   const el = mount('<div class="op-scroll op-scroll--line-top op-scroll--line-bottom pr-view__scroll" id="set-scroll"><div class="pr-view__col" id="set-col"></div></div>', 'ajustes');
   const col = el.querySelector('#set-col');
+  const toggle = (k, label) => `<button class="op-switch${isOn(S.settings, k) ? ' is-on' : ''}" data-toggle="${k}" aria-label="${label}"></button>`;
+  const segs = {};
 
-  function paint() {
+  function build() {
     const s = S.settings;
     const engines = S.info?.engines || { google: 'Google' };
-    const perms = Object.entries(s.permissions || {});
-    const keepScroll = el.querySelector('#set-scroll').scrollTop;
-    const was = Object.fromEntries([...col.querySelectorAll('[data-toggle]')].map((b) => [b.dataset.toggle, b.classList.contains('is-on')]));
     col.innerHTML = `
       <div class="pr-head"><div class="pr-head__text"><div class="pr-head__title">Ajustes</div>
         <div class="pr-head__sub">Se guardan solos, apenas los cambiás</div></div></div>
@@ -703,19 +806,19 @@ function settingsPage() {
           <div class="pr-opt__ctl"><div class="op-segmented" id="s-engine">${Object.entries(engines).map(([k, v]) => `<button class="op-segmented__opt${s.searchEngine === k ? ' is-active' : ''}" data-value="${k}">${esc(v)}</button>`).join('')}</div></div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Sugerencias mientras escribís</div>
           <div class="pr-opt__hint">Le manda al buscador lo que vas tipeando para completar. Apagado, solo sugiere lo que ya tenés en Prism.</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.remoteSuggest ? ' is-on' : ''}" data-toggle="remoteSuggest" aria-label="Sugerencias"></button></div></div>
+          <div class="pr-opt__ctl">${toggle('remoteSuggest', 'Sugerencias')}</div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Sugerir sitios del historial</div>
           <div class="pr-opt__hint">Apagado, la barra no te muestra ni completa lo que visitaste: solo tus favoritos. El historial se sigue guardando.</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.historySuggest !== false ? ' is-on' : ''}" data-toggle="historySuggest" aria-label="Sugerir del historial"></button></div></div>
+          <div class="pr-opt__ctl">${toggle('historySuggest', 'Sugerir del historial')}</div></div>
       </section>
 
       <section class="pr-set" style="--i:1">
         <div class="pr-set__head">${Icons.svg('window')}<span class="pr-set__title">Windows</span></div>
         <div class="pr-dflt">${defaultStateHTML(' is-first')}</div>
-        ${autostartHTML()}
+        <div class="pr-auto" data-key="${autostartKey()}">${autostartHTML()}</div>
       </section>
 
-      <section class="pr-set" style="--i:1">
+      <section class="pr-set" style="--i:2">
         <div class="pr-set__head">${Icons.svg('tabs')}<span class="pr-set__title">Pestañas</span></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Al abrir Prism, empezar con</div>
           <div class="pr-opt__hint">Las pestañas de la última vez cargan recién cuando las mirás: abrir veinte no levanta veinte páginas.</div></div>
@@ -727,75 +830,74 @@ function settingsPage() {
           <div class="pr-opt__ctl"><div class="op-segmented" id="s-sleep">${[[0, 'Nunca'], [15, '15 min'], [30, '30 min'], [60, '1 h']].map(([v, l]) => `<button class="op-segmented__opt${Number(s.sleepTabs) === v ? ' is-active' : ''}" data-value="${v}">${l}</button>`).join('')}</div></div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Barra de favoritos</div>
           <div class="pr-opt__hint">Tus favoritos a un clic, debajo de la barra de direcciones. Lo que no entra queda en la flecha de la punta. También con Ctrl+Mayús+B.</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.bookmarksBar !== false ? ' is-on' : ''}" data-toggle="bookmarksBar" aria-label="Barra de favoritos"></button></div></div>
+          <div class="pr-opt__ctl">${toggle('bookmarksBar', 'Barra de favoritos')}</div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Los que más visitás en la pestaña nueva</div>
           <div class="pr-opt__hint">Apagado, la pestaña nueva solo muestra tus favoritos. El historial se sigue guardando.</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.ntpTopSites !== false ? ' is-on' : ''}" data-toggle="ntpTopSites" aria-label="Los que más visitás"></button></div></div>
-      </section>
-
-      <section class="pr-set" style="--i:2">
-        <div class="pr-set__head">${Icons.svg('shield')}<span class="pr-set__title">Bloqueador</span></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Bloquear anuncios y rastreadores</div>
-          <div class="pr-opt__hint">Con las listas de EasyList, EasyPrivacy y uBlock Origin. También saca los carteles de cookies.</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.adblock ? ' is-on' : ''}" data-toggle="adblock" aria-label="Bloqueador"></button></div></div>
-        ${(s.adblockAllow || []).length ? `<div class="pr-opt" style="min-height:0;padding-bottom:6px"><div class="pr-opt__text"><div class="pr-opt__label">Apagado en</div></div></div>` : ''}
-        <div class="pr-chips">${(s.adblockAllow || []).map((h) => `<span class="pr-chip-x">${esc(h)}<button class="op-iconbtn" data-unallow="${esc(h)}" aria-label="Volver a bloquear">${Icons.svg('close')}</button></span>`).join('')}</div>
+          <div class="pr-opt__ctl">${toggle('ntpTopSites', 'Los que más visitás')}</div></div>
       </section>
 
       <section class="pr-set" style="--i:3">
-        <div class="pr-set__head">${Icons.svg('moon')}<span class="pr-set__title">Páginas</span></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Oscurecer todos los sitios</div>
-          <div class="pr-opt__hint">Los sitios con modo oscuro propio ya lo usan solos. Esto oscurece también los que no lo tienen (a veces con colores raros).${s.forceDark !== launchForceDark ? ' <b style="color:var(--op-text-2);font-weight:500">Se aplica al reiniciar.</b>' : ''}</div></div>
-          <div class="pr-opt__ctl">${s.forceDark !== launchForceDark ? '<button class="op-btn op-btn--secondary op-btn--sm" id="s-relaunch"><i data-icon="reload"></i> Reiniciar</button>' : ''}
-            <button class="op-switch${s.forceDark ? ' is-on' : ''}" data-toggle="forceDark" aria-label="Oscurecer todo"></button></div></div>
+        <div class="pr-set__head">${Icons.svg('shield')}<span class="pr-set__title">Bloqueador</span></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Bloquear anuncios y rastreadores</div>
+          <div class="pr-opt__hint">Con las listas de EasyList, EasyPrivacy y uBlock Origin. También saca los carteles de cookies.</div></div>
+          <div class="pr-opt__ctl">${toggle('adblock', 'Bloqueador')}</div></div>
+        <div class="op-reveal pr-chipset" id="s-allow"><div>
+          <div class="pr-opt pr-opt--label"><div class="pr-opt__text"><div class="pr-opt__label">Apagado en</div></div></div>
+          <div class="pr-chips"></div>
+        </div></div>
       </section>
 
       <section class="pr-set" style="--i:4">
-        <div class="pr-set__head">${Icons.svg('download')}<span class="pr-set__title">Descargas</span></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Carpeta</div>
-          <div class="pr-opt__path">${esc(S.downloadsDir || '')}</div></div>
-          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-dldir"><i data-icon="folder"></i> Cambiar</button></div></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Preguntar dónde guardar cada archivo</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.askDownload ? ' is-on' : ''}" data-toggle="askDownload" aria-label="Preguntar"></button></div></div>
+        <div class="pr-set__head">${Icons.svg('moon')}<span class="pr-set__title">Páginas</span></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Oscurecer todos los sitios</div>
+          <div class="pr-opt__hint">Los sitios con modo oscuro propio ya lo usan solos. Esto oscurece también los que no lo tienen (a veces con colores raros).</div>
+          <div class="op-reveal pr-relaunch-note" id="s-relaunch-note"><div><div class="pr-opt__hint"><b>Se aplica al reiniciar.</b></div></div></div></div>
+          <div class="pr-opt__ctl"><div class="pr-hreveal" id="s-relaunch-wrap"><div><button class="op-btn op-btn--secondary op-btn--sm" id="s-relaunch" tabindex="-1"><i data-icon="reload"></i> Reiniciar</button></div></div>
+            ${toggle('forceDark', 'Oscurecer todo')}</div></div>
       </section>
 
       <section class="pr-set" style="--i:5">
-        <div class="pr-set__head">${Icons.svg('passKey')}<span class="pr-set__title">Contraseñas y tarjetas</span></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Completar contraseñas y tarjetas</div>
-          <div class="pr-opt__hint">También ofrece guardar las contraseñas después de entrar. Todo se guarda cifrado con tu cuenta de Windows: el archivo copiado a otra compu, o leído desde otra cuenta, no se abre. Una página solo recibe las contraseñas de su propio sitio, y una tarjeta se completa solo en páginas seguras y cuando la elegís vos.</div></div>
-          <div class="pr-opt__ctl"><button class="op-switch${s.passwords !== false ? ' is-on' : ''}" data-toggle="passwords" aria-label="Contraseñas"></button></div></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Tus contraseñas y tarjetas</div>
-          <div class="pr-opt__hint">Buscar, editar, agregar notas o importar de Proton Pass. También desde la llave de la barra.</div></div>
-          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-pass"><i data-icon="passKey"></i> Abrir</button></div></div>
-        ${(s.passNever || []).length ? `<div class="pr-opt" style="min-height:0;padding-bottom:6px"><div class="pr-opt__text"><div class="pr-opt__label">Nunca ofrecer guardar en</div></div></div>` : ''}
-        <div class="pr-chips">${(s.passNever || []).map((h) => `<span class="pr-chip-x">${esc(h)}<button class="op-iconbtn" data-unnever="${esc(h)}" aria-label="Volver a ofrecer">${Icons.svg('close')}</button></span>`).join('')}</div>
+        <div class="pr-set__head">${Icons.svg('download')}<span class="pr-set__title">Descargas</span></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Carpeta</div>
+          <div class="pr-opt__path" id="s-dlpath">${esc(S.downloadsDir || '')}</div></div>
+          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-dldir"><i data-icon="folder"></i> Cambiar</button></div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Preguntar dónde guardar cada archivo</div></div>
+          <div class="pr-opt__ctl">${toggle('askDownload', 'Preguntar')}</div></div>
       </section>
 
       <section class="pr-set" style="--i:6">
+        <div class="pr-set__head">${Icons.svg('passKey')}<span class="pr-set__title">Contraseñas y tarjetas</span></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Completar contraseñas y tarjetas</div>
+          <div class="pr-opt__hint">También ofrece guardar las contraseñas después de entrar. Todo se guarda cifrado con tu cuenta de Windows: el archivo copiado a otra compu, o leído desde otra cuenta, no se abre. Una página solo recibe las contraseñas de su propio sitio, y una tarjeta se completa solo en páginas seguras y cuando la elegís vos.</div></div>
+          <div class="pr-opt__ctl">${toggle('passwords', 'Contraseñas')}</div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Tus contraseñas y tarjetas</div>
+          <div class="pr-opt__hint">Buscar, editar, agregar notas o importar de Proton Pass. También desde la llave de la barra.</div></div>
+          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-pass"><i data-icon="passKey"></i> Abrir</button></div></div>
+        <div class="op-reveal pr-chipset" id="s-never"><div>
+          <div class="pr-opt pr-opt--label"><div class="pr-opt__text"><div class="pr-opt__label">Nunca ofrecer guardar en</div></div></div>
+          <div class="pr-chips"></div>
+        </div></div>
+      </section>
+
+      <section class="pr-set" style="--i:7">
         <div class="pr-set__head">${Icons.svg('lock')}<span class="pr-set__title">Privacidad</span></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Borrar datos de navegación</div>
           <div class="pr-opt__hint">Historial, cookies y sesiones iniciadas, caché.</div></div>
           <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-clear"><i data-icon="trash"></i> Borrar…</button></div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Permisos de los sitios</div>
-          <div class="pr-opt__hint">${perms.length ? 'Lo que ya contestaste. Olvidarlo hace que el sitio vuelva a preguntar.' : 'Ningún sitio pidió permisos todavía. Cuando uno pida la cámara, el micrófono o tu ubicación, Prism te pregunta.'}</div></div></div>
-        ${perms.map(([origin, map]) => `<div class="pr-opt" style="min-height:44px">
-            <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(origin.replace(/^https:\/\//, ''))}</div>
-              <div class="pr-opt__hint">${Object.entries(map).map(([k, v]) => `${esc(PERM_NAMES[k] || k)}: ${v === 'allow' ? 'permitido' : 'bloqueado'}`).join(' · ')}</div></div>
-            <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-forget="${esc(origin)}">Olvidar</button></div></div>`).join('')}
-        ${(s.certAllow || []).length ? `<div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Certificados de tu red</div>
-          <div class="pr-opt__hint">Aparatos de tu red (el router, un NAS) cuyo certificado aceptaste. Si el certificado cambia, Prism vuelve a preguntar. Olvidarlo hace que el sitio vuelva a dar error.</div></div></div>` : ''}
-        ${(s.certAllow || []).map((c) => `<div class="pr-opt" style="min-height:44px">
-            <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(c.host)}</div>
-              <div class="pr-opt__hint">Aceptado el ${esc(new Date(c.at || Date.now()).toLocaleDateString(locale.tag, { day: 'numeric', month: 'short', year: 'numeric' }))}</div></div>
-            <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-uncert="${esc(c.host)}">Olvidar</button></div></div>`).join('')}
+          <div class="pr-opt__hint" id="s-perms-hint"></div></div></div>
+        <div class="pr-optlist" id="s-perms"></div>
+        <div class="op-reveal" id="s-certs-head"><div><div class="pr-opt pr-opt--item"><div class="pr-opt__text"><div class="pr-opt__label">Certificados de tu red</div>
+          <div class="pr-opt__hint">Aparatos de tu red (el router, un NAS) cuyo certificado aceptaste. Si el certificado cambia, Prism vuelve a preguntar. Olvidarlo hace que el sitio vuelva a dar error.</div></div></div></div></div>
+        <div class="pr-optlist" id="s-certs"></div>
       </section>
 
-      <section class="pr-set" style="--i:7">
+      <section class="pr-set" style="--i:8">
         <div class="pr-set__head">${Icons.svg('keyboard')}<span class="pr-set__title">Atajos de teclado</span></div>
         <div class="pr-keys">${(S.info?.shortcuts || []).map(([what, combo]) => `<div>${esc(what)}</div><div>${kbdHTML(combo)}</div>`).join('')}</div>
       </section>
 
-      <section class="pr-set" style="--i:8">
+      <section class="pr-set" style="--i:9">
         <div class="pr-set__head">${Icons.svg('prism')}<span class="pr-set__title">Acerca de Prism</span></div>
         <dl class="pr-about">
           <dt>Versión</dt><dd>${esc(S.info?.version || '')}</dd>
@@ -808,36 +910,84 @@ function settingsPage() {
           <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" id="s-data"><i data-icon="folderOpen"></i> Abrir la carpeta de datos</button></div></div>
       </section>`;
     Icons.mount(col);
-    el.querySelector('#set-scroll').scrollTop = keepScroll;
-    col.querySelectorAll('.pr-set').forEach((sec, i) => { if (!first) sec.style.animation = 'none'; else sec.style.setProperty('--i', i); });
-    first = false;
-    // Un switch que cambió desde afuera (el escudo de la barra) nace como
-    // estaba y recién ahí se mueve: si no, salta al estado nuevo de golpe.
-    col.querySelectorAll('[data-toggle]').forEach((b) => {
-      const on = b.classList.contains('is-on');
-      if (!(b.dataset.toggle in was) || was[b.dataset.toggle] === on) return;
-      b.classList.toggle('is-on', !on);
-      raf2(() => b.classList.toggle('is-on', on));
-    });
-
-    bindSwitcher(col.querySelector('#s-engine'), (v) => save({ searchEngine: v }, false));
-    bindSwitcher(col.querySelector('#s-startup'), (v) => save({ startup: v }, false));
-    bindSwitcher(col.querySelector('#s-sleep'), (v) => save({ sleepTabs: Number(v) }, false));
+    segs.engine = bindSwitcher(col.querySelector('#s-engine'), (v) => save({ searchEngine: v }));
+    segs.startup = bindSwitcher(col.querySelector('#s-startup'), (v) => save({ startup: v }));
+    segs.sleep = bindSwitcher(col.querySelector('#s-sleep'), (v) => save({ sleepTabs: Number(v) }));
+    sync({ first: true });
   }
 
-  let first = true;
+  /** Un segmentado que cambió desde afuera: la cápsula viaja a la opción nueva. */
+  function syncSeg(id, value, resync) {
+    const seg = col.querySelector(id);
+    let moved = false;
+    seg.querySelectorAll('.op-segmented__opt').forEach((o) => {
+      const on = o.dataset.value === String(value);
+      if (o.classList.contains('is-active') !== on) moved = true;
+      o.classList.toggle('is-active', on);
+    });
+    if (moved) resync?.();
+  }
+
+  /** Una lista de chips (sitios): se despliega si tiene alguno, y suma y saca de a uno. */
+  function syncChips(id, list, attr, label, enter) {
+    const set = col.querySelector(id);
+    set.classList.toggle('is-open', list.length > 0);
+    reconcile(set.querySelector('.pr-chips'), list.map((h) => ({ key: h, html: chipHTML(h, attr, label) })), { enter });
+  }
+
+  function sync({ first = false } = {}) {
+    const s = S.settings;
+    const enter = !first;   // la primera vez entra la página entera: las piezas no se anuncian solas
+    col.querySelectorAll('[data-toggle]').forEach((b) => b.classList.toggle('is-on', isOn(s, b.dataset.toggle)));
+    syncSeg('#s-engine', s.searchEngine, segs.engine);
+    syncSeg('#s-startup', s.startup, segs.startup);
+    syncSeg('#s-sleep', Number(s.sleepTabs), segs.sleep);
+
+    syncChips('#s-allow', s.adblockAllow || [], 'data-unallow', 'Volver a bloquear', enter);
+    syncChips('#s-never', s.passNever || [], 'data-unnever', 'Volver a ofrecer', enter);
+
+    const relaunch = s.forceDark !== launchForceDark;
+    col.querySelector('#s-relaunch-note').classList.toggle('is-open', relaunch);
+    col.querySelector('#s-relaunch-wrap').classList.toggle('is-open', relaunch);
+    col.querySelector('#s-relaunch').tabIndex = relaunch ? 0 : -1;
+
+    const path = col.querySelector('#s-dlpath');
+    if (first) path.textContent = S.downloadsDir || '';
+    else swapText(path, S.downloadsDir || '');
+
+    const perms = Object.entries(s.permissions || {});
+    const hint = perms.length ? 'Lo que ya contestaste. Olvidarlo hace que el sitio vuelva a preguntar.' : 'Ningún sitio pidió permisos todavía. Cuando uno pida la cámara, el micrófono o tu ubicación, Prism te pregunta.';
+    const hintEl = col.querySelector('#s-perms-hint');
+    if (first) hintEl.textContent = hint;
+    else swapText(hintEl, hint, { size: true });
+    reconcile(col.querySelector('#s-perms'), perms.map(([origin, map]) => ({ key: origin, html: permRowHTML(origin, map) })), { enter });
+    const certs = s.certAllow || [];
+    col.querySelector('#s-certs-head').classList.toggle('is-open', certs.length > 0);
+    reconcile(col.querySelector('#s-certs'), certs.map((c) => ({ key: c.host, html: certRowHTML(c) })), { enter });
+
+    // Arrancar con Windows cambia de forma solo si cambia lo que Windows deja hacer.
+    const auto = col.querySelector('.pr-auto');
+    if (auto.dataset.key !== autostartKey()) {
+      auto.dataset.key = autostartKey();
+      swap(auto, autostartHTML(), { size: true });
+    } else {
+      auto.querySelectorAll('[data-autostart]').forEach((b) => b.classList.toggle('is-on', !!S.autostart?.on));
+    }
+    relayAllUpdate();
+  }
+
   const toggleSeq = {};   // clave → número del último clic en su switch
-  async function save(patch, repaint = true) {
+  async function save(patch) {
     quietUntil = Date.now() + 600;
     S.settings = await api.settings.save(patch);
-    if (repaint) paint();
+    sync();
   }
   /* Quitar un chip lo calcula el sistema sobre los ajustes al día: con la
      copia de acá, dos chips quitados rápido devolvían el primero. */
   async function removeFrom(key, value) {
     quietUntil = Date.now() + 600;
     S.settings = await api.settings.remove(key, value);
-    paint();
+    sync();
   }
 
   col.addEventListener('click', async (e) => {
@@ -863,30 +1013,20 @@ function settingsPage() {
       const on = tg.classList.toggle('is-on');
       const k = tg.dataset.toggle;
       const seq = (toggleSeq[k] = (toggleSeq[k] || 0) + 1);
-      // El switch se mueve ya; el repintado espera a que termine su transición.
       quietUntil = Date.now() + 600;
       S.settings = await api.settings.save({ [k]: on });
-      // Solo la respuesta del último clic lo acomoda: una vieja lo haría parpadear.
-      if (seq === toggleSeq[k]) tg.classList.toggle('is-on', k === 'passwords' ? S.settings[k] !== false : !!S.settings[k]);
-      if (k === 'forceDark' || k === 'adblock') setTimeout(paint, 220);
+      // Solo la respuesta del último clic acomoda la página: una vieja la haría parpadear.
+      if (seq === toggleSeq[k]) sync();
       return;
     }
     const un = e.target.closest('[data-unallow]');
-    if (un) {
-      const h = un.dataset.unallow;
-      await exit(un.closest('.pr-chip-x'), { fallback: 150 });
-      return removeFrom('adblockAllow', h);
-    }
+    if (un) return removeFrom('adblockAllow', un.dataset.unallow);
     const nv = e.target.closest('[data-unnever]');
-    if (nv) {
-      const h = nv.dataset.unnever;
-      await exit(nv.closest('.pr-chip-x'), { fallback: 150 });
-      return removeFrom('passNever', h);
-    }
+    if (nv) return removeFrom('passNever', nv.dataset.unnever);
     const fg = e.target.closest('[data-forget]');
-    if (fg) { await api.permissions.revoke(fg.dataset.forget); S.settings = await api.settings.get(); return paint(); }
+    if (fg) { await api.permissions.revoke(fg.dataset.forget); S.settings = await api.settings.get(); return sync(); }
     const uc = e.target.closest('[data-uncert]');
-    if (uc) { await api.certs.forget(uc.dataset.uncert); S.settings = await api.settings.get(); return paint(); }
+    if (uc) { await api.certs.forget(uc.dataset.uncert); S.settings = await api.settings.get(); return sync(); }
     const mk = e.target.closest('[data-dflt="make"]');
     if (mk && !mk.closest('[data-state="closing"]')) return makeDefault(mk);
     const id = e.target.closest('button')?.id;
@@ -902,13 +1042,13 @@ function settingsPage() {
     if (id === 's-pass') return openPasswords();
     if (id === 's-dldir') {
       const dir = await api.data.chooseFolder(S.downloadsDir).catch(() => null);
-      if (dir) { await save({ downloadDir: dir }, false); S.downloadsDir = await api.downloads.dir(); paint(); }
+      if (dir) { quietUntil = Date.now() + 600; S.settings = await api.settings.save({ downloadDir: dir }); S.downloadsDir = await api.downloads.dir(); sync(); }
     }
   });
 
-  paint();
+  build();
   refreshDefault();
-  return { name: 'ajustes', el, refresh: paint };
+  return { name: 'ajustes', el, refresh: () => sync() };
 }
 
 /* ══ Navegador predeterminado ════════════════════════════════════════════════
@@ -1031,6 +1171,8 @@ async function makeDefault(btn) {
 
 let autostartSeq = 0;
 
+const autostartKey = () => (S.autostart && !S.autostart.supported ? 'dev' : 'ok');
+
 function autostartHTML() {
   const a = S.autostart;
   const hint = a && !a.supported
@@ -1062,29 +1204,61 @@ function onWindowFocus() {
   refreshDefault().then(() => { if (dfltWaiting) setTimeout(refreshDefault, 1200); });
 }
 
-/* La fila de actualizaciones de "Acerca de". */
-function updateRow() {
-  const u = S.update || {};
+/* La fila de actualizaciones de "Acerca de". Se pone al día EN SU LUGAR
+   (relayUpdate): el texto y el botón se relevan cuando cambia la fase, y el
+   porcentaje de la descarga corre en vez de saltar de un número al otro. */
+const updatePct = (u) => Math.max(0, Math.min(100, (u.pct || 0) * 100));
+
+function updateHint(u) {
   const mb = u.bytes ? ` · ${fmtBytes(u.bytes)}` : '';
-  const text = {
-    unsupported: u.reason,
+  const html = {
+    unsupported: esc(u.reason || ''),
     idle: 'Se busca sola al abrir Prism y cada seis horas.',
     checking: 'Buscando…',
     current: `Estás en la última (${esc(u.current || '')}).`,
     available: `Hay una nueva: ${esc(u.name || u.version || '')}${mb}.`,
-    downloading: `Descargando la ${esc(u.version || '')}… ${Math.round((u.pct || 0) * 100)} %`,
+    downloading: `Descargando la ${esc(u.version || '')}… <span class="pr-upd__pct op-num">${Math.round(updatePct(u))} %</span>`,
     ready: `La ${esc(u.version || '')} está lista para instalarse.`,
     error: esc(u.error || 'No se pudo buscar.'),
   }[u.phase] || '';
-  const btn = {
-    available: '<i data-icon="download"></i> Descargar',
-    ready: '<i data-icon="reload"></i> Reiniciar y actualizar',
-  }[u.phase] || '<i data-icon="reload"></i> Buscar';
-  const disabled = ['unsupported', 'checking', 'downloading'].includes(u.phase);
-  return `<div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Actualizaciones</div>
-      <div class="pr-opt__hint">${text}</div></div>
-      <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-update" ${disabled ? 'disabled' : ''}>${btn}</button></div></div>`;
+  // La clave deja afuera el porcentaje: mientras baja, solo corre el número.
+  return { key: u.phase === 'downloading' ? `downloading:${u.version}` : `${u.phase}:${html}`, html };
 }
+
+function updateBtn(u) {
+  return {
+    available: `${Icons.svg('download')} Descargar`,
+    ready: `${Icons.svg('reload')} Reiniciar y actualizar`,
+  }[u.phase] || `${Icons.svg('reload')} Buscar`;
+}
+
+const updateLocked = (u) => ['unsupported', 'checking', 'downloading'].includes(u.phase);
+
+function updateRow() {
+  const u = S.update || {};
+  const hint = updateHint(u);
+  return `<div class="pr-opt pr-upd" data-key="${esc(hint.key)}"><div class="pr-opt__text"><div class="pr-opt__label">Actualizaciones</div>
+      <div class="pr-opt__hint pr-upd__hint">${hint.html}</div></div>
+      <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-update" ${updateLocked(u) ? 'disabled' : ''}><span class="pr-upd__btn op-swap--row">${updateBtn(u)}</span></button></div></div>`;
+}
+
+function relayUpdate(row) {
+  const u = S.update || {};
+  const hint = updateHint(u);
+  const box = row.querySelector('.pr-upd__hint');
+  if (row.dataset.key !== hint.key) {
+    row.dataset.key = hint.key;
+    swap(box, hint.html, { size: true });
+  } else if (u.phase === 'downloading') {
+    const all = box.querySelectorAll('.pr-upd__pct');
+    const n = all[all.length - 1];
+    if (n) roll(n, updatePct(u), (v) => { n.textContent = `${Math.round(v)} %`; }, { from: parseFloat(n.textContent) });
+  }
+  row.querySelector('#s-update').disabled = updateLocked(u);
+  swap(row.querySelector('.pr-upd__btn'), updateBtn(u), { size: true });
+}
+
+const relayAllUpdate = () => document.querySelectorAll('.pr-upd').forEach(relayUpdate);
 
 /* ══ Borrar datos ════════════════════════════════════════════════════════════ */
 
@@ -1143,7 +1317,7 @@ export function init() {
     refresh(['ajustes'], () => Date.now() > quietUntil);
     for (const sf of surfaces) sf.current?.onSettings?.();
   });
-  on('update', () => refresh(['ajustes']));
+  on('update', relayAllUpdate);
   render();
   refreshDefault();
   refreshAutostart();

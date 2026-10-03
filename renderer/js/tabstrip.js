@@ -20,7 +20,8 @@
 
 import { api, S, on } from './state.js';
 import { Icons } from './icons.js';
-import { exit } from './motion.js';
+import { exit, swap, swapText } from './motion.js';
+import { esc } from './ui.js';
 import { tabMenu } from './menus.js';
 
 const MAX_W = 236;
@@ -101,22 +102,24 @@ function iconKey(t) {
   return 'globe';
 }
 
+/* El ícono se releva en su lugar (swap, motion.js): globo → ruedita →
+   favicon se cruzan en la misma celda en vez de cambiar de un cuadro al otro. */
 function paintIcon(slot, t, key) {
-  if (key === 'loading') slot.innerHTML = Icons.spinner('op-icon--sm');
-  else if (key === 'crashed') slot.innerHTML = Icons.svg('broken');
-  else if (key === 'error') slot.innerHTML = Icons.svg('alert');
+  let html;
+  if (key === 'loading') html = Icons.spinner('op-icon--sm');
+  else if (key === 'crashed') html = Icons.svg('broken');
+  else if (key === 'error') html = Icons.svg('alert');
   // En incógnito, la pestaña nueva lleva el fantasmita en vez del prisma.
-  else if (key.startsWith('internal:')) slot.innerHTML = Icons.svg(t.internal === 'nueva' && S.info?.private ? 'ghost' : INTERNAL_ICON[t.internal] || 'globe');
-  else if (key.startsWith('fav:')) {
-    const img = document.createElement('img');
-    img.alt = '';
-    img.draggable = false;
-    img.referrerPolicy = 'no-referrer';
-    // Un favicon que no carga no deja un hueco: vuelve al globo.
-    img.addEventListener('error', () => { slot.innerHTML = Icons.svg('globe'); }, { once: true });
-    img.src = t.favicon;
-    slot.replaceChildren(img);
-  } else slot.innerHTML = Icons.svg('globe');
+  else if (key.startsWith('internal:')) html = Icons.svg(t.internal === 'nueva' && S.info?.private ? 'ghost' : INTERNAL_ICON[t.internal] || 'globe');
+  else if (key.startsWith('fav:')) html = `<img alt="" draggable="false" referrerpolicy="no-referrer" src="${esc(t.favicon)}">`;
+  else html = Icons.svg('globe');
+  const item = swap(slot, html);
+  // Un favicon que no carga no deja un hueco: vuelve al globo.
+  item?.querySelector('img')?.addEventListener('error', () => {
+    if (slot.dataset.key !== key) return;
+    slot.dataset.key = 'globe';
+    swap(slot, Icons.svg('globe'));
+  }, { once: true });
 }
 
 function create(t) {
@@ -131,6 +134,10 @@ function create(t) {
       <span class="pr-tab__title"></span>
       <button class="op-iconbtn pr-tab__btn pr-tab__close" tabindex="-1" aria-label="Cerrar pestaña">${Icons.svg('close')}</button>
     </div>`;
+  /* La entrada se apaga al terminar (con una clase, que la salida le gana):
+     retenida, su transform pisaba el levantarse de la que se arrastra. */
+  const body = el.querySelector('.pr-tab__body');
+  setTimeout(() => body.classList.add('is-settled'), 420);
   // Nace en su lugar, no deslizándose desde el borde izquierdo.
   const i = S.tabs.findIndex((x) => x.id === t.id);
   el.style.setProperty('--x', `${xAt(Math.max(0, i)) - scroll}px`);
@@ -148,9 +155,14 @@ function update(el, t) {
   el.classList.toggle('is-dormant', !!t.dormant);
   el.setAttribute('aria-selected', String(t.id === S.activeId));
 
+  // El título se releva: mientras carga pasa de la dirección al nombre del sitio.
   const title = t.title || (t.internal ? '' : t.url) || 'Nueva pestaña';
   const titleEl = el.querySelector('.pr-tab__title');
-  if (titleEl.textContent !== title) titleEl.textContent = title;
+  if (titleEl.dataset.text !== title) {
+    const born = titleEl.dataset.text == null;
+    titleEl.dataset.text = title;
+    if (born) titleEl.textContent = title; else swapText(titleEl, title);
+  }
   el.dataset.tip = title;
 
   const key = iconKey(t);

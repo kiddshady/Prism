@@ -70,7 +70,7 @@ async function askDisplay(req) {
     <label class="pr-remember" id="d-audio-row"><button class="op-check" id="d-audio" aria-label="Audio">${Icons.svg('check')}</button> Compartir también el sonido de la compu</label>`;
 
   const audioRow = body.querySelector('#d-audio-row');
-  const syncAudio = () => { audioRow.style.opacity = pick?.startsWith('screen') ? '1' : '.4'; };
+  const syncAudio = () => { audioRow.classList.toggle('is-dim', !pick?.startsWith('screen')); };
   syncAudio();
   audioRow.addEventListener('click', (e) => {
     e.preventDefault();

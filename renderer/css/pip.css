@@ -74,12 +74,16 @@ html, body { background: transparent; }
   right: 10px;
   bottom: 4px;
 }
+/* El tiempo y "En vivo" comparten la celda: uno se va mientras el otro llega. */
 .pip__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   height: 28px;
 }
+.pip__row > .pip-time,
+.pip__row > .pip-live { grid-area: 1 / 1; justify-self: start; }
 
 /* ── Botones ──────────────────────────────────────────────────────────────── */
 
@@ -144,19 +148,27 @@ html, body { background: transparent; }
   color: rgb(255 255 255 / .86);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
 }
+/* Aparece cuando se sabe cuánto dura, no de un cuadro al otro. */
+.pip.has-dur .pip-time { opacity: 1; }
 .pip-live {
-  display: none;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: var(--op-fs-12);
   font-weight: var(--op-w-medium);
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
 }
 .pip-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--op-danger); }
-.pip.is-live .pip-live { display: inline-flex; }
-.pip.is-live .pip-bar,
-.pip.is-live .pip-time,
-.pip.is-live .pip-skip { display: none; }
+/* En vivo: la barra, el tiempo y los saltos se esfuman (y no se tocan) en
+   vez de desaparecer con display:none. */
+.pip.is-live .pip-live { opacity: 1; }
+.pip.is-live .pip-time { opacity: 0; }
+.pip-bar { transition: opacity var(--op-t-2) var(--op-ease-soft), visibility 0s linear 0s; }
+.pip.is-live .pip-bar { opacity: 0; visibility: hidden; transition: opacity var(--op-t-2) var(--op-ease-soft), visibility 0s linear var(--op-t-2); }
 
 .pip-bar {
   --p: 0;
@@ -203,15 +215,23 @@ html, body { background: transparent; }
   transform: scale(0);
   transition: transform var(--op-t-1) var(--op-ease);
 }
+/* Un salto: la barra y la perilla viajan al lugar nuevo (pip.js, seeking). */
+.pip.is-seeking .pip-bar__fill,
+.pip.is-seeking .pip-bar__head { transition: transform var(--op-t-2) var(--op-ease); }
 .pip-bar:hover .pip-bar__track,
 .pip.is-scrubbing .pip-bar__track { transform: scaleY(1.6); }
 .pip-bar:hover .pip-bar__knob,
 .pip.is-scrubbing .pip-bar__knob { transform: scale(1); }
 
-/* Chiquita, lo esencial: sin los saltos de diez segundos. */
+/* Chiquita, lo esencial: sin los saltos de diez segundos. Se esfuman (y no
+   se tocan) en vez de irse con display:none: al achicarla, no desaparecen
+   de golpe. En vivo, tampoco hay a dónde saltar. */
 @media (max-width: 300px) {
-  .pip-skip { display: none; }
+  .pip .pip-skip,
+  .pip.is-shown .pip-skip { opacity: 0; visibility: hidden; transition: opacity var(--op-t-2) var(--op-ease-both), visibility 0s linear var(--op-t-2); }
 }
+.pip.is-live .pip-skip,
+.pip.is-live.is-shown .pip-skip { opacity: 0; visibility: hidden; transition: opacity var(--op-t-2) var(--op-ease-both), visibility 0s linear var(--op-t-2); }
 @media (max-height: 150px) {
   .pip__mid { transform: translateY(-6px); }
   .pip-play { width: 40px; height: 40px; }

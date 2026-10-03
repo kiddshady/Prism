@@ -31,8 +31,9 @@ function wireWindow() {
   document.getElementById('win-close').addEventListener('click', () => w.close());
   const maxBtn = document.getElementById('win-max');
   maxBtn.addEventListener('click', () => w.toggleMaximize());
+  // Los dos íconos están encimados en el botón y se cruzan (shell.css).
   const paintMax = (isMax) => {
-    maxBtn.innerHTML = Icons.svg(isMax ? 'winRestore' : 'winMax');
+    maxBtn.classList.toggle('is-max', !!isMax);
     maxBtn.setAttribute('aria-label', isMax ? 'Restaurar' : 'Maximizar');
   };
   w.onMaximized(paintMax);

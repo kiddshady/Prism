@@ -38,10 +38,18 @@ function contentHTML(d) {
     </div>`;
 }
 
+/* La barra de vida se apaga en vez de desaparecer: con un relevo, la vieja a
+   medio consumir se esfuma mientras la nueva entra llena. Por la API y no por
+   CSS: la animación de CSS es la que la achica, y cambiarla la rellenaría. */
 function stopLife() {
   clearTimeout(life.timer);
   life.timer = null;
-  card?.querySelector('.pr-card__life')?.remove();
+  card?.querySelectorAll('.pr-card__life:not([data-gone])').forEach((bar) => {
+    bar.dataset.gone = '1';
+    const a = bar.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'cubic-bezier(.65, 0, .35, 1)', fill: 'forwards' });
+    a.finished.then(() => bar.remove(), () => {});
+    setTimeout(() => bar.remove(), 400);
+  });
 }
 
 function startLife(ms) {
@@ -96,7 +104,8 @@ function show(d) {
     card = build(d);
     slot.appendChild(card);
   }
-  card.className = `pr-card pr-card--${d.kind || 'done'}${card.classList.contains('is-settled') ? ' is-settled' : ''}`;
+  // Se rearma la clase sin perder lo que está en curso (asentada, cambiando de alto).
+  card.className = `pr-card pr-card--${d.kind || 'done'}${['is-settled', 'is-resizing'].filter((c) => card.classList.contains(c)).map((c) => ` ${c}`).join('')}`;
   const stage = card.querySelector('.pr-card__stage');
   const old = stage.querySelectorAll('.pr-card__content:not([data-state="closing"])');
   const c = document.createElement('div');
@@ -113,9 +122,12 @@ function show(d) {
    no salta: va de su alto de antes al del contenido nuevo, con la base fija. */
 function resize(from, content) {
   const el = card;
+  // Si venía cambiando de alto, el viaje sigue desde donde iba: el de antes no lo corta.
+  const inFlight = !!el.__resizeStop;
+  el.__resizeStop?.();
   const pad = parseFloat(getComputedStyle(el).paddingTop) + parseFloat(getComputedStyle(el).paddingBottom);
   const to = Math.ceil(content.offsetHeight + pad);
-  if (Math.abs(to - from) < 2) return;
+  if (!inFlight && Math.abs(to - from) < 2) return;
   reserve = Math.max(from, to);
   report();
   el.style.height = `${from}px`;
@@ -125,6 +137,7 @@ function resize(from, content) {
   const done = () => {
     clearTimeout(timer);
     el.removeEventListener('transitionend', onEnd);
+    el.__resizeStop = null;
     el.classList.remove('is-resizing');
     el.style.height = '';
     reserve = 0;
@@ -133,6 +146,7 @@ function resize(from, content) {
   const onEnd = (e) => { if (e.target === el && e.propertyName === 'height') done(); };
   const timer = setTimeout(done, 500);
   el.addEventListener('transitionend', onEnd);
+  el.__resizeStop = () => { clearTimeout(timer); el.removeEventListener('transitionend', onEnd); el.__resizeStop = null; };
 }
 
 window.card.onShow(show);

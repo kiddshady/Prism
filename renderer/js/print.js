@@ -18,7 +18,7 @@ import { api, S } from './state.js';
 import { Icons } from './icons.js';
 import { Menu, Modal } from './overlays.js';
 import { modal } from './layers.js';
-import { bindSwitcher, bindStepper, scrollFade, exit } from './motion.js';
+import { bindSwitcher, bindStepper, scrollFade, swapText, dissolve } from './motion.js';
 
 const PAPERS = [['A4', 'A4'], ['Letter', 'Carta'], ['Legal', 'Oficio']];
 /** Cuánto se espera, después del último cambio, para rehacer la vista previa. */
@@ -111,7 +111,7 @@ async function show(t) {
   body.className = 'pr-print';
   body.innerHTML = `
     <div class="pr-print__opts op-scroll">
-      ${field('Destino', `<button class="op-select" id="pp-dest"><span class="op-select__value" data-placeholder="Buscando impresoras…"></span>${Icons.svg('chevronDown')}</button>`)}
+      ${field('Destino', `<button class="op-select" id="pp-dest"><span class="op-select__value"><span class="op-select__placeholder">Buscando impresoras…</span></span>${Icons.svg('chevronDown')}</button>`)}
       ${field('Páginas', `${seg('pp-pages', [['all', 'Todas'], ['custom', 'Elegir']], 'all')}
         <div class="op-reveal" id="pp-range-wrap"><div><div class="pr-print__range">
           <input class="op-input op-input--mono" id="pp-range" spellcheck="false" autocomplete="off" placeholder="Ej.: 1-3, 5">
@@ -144,7 +144,8 @@ async function show(t) {
   const destLabel = () => (o.dest === 'pdf' ? 'Guardar como PDF' : list.find((p) => p.name === o.dest)?.label || '');
   function setDest(d) {
     o.dest = d;
-    $('#pp-dest .op-select__value').textContent = destLabel();
+    // "Buscando impresoras…" → la impresora: se releva, no cambia de golpe.
+    swapText($('#pp-dest .op-select__value'), destLabel());
     const pdf = d === 'pdf';
     body.classList.toggle('is-pdf', pdf);
     body.querySelectorAll('.pr-print__only').forEach((el) => el.classList.toggle('is-open', !pdf));
@@ -174,7 +175,7 @@ async function show(t) {
     b.classList.add('is-open');
     Menu.show(b, PAPERS.map(([v, l]) => ({
       label: l, selected: o.paper === v,
-      onSelect: () => { o.paper = v; b.querySelector('.op-select__value').textContent = l; redo(); },
+      onSelect: () => { o.paper = v; swapText(b.querySelector('.op-select__value'), l); redo(); },
     })), { onClose: () => b.classList.remove('is-open') });
   });
 
@@ -219,7 +220,7 @@ async function show(t) {
     const r = custom && count ? parseRanges(o.rangeText, count) : { ranges: [] };
     const hint = $('#pp-range-hint');
     const bad = custom && !!r.error && (o.rangeText.trim() !== '' || !count);
-    hint.textContent = custom && r.error && o.rangeText.trim() ? r.error : count ? `De 1 a ${count}` : ' ';
+    swapText(hint, custom && r.error && o.rangeText.trim() ? r.error : count ? `De 1 a ${count}` : ' ');
     hint.classList.toggle('op-field__hint--error', bad && o.rangeText.trim() !== '');
     $('#pp-range').classList.toggle('is-invalid', bad && o.rangeText.trim() !== '');
     ranges = custom ? r.ranges || [] : [];
@@ -233,9 +234,10 @@ async function show(t) {
     const pages = custom ? ranges.reduce((n, [a, b]) => n + b - a + 1, 0) : count;
     const pdf = o.dest === 'pdf';
     const sheets = pdf ? pages : Math.ceil(pages / (o.duplex ? 2 : 1)) * o.copies;
-    if (summary) summary.textContent = !count || (custom && r.error) ? '' : pdf ? `${pages} ${pages === 1 ? 'página' : 'páginas'}` : `${sheets} ${sheets === 1 ? 'hoja' : 'hojas'} de papel`;
+    // La cuenta y el rótulo del botón se relevan; el botón va de un ancho al otro.
+    if (summary) swapText(summary, !count || (custom && r.error) ? '' : pdf ? `${pages} ${pages === 1 ? 'página' : 'páginas'}` : `${sheets} ${sheets === 1 ? 'hoja' : 'hojas'} de papel`);
     if (primary) {
-      primary.textContent = pdf ? 'Guardar' : 'Imprimir';
+      swapText(primary, pdf ? 'Guardar' : 'Imprimir', { size: true });
       primary.disabled = !o.dest || (custom && (!count || !!r.error));
     }
   }
@@ -269,8 +271,11 @@ async function show(t) {
       drop(doc);
       doc = next;
       count = next.numPages;
-      note.textContent = '';
-      body.classList.remove('has-note');
+      // El aviso se apaga con su texto puesto; se vacía cuando ya no se ve.
+      if (body.classList.contains('has-note')) {
+        body.classList.remove('has-note');
+        setTimeout(() => { if (!body.classList.contains('has-note')) note.textContent = ''; }, 260);
+      }
     } catch (err) {
       drop(next);
       if (my !== seq || closed) return;
@@ -297,9 +302,13 @@ async function show(t) {
         <div class="pr-sheet__paper"><canvas></canvas></div>
         <div class="pr-sheet__num op-num">${n}</div></div></div></div>`);
     }
+    /* Si había hojas, es un fundido (motion.js, dissolve): las nuevas quedan
+       quietas y ya dibujadas debajo, y las viejas, opacas y encima, se
+       esfuman. Con el relevo con espera la hoja blanca se destapaba vacía en
+       el medio: viejo → blanco → nuevo. */
     const old = stage.querySelector('.pr-print__sheets:not([data-state="closing"])');
     box.querySelectorAll('.pr-sheet').forEach((s) => s.classList.toggle('is-out', !!shown && !inRanges(Number(s.dataset.n), shown)));
-    if (old) box.classList.add('is-after');
+    if (old) box.classList.add('is-quiet', 'is-still');
     box.style.visibility = 'hidden';
     stage.appendChild(box);
 
@@ -315,7 +324,11 @@ async function show(t) {
     box.querySelectorAll('.pr-sheet').forEach((s) => { if (!s.dataset.drawn) io.observe(s); });
 
     box.style.visibility = '';
-    if (old) exit(old, { fallback: 200 });
+    if (old) {
+      dissolve(old);
+      // Tapadas ya no hace falta: las que se dibujen al bajar sí se encienden.
+      setTimeout(() => box.classList.remove('is-still'), 320);
+    }
   }
 
   async function draw(d, sheet) {

@@ -7,7 +7,7 @@
 
 import { Icons } from './icons.js';
 import { Menu, Modal, Tooltip } from './overlays.js';
-import { exit, scrollFade } from './motion.js';
+import { exit, scrollFade, dissolve, glideSize } from './motion.js';
 import * as Freeze from './freeze.js';
 
 const EDGE = 10;
@@ -86,7 +86,8 @@ export function closePopover(immediate = false) {
   anchor?.classList.remove('is-open');
   document.removeEventListener('keydown', onKey, true);
   document.removeEventListener('pointerdown', onDown, true);
-  immediate ? el.remove() : exit(el, { fallback: 160 });
+  // Reemplazado por otro overlay también se va con su salida: no de golpe.
+  exit(el, { fallback: 160 });
   Freeze.releaseAfter(release, immediate ? 0 : 140);
   onClose?.();
 }
@@ -108,7 +109,22 @@ export async function popover(anchor, build, { width = 340, align = 'end', onClo
   const ctl = {
     el,
     close: () => { if (pop?.el === el) closePopover(); },
-    refresh: () => render(),
+    /* Con `fade`, el panel se rehace debajo de un calco de lo que mostraba,
+       que se esfuma (dissolve), y el alto va de uno al otro: es para los que
+       se arman enteros de nuevo (el escudo, el sitio). Los que se ponen al
+       día solos (descargas, contraseñas) refrescan sin calco. */
+    refresh: async ({ fade = false } = {}) => {
+      if (!fade || !el.isConnected) return render();
+      const snapshot = el.innerHTML;
+      const from = { w: el.offsetWidth, h: el.offsetHeight };
+      await render();
+      const calco = document.createElement('div');
+      calco.className = 'pr-pop__calco';
+      calco.innerHTML = snapshot;
+      el.appendChild(calco);
+      dissolve(calco);
+      glideSize(el, from, { width: false, ignore: [calco] });
+    },
   };
   /* Un panel puede armarse asíncrono (el del escudo pide sus números antes
      de escribir): los íconos se montan cuando ya escribió. Montados antes,
@@ -121,8 +137,9 @@ export async function popover(anchor, build, { width = 340, align = 'end', onClo
       el.querySelectorAll('.op-scroll').forEach((s) => { scrollFade(s); s.scrollTop = keepScroll; });
     };
     const built = build(el, ctl);
-    if (built && typeof built.then === 'function') built.then(settle, settle);
-    else settle();
+    if (built && typeof built.then === 'function') return built.then(settle, settle);
+    settle();
+    return Promise.resolve();
   };
   render();
 

@@ -379,10 +379,30 @@ bindStepper(el, onChange)      // las flechas de un .op-stepper; repiten al agua
 toggleReveal(el, open)         // alto con grid 0fr → 1fr, sin animar height
 countTo(el, n, { format })     // un número que corre en vez de saltar
 tick(el)                       // destella un valor que acaba de cambiar
+
+roll(el, to, paint, { from })  // corre desde lo que se ve AHORA (un % que llega de a pedazos)
+swap(el, html, { dir, size })  // relevo de un valor en su lugar (texto, ícono, lo tapado/visible)
+swapText(el, text, opts)       // swap() de un texto
+reconcile(box, items, opts)    // pone una lista al día fila por fila, por clave (FLIP)
+dissolve(old)                  // fundido: lo viejo, opaco y encima, se esfuma sobre lo nuevo
+glideSize(el, from)            // de un tamaño al otro, en vez de saltar
+collapse(el) / expand(el)      // una fila que se va (o llega) plegándose: las de abajo acompañan
+replaceSoft(old, node)         // un nodo que reemplaza a otro en una fila (un ícono)
 ```
 
 `exit()` es el más importante y el que más se olvida: sin él, todo lo que se va
 del DOM parpadea.
+
+**Nada se rehace con `innerHTML` si ya está a la vista.** Una lista que cambia
+(buscar, una descarga que avanza, quitar un favorito) va con `reconcile()`:
+las filas que siguen son el mismo nodo y viajan a su lugar, las que se van se
+esfuman fuera del flujo y las nuevas entran cuando las viejas casi no se ven.
+Un valor que cambia en su lugar va con `swap()` o, si es un número, con
+`roll()`. Una superficie entera que cambia por otra (el panel de la bóveda, la
+vista previa de impresión) va con `dissolve()`, y su calco necesita fondo opaco.
+Una página que se pone al día (Ajustes) se arma una vez y después solo
+actualiza lo que cambió: los switches se mueven, las cápsulas viajan y lo que
+aparece según otro ajuste se despliega con `.op-reveal`.
 
 ### Clases de animación
 

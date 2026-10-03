@@ -18,7 +18,7 @@
 
 import { api, S } from './state.js';
 import { Icons } from './icons.js';
-import { exit } from './motion.js';
+import { exit, reconcile, swap } from './motion.js';
 import { esc } from './ui.js';
 import { say } from './status.js';
 import * as Freeze from './freeze.js';
@@ -142,7 +142,44 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
         <span class="pr-sugg__icon">${icon}</span>
         <span class="pr-sugg__main">${r.kind === 'remote' ? highlightRest(r.main, q) : highlight(r.main, q)}</span>
         ${r.sub ? `<span class="pr-sugg__sub">${highlight(r.sub, r.kind === 'search' || r.kind === 'go' ? '' : q)}</span>` : ''}
-      </button>${i === 0 && rows.length > 1 ? '<div class="pr-suggest__sep"></div>' : ''}`;
+      </button>`;
+  }
+
+  /* La primera fila es "lo que va a hacer Enter": una sola pieza que cambia
+     con lo tipeado. Las demás se reconocen por lo que son y a dónde llevan. */
+  const rowKey = (r, i) => (i === 0 ? 'enter' : r.kind === 'answer' ? 'answer' : `${r.kind}:${r.value}`);
+
+  /* Una fila que sigue: el texto acompaña lo tipeado (es eco del campo, va al
+     instante) y el ícono, si cambió (buscar ↔ ir), se releva. */
+  function updateRow(el, it) {
+    const t = document.createElement('template');
+    t.innerHTML = it.html.trim();
+    const nu = t.content.firstElementChild;
+    el.className = nu.className;
+    el.dataset.i = nu.dataset.i;
+    const icon = el.querySelector('.pr-sugg__icon');
+    const nuIcon = nu.querySelector('.pr-sugg__icon');
+    const same = [...el.children].map((c) => c.className).join() === [...nu.children].map((c) => c.className).join();
+    if (!same) { el.replaceChildren(...nu.childNodes); wireIcons(el); return; }
+    if (icon.__src !== nuIcon.innerHTML) { icon.__src = nuIcon.innerHTML; swap(icon, nuIcon.innerHTML); wireIcons(icon); }
+    for (const sel of ['.pr-sugg__main', '.pr-sugg__sub']) {
+      const a = el.querySelector(sel);
+      const b = nu.querySelector(sel);
+      if (a && b && a.innerHTML !== b.innerHTML) a.innerHTML = b.innerHTML;
+    }
+  }
+
+  /** Un favicon que no carga cede su lugar al ícono, que aparece (no salta). */
+  function wireIcons(root) {
+    root.querySelectorAll('img[data-fallback]').forEach((img) => {
+      img.addEventListener('error', () => {
+        const t = document.createElement('template');
+        t.innerHTML = Icons.svg(img.dataset.fallback);
+        const n = t.content.firstElementChild;
+        n.classList.add('op-in-fade');
+        img.replaceWith(n);
+      }, { once: true });
+    });
   }
 
   function place() {
@@ -153,13 +190,30 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
     dd.el.style.width = `${Math.round(r.width)}px`;
   }
 
+  /* La lista se pone al día fila por fila (reconcile): con cada letra las
+     filas que siguen se quedan y se acomodan, las que ya no van se van y las
+     nuevas entran, y el panel va de un alto al otro. Rehecha entera, cambiaba
+     de golpe con cada tecla y los favicons parpadeaban recargándose. */
   function paint() {
     if (!dd) return;
-    dd.el.innerHTML = rows.map(rowHTML).join('');
-    dd.el.querySelectorAll('img[data-fallback]').forEach((img) => {
-      img.addEventListener('error', () => { img.outerHTML = Icons.svg(img.dataset.fallback); }, { once: true });
+    const items = [];
+    rows.forEach((r, i) => {
+      items.push({ key: rowKey(r, i), html: rowHTML(r, i) });
+      if (i === 0 && rows.length > 1) items.push({ key: 'sep', html: '<div class="pr-suggest__sep"></div>' });
     });
+    reconcile(dd.el, items, {
+      update: updateRow,
+      created: (el) => { wireIcons(el); const ic = el.querySelector('.pr-sugg__icon'); if (ic) ic.__src = ic.innerHTML; },
+      height: !dd.fresh,
+      enter: !dd.fresh,
+    });
+    dd.fresh = false;
     place();
+  }
+
+  /** Elegir con las flechas solo mueve la marca: el resaltado viaja con su transición. */
+  function markSel() {
+    dd?.el.querySelectorAll('.pr-sugg').forEach((x) => x.classList.toggle('is-active', Number(x.dataset.i) === sel));
   }
 
   async function open() {
@@ -188,10 +242,10 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
         const i = Number(b.dataset.i);
         if (i === sel) return;
         sel = i;
-        el.querySelectorAll('.pr-sugg').forEach((x, j) => x.classList.toggle('is-active', j === sel));
+        markSel();
       });
       document.getElementById('op-layer').appendChild(el);
-      dd = { el, release };
+      dd = { el, release, fresh: true };
       paint();
     })();
     await opening;
@@ -257,7 +311,7 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
     else if (r.kind === 'answer') input.value = typed;
     else input.value = r.kind === 'remote' || r.kind === 'search' ? r.value : safeDecode(r.url || r.value);
     input.setSelectionRange(input.value.length, input.value.length);
-    paint();
+    markSel();
   }
 
   /* El resultado va al portapapeles sin puntos de miles ("1210", "83,33"),

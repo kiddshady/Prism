@@ -150,6 +150,7 @@
   box-shadow: var(--op-sheet), var(--op-e3);
   transform: translateY(-1px);
 }
+.pr-tab__body.is-settled { animation: none; }
 .pr-tab[data-state='closing'] .pr-tab__body { animation: pr-tab-out 150ms var(--op-ease-in) both; }
 
 @keyframes pr-tab-in  { from { opacity: 0; transform: translateY(7px) scale(.97) } to { opacity: 1; transform: none } }
@@ -162,9 +163,10 @@
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
-  transition: opacity var(--op-t-3) var(--op-ease-soft);
+  transition: opacity var(--op-t-3) var(--op-ease-soft), width var(--op-t-3) var(--op-ease);
 }
 .pr-tab__icon > * { grid-area: 1 / 1; }
+.pr-tab__icon > .op-swap__item { display: grid; place-items: center; }
 .pr-tab__icon img {
   width: 16px;
   height: 16px;
@@ -191,8 +193,10 @@
   /* Un título largo se esfuma, no se corta con puntos: se lee hasta el final
      del espacio que tiene. */
   mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-  transition: opacity var(--op-t-2) var(--op-ease-soft);
+  max-width: 100%;
+  transition: opacity var(--op-t-2) var(--op-ease-soft), max-width var(--op-t-3) var(--op-ease);
 }
+.pr-tab__title > .op-swap__item { white-space: nowrap; overflow: hidden; }
 
 .pr-tab__btn {
   width: 20px;
@@ -205,18 +209,20 @@
   opacity: 0;
   transform: scale(.85);
   transition: var(--tr-color), opacity var(--op-t-1) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease),
-    width var(--op-t-3) var(--op-ease);
+    width var(--op-t-3) var(--op-ease), margin-left var(--op-t-3) var(--op-ease);
 }
 .pr-tab:hover .pr-tab__close,
 .pr-tab.is-active .pr-tab__close { opacity: 1; transform: none; }
 
-/* Angosta: el título se va antes que el ícono, y la cruz solo en la activa. */
+/* Angosta: el título se va antes que el ícono, y la cruz solo en la activa.
+   Nada con display:none: se pliegan a lo ancho y se esfuman, así cambiar de
+   pestaña con muchas abiertas no hace aparecer y desaparecer la cruz de golpe. */
 .pr-tab.is-narrow .pr-tab__body { padding: 0 4px 0 7px; gap: 4px; }
-.pr-tab.is-narrow:not(.is-active) .pr-tab__close { display: none; }
-.pr-tab.is-tiny .pr-tab__body { justify-content: center; padding: 0; }
-.pr-tab.is-tiny .pr-tab__title,
-.pr-tab.is-tiny:not(.is-active) .pr-tab__close { display: none; }
-.pr-tab.is-tiny.is-active .pr-tab__icon { display: none; }
+.pr-tab.is-narrow:not(.is-active) .pr-tab__close { opacity: 0; width: 0; margin-left: -4px; pointer-events: none; }
+.pr-tab.is-tiny .pr-tab__body { justify-content: center; padding: 0; gap: 0; }
+.pr-tab.is-tiny .pr-tab__title { max-width: 0; opacity: 0; }
+.pr-tab.is-tiny:not(.is-active) .pr-tab__close { margin-left: 0; }
+.pr-tab.is-tiny.is-active .pr-tab__icon { opacity: 0; width: 0; }
 
 /* Fijada: solo el ícono, centrado en sus 36 px de cuerpo. El título y la
    cruz no se cortan: se desvanecen mientras la pestaña se angosta, y vuelven
@@ -228,7 +234,9 @@
 /* Vista dividida: las dos del par van unidas por un contorno fino que las
    abarca a las dos (las dos miden lo mismo: --w). La que no es la activa,
    mientras el par está a la vista, queda a medio encender. */
-.pr-tab.is-split-a::before {
+/* El contorno vive en todas y se enciende en la primera del par: así también
+   se apaga al deshacer el par, y su ancho acompaña al de las pestañas. */
+.pr-tab::before {
   content: '';
   position: absolute;
   inset: -1px auto -1px 0;
@@ -237,8 +245,10 @@
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / .13);
   background: rgb(255 255 255 / .025);
   pointer-events: none;
-  animation: op-fade-in var(--op-t-3) var(--op-ease) both;
+  opacity: 0;
+  transition: opacity var(--op-t-3) var(--op-ease-soft), width var(--op-t-3) var(--op-ease);
 }
+.pr-tab.is-split-a::before { opacity: 1; }
 .pr-tab.is-split-shown:not(.is-active) .pr-tab__body { background: rgb(255 255 255 / .045); color: var(--op-text-2); }
 
 /* Dormida: su proceso está cerrado hasta que la mires. El ícono se apaga un
@@ -317,7 +327,9 @@
 }
 .pr-omni__site:hover { background: var(--op-wash-1); color: var(--op-text-2); }
 .pr-omni__site > * { grid-area: 1 / 1; }
-.pr-omni__site .op-icon { width: 14px; height: 14px; animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
+.pr-omni__site .op-icon { width: 14px; height: 14px; }
+/* El ícono se releva (swap): el que llega espera al que se va, en la misma celda. */
+.pr-omni__site.op-swap { place-items: center; }
 /* El prisma de las páginas propias va a 22 px, como el de «Acerca de Prism»:
    su dibujo tiene aire dentro del viewBox y a 14 quedaba chiquito. */
 .pr-omni__site .op-icon:has(.pr-mark__f) { width: 22px; height: 22px; }
@@ -350,6 +362,8 @@
   user-select: text;
   cursor: text;
   caret-color: var(--op-accent);
+  /* Al tomar el foco el texto aparece mientras la dirección partida se va: se cruzan. */
+  transition: color var(--op-t-1) var(--op-ease-soft);
 }
 .pr-omni__input::placeholder { color: var(--op-text-4); }
 .pr-omni__input::selection { background: rgb(var(--op-accent-rgb) / .24); }
@@ -367,6 +381,7 @@
   transition: opacity var(--op-t-1) var(--op-ease-soft);
   mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
 }
+.pr-omni__display > .op-swap__item { white-space: nowrap; overflow: hidden; }
 .pr-omni__display b { font-weight: var(--op-w-regular); color: var(--op-text); }
 .pr-omni__display .is-scheme { color: var(--op-text-4); }
 
@@ -436,7 +451,7 @@
   background: var(--op-sunken);
   box-shadow: inset 0 0 0 1px var(--op-line-2);
   opacity: 0;
-  transition: opacity var(--op-t-2) var(--op-ease-soft);
+  transition: opacity var(--op-t-2) var(--op-ease-soft), box-shadow var(--op-t-2) var(--op-ease-soft);
 }
 .pr-find.is-open .pr-find__inner { opacity: 1; }
 .pr-find__inner > .op-icon { width: 13px; height: 13px; color: var(--op-text-4); flex: 0 0 auto; }
@@ -455,6 +470,8 @@
 .pr-find__input::placeholder { color: var(--op-text-4); }
 .pr-find__count {
   min-width: 42px;
+  justify-items: end;
+  transition: color var(--op-t-1) var(--op-ease-soft);
   font-size: var(--op-fs-11);
   color: var(--op-text-3);
   text-align: right;
@@ -487,6 +504,11 @@
 .pr-shield,
 .pr-dl { position: relative; overflow: visible; }
 .pr-shield.is-off { color: var(--op-text-4); }
+/* Escudo ↔ escudo tachado, encimados: se cruzan como recargar ↔ detener. */
+.pr-shield > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
+.pr-shield .pr-shield__b,
+.pr-shield.is-off .pr-shield__a { opacity: 0; transform: scale(.7); }
+.pr-shield.is-off .pr-shield__b { opacity: 1; transform: none; }
 .pr-badge {
   position: absolute;
   right: 1px;
@@ -532,6 +554,8 @@
   transition: stroke-dashoffset var(--op-t-4) var(--op-ease);
 }
 .pr-dl.is-active .pr-dl__ring { opacity: 1; }
+/* Una descarga nueva: el arco toma su valor sin viajar desde el de la anterior. */
+.pr-dl.is-fresh .pr-dl__arc { transition: none; }
 .pr-dl.is-indeterminate .pr-dl__arc { stroke-dashoffset: 72; animation: op-spin 1.2s linear infinite; transform-origin: center; }
 .pr-dl.is-done > .op-icon { animation: pr-drop 520ms var(--op-ease) both; }
 @keyframes pr-drop {
@@ -569,8 +593,13 @@
   background: linear-gradient(to right, transparent, rgb(var(--op-accent-rgb) / .9) 45%, rgb(var(--op-accent-rgb) / .9) 55%, transparent);
   transform: translateX(-100%);
 }
-.pr-loadbar.is-on { opacity: 1; }
-.pr-loadbar.is-on::before { animation: pr-sweep 1.25s linear infinite; }
+/* El barrido corre siempre y se apaga con el contenedor: sacarle la
+   animación al terminar la carga lo mandaba de un cuadro al otro afuera de
+   la pista, y el fundido de 280 ms apagaba una barra ya vacía. Oculta, deja
+   de correr (visibility, que llega cuando terminó de apagarse). */
+.pr-loadbar { visibility: hidden; transition: opacity var(--op-t-3) var(--op-ease-soft), visibility 0s linear var(--op-t-3); }
+.pr-loadbar::before { animation: pr-sweep 1.25s linear infinite; }
+.pr-loadbar.is-on { opacity: 1; visibility: visible; transition: opacity var(--op-t-3) var(--op-ease-soft), visibility 0s; }
 @keyframes pr-sweep { from { transform: translateX(-100%) } to { transform: translateX(358%) } }
 
 /* ══ La página ════════════════════════════════════════════════════════════ */
@@ -762,15 +791,24 @@
 .pr-bm.is-flipping { transition: var(--tr-color), transform var(--op-t-3) var(--op-ease); }
 @keyframes pr-bm-in { from { opacity: 0; transform: scale(.9) } to { opacity: 1; transform: none } }
 @keyframes pr-bm-out { from { opacity: 1; transform: none } to { opacity: 0; transform: scale(.9) } }
-.pr-bmbar__more:not([hidden]) { animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both; }
+/* Uno que ya no entra (la ventana se achica) se desvanece antes de esconderse. */
+.pr-bm.is-hiding { pointer-events: none; animation: pr-bm-out 160ms var(--op-ease-both) both; }
 .pr-bmbar__empty[data-state='closing'] { position: absolute; animation: op-fade-out 140ms var(--op-ease-both) both; }
 .pr-bm:active, .pr-bm.is-open { background: var(--op-wash-2); color: var(--op-text); }
 .pr-bm[hidden] { display: none; }
 .pr-bm > img, .pr-bm > .op-icon { width: 16px; height: 16px; flex: 0 0 auto; border-radius: 3px; }
 .pr-bm > .op-icon { width: 14px; height: 14px; margin: 1px; color: var(--op-text-3); }
 .pr-bm__label { overflow: hidden; text-overflow: ellipsis; }
-.pr-bmbar__more { flex: 0 0 auto; margin-top: 2px; color: var(--op-text-3); }
-.pr-bmbar__more[hidden] { display: none; }
+.pr-bmbar__more {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--op-text-3);
+  transition: var(--tr-color), transform var(--op-t-2) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft),
+    width var(--op-t-3) var(--op-ease), margin-left var(--op-t-3) var(--op-ease);
+}
+/* Cerrada se pliega a lo ancho (y se come el gap) en vez de display:none. */
+.pr-bmbar__more:not(.is-on) { width: 0; margin-left: calc(-1 * var(--op-1)); opacity: 0; transform: scale(.8); pointer-events: none; }
+.pr-bm__label > .op-swap__item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* El menú de la punta (bmbar.js): un menú de Opal con los favicons de la
    barra, cuyas filas se arrastran. Mismo trato que el arrastre de la barra:
@@ -875,6 +913,9 @@
 .pr-status__url { font-family: var(--op-mono); font-size: 10.5px; color: var(--op-text-2); }
 .pr-status__item { display: flex; align-items: center; gap: 5px; white-space: nowrap; animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
 .pr-status__item .op-icon { width: 12px; height: 12px; }
+/* El porcentaje aparece cuando se sabe cuánto falta, y se apaga si deja de saberse. */
+.pr-status__pct { display: inline-flex; gap: 4px; opacity: 0; transition: opacity var(--op-t-2) var(--op-ease-soft); }
+.pr-status__pct.is-on { opacity: 1; }
 
 /* ══ Overlays propios ═════════════════════════════════════════════════════ */
 
@@ -922,7 +963,7 @@
 }
 .pr-sugg:hover { background: var(--op-wash-1); }
 .pr-sugg.is-active { background: var(--op-wash-2); color: var(--op-text); }
-.pr-sugg__icon { display: grid; place-items: center; width: 16px; height: 16px; flex: 0 0 auto; color: var(--op-text-3); }
+.pr-sugg__icon { display: grid; place-items: center; width: 16px; height: 16px; flex: 0 0 auto; color: var(--op-text-3); transition: color var(--op-t-1) var(--op-ease-soft); }
 .pr-sugg__icon img { width: 16px; height: 16px; border-radius: 3px; }
 .pr-sugg__icon .op-icon { width: 14px; height: 14px; }
 .pr-sugg.is-active .pr-sugg__icon { color: var(--op-text-2); }
@@ -963,6 +1004,8 @@
   overflow: hidden;
 }
 .pr-pop[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+/* El calco de lo que mostraba un panel que se rehízo: opaco y encima, se esfuma. */
+.pr-pop__calco { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--pr-float); border-radius: inherit; overflow: hidden; }
 .pr-pop__head { display: flex; align-items: center; gap: var(--op-2); padding: var(--op-4) var(--op-4) var(--op-2); }
 .pr-pop__title { font-size: var(--op-fs-13); font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); }
 .pr-pop__sub { font-size: var(--op-fs-11); color: var(--op-text-3); }
@@ -1012,11 +1055,20 @@
 .pr-dlrow__icon .op-icon { width: 15px; height: 15px; }
 .pr-dlrow.is-failed .pr-dlrow__icon { color: var(--op-danger); }
 .pr-dlrow__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.pr-dlrow__name { font-size: var(--op-fs-12); color: var(--op-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pr-dlrow.is-muted .pr-dlrow__name { color: var(--op-text-3); text-decoration: line-through; text-decoration-color: var(--op-text-4); }
-.pr-dlrow__meta { font-size: var(--op-fs-11); color: var(--op-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pr-dlrow__name { font-size: var(--op-fs-12); color: var(--op-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color var(--op-t-2) var(--op-ease-soft), text-decoration-color var(--op-t-2) var(--op-ease-soft); text-decoration: line-through transparent; }
+.pr-dlrow.is-muted .pr-dlrow__name { color: var(--op-text-3); text-decoration-color: var(--op-text-4); }
+.pr-dlrow__meta { font-size: var(--op-fs-11); color: var(--op-text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; transition: color var(--op-t-2) var(--op-ease-soft); }
+/* El dato se releva en su lugar (swap) y se sigue cortando con puntos. */
+.pr-dlrow__meta > .op-swap__item,
+.pr-dlrow__metatext,
+.pr-dlrow__name > .op-swap__item { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pr-dlrow.is-failed .pr-dlrow__meta { color: var(--op-danger); }
+.pr-dlrow__icon { transition: color var(--op-t-2) var(--op-ease-soft); }
+/* La barra se despliega mientras baja y se pliega cuando termina (0fr → 1fr). */
+.pr-dlrow__bar { margin-top: -3px; opacity: 0; transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft), margin-top var(--op-t-3) var(--op-ease); }
+.pr-dlrow__bar.is-open { margin-top: 0; opacity: 1; }
 .pr-dlrow .op-meter { margin-top: 2px; }
+.pr-dlrow__actions.op-swap { justify-items: end; }
 .pr-dlrow__actions { display: flex; gap: 2px; flex: 0 0 auto; }
 
 /* ── Contraseñas ─────────────────────────────────────────────────────────────
@@ -1093,15 +1145,19 @@
 .pr-pass__tile--card .op-icon { width: 16px; height: 16px; }
 .pr-pass__tile--lg.pr-pass__tile--card .op-icon { width: 21px; height: 21px; }
 
-.pr-pass__main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.pr-pass__main { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); min-width: 0; min-height: 0; }
+/* La de antes y la nueva en la misma celda: el fundido (dissolve) las apila. */
 .pr-pass__view {
   --op-fade: 16px;
-  flex: 1 1 auto;
+  grid-area: 1 / 1;
   min-height: 0;
   padding-left: var(--op-5);
   padding-right: var(--op-5);
   animation: pr-pass-in var(--op-t-2) var(--op-ease) both;
 }
+/* Debajo de un calco no se mueve: entrando, temblaría lo que las dos comparten. */
+.pr-pass__view.is-quiet { animation: none; }
+.pr-pass__view.op-dissolving { background: var(--pr-float); }
 @keyframes pr-pass-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 .pr-pass__head { display: flex; align-items: center; gap: var(--op-3); padding: var(--op-1) 0 var(--op-4); }
@@ -1150,7 +1206,18 @@
 .pr-pass__fieldbody { flex: 1 1 auto; min-width: 0; }
 .pr-pass__label { font-size: var(--op-fs-11); color: var(--op-text-3); margin-bottom: 3px; }
 .pr-pass__value { font-size: var(--op-fs-13); color: var(--op-text); overflow-wrap: anywhere; user-select: text; cursor: text; }
-.pr-pass__value.is-mono { font-family: var(--op-mono); font-size: 12.5px; letter-spacing: .02em; }
+.pr-pass__value.is-mono,
+.pr-pass__secret { font-family: var(--op-mono); font-size: 12.5px; letter-spacing: .02em; }
+/* Lo tapado y lo visible se relevan en su lugar (swap): alineados a la izquierda. */
+.pr-pass__value.op-swap { justify-items: start; }
+.pr-pass__value.op-swap > .op-swap__item { max-width: 100%; }
+/* El ojo del formulario: el campo se vela mientras cambia de puntos a texto. */
+.pr-pass__pwwrap .op-input {
+  transition: box-shadow var(--op-t-2) var(--op-ease-soft),
+              background-color var(--op-t-2) var(--op-ease-soft),
+              color var(--op-t-1) var(--op-ease-both);
+}
+.pr-pass__pwwrap .op-input.is-veiled { color: transparent; }
 .pr-pass__muted { color: var(--op-text-4); }
 .pr-pass__note { font-size: var(--op-fs-13); line-height: var(--op-lh); color: var(--op-text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .pr-pass__metalabel { font-size: var(--op-fs-12); color: var(--op-text-2); }

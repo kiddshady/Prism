@@ -111,7 +111,11 @@
   align-items: center;
   animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both;
 }
-.pr-print__sheets.is-after { animation-delay: 80ms; }
+/* Las que llegan debajo de un calco no se mueven ni se encienden: ya están dibujadas. */
+.pr-print__sheets.is-quiet { animation: none; }
+.pr-print__sheets.is-still .pr-sheet__paper canvas { transition: none; }
+/* El calco de las de antes: opaco, con el fondo del escenario, encima. */
+.pr-print__sheets.op-dissolving { background: var(--op-deep); }
 .pr-print__sheets[data-state='closing'] {
   animation: op-fade-out 160ms var(--op-ease-both) both;
   pointer-events: none;

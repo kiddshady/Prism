@@ -312,8 +312,9 @@ function createTabs(ctx) {
   function destroyView(t) {
     const view = t.view;
     if (!view) return;
-    // Si el video estaba en la ventanita (o yendo), la ventanita se va con la pestaña.
-    ctx.pip?.drop(t);
+    // Si el video estaba en la ventanita (o yendo), la ventanita se va con la
+    // pestaña: primero se desvanece, y recién ahí se cierra la página.
+    const leaving = ctx.pip?.drop(t);
     if (attached.has(view)) {
       try { ctx.win.contentView.removeChildView(view); } catch { /* nada */ }
       attached.delete(view);
@@ -321,7 +322,9 @@ function createTabs(ctx) {
     byWc.delete(view.webContents.id);
     t.view = null;
     t.shown = false;
-    try { view.webContents.close(); } catch { /* ya estaba cerrada */ }
+    const close = () => { try { view.webContents.close(); } catch { /* ya estaba cerrada */ } };
+    if (leaving) leaving.then(close, close);
+    else close();
   }
 
   function wire(t, wc) {

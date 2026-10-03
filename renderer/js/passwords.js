@@ -22,7 +22,7 @@ import { esc } from './ui.js';
 import { plural } from './format.js';
 import { popover, popoverOpen, closePopover } from './layers.js';
 import { say } from './status.js';
-import { scrollFade, bindSwitcher } from './motion.js';
+import { scrollFade, bindSwitcher, reconcile, swap, swapText, dissolve } from './motion.js';
 
 let btn;
 
@@ -162,15 +162,18 @@ function paintList() {
   const list = root.querySelector('#pp-list');
   const items = filtered();
   const all = ofKind().length;
-  root.querySelector('#pp-count').textContent = all ? (P.kind === 'card' ? plural(all, 'tarjeta', 'tarjetas') : plural(all, 'contraseña', 'contraseñas')) : '';
-  list.innerHTML = items.length
-    ? items.map((it) => `
+  swapText(root.querySelector('#pp-count'), all ? (P.kind === 'card' ? plural(all, 'tarjeta', 'tarjetas') : plural(all, 'contraseña', 'contraseñas')) : '');
+  /* Fila por fila (motion.js): al buscar, las que siguen coincidiendo se
+     quedan y se acomodan, las otras se van; rehecha entera, la lista
+     parpadeaba con cada letra. */
+  reconcile(list, items.length
+    ? items.map((it) => ({ key: it.id, html: `
       <button class="pr-pass__row${it.id === P.sel ? ' is-selected' : ''}" data-id="${esc(it.id)}" role="option" aria-selected="${it.id === P.sel}">
         ${tile(it)}
         <span class="pr-pass__rowtext"><span class="pr-pass__rowtitle">${esc(it.title)}</span>
           <span class="pr-pass__rowsub">${esc(isCard(it) ? cardLine(it) : loginOf(it) || it.host || 'Sin usuario')}</span></span>
-      </button>`).join('')
-    : `<div class="pr-pass__none">${all ? 'Nada coincide con la búsqueda.' : 'Todavía no hay nada.'}</div>`;
+      </button>` }))
+    : [{ key: `none:${all ? 'q' : 'empty'}`, html: `<div class="pr-pass__none">${all ? 'Nada coincide con la búsqueda.' : 'Todavía no hay nada.'}</div>` }]);
 }
 
 /** Marca la fila elegida sin repintar la lista (así no salta el scroll). */
@@ -197,9 +200,17 @@ function paintMain() {
   else if (it) html += (card ? cardHTML : detailHTML)(it);
   else html += `<div class="pr-pass__empty"><i data-icon="${card ? 'card' : 'passKey'}"></i><div>Elegí un elemento de la lista.</div></div>`;
 
-  main.innerHTML = `<div class="pr-pass__view op-scroll" id="pp-view">${html}</div>`;
-  Icons.mount(main);
-  const view = main.querySelector('#pp-view');
+  /* Un fundido (motion.js): lo nuevo ya está quieto debajo y lo de antes,
+     opaco y encima, se esfuma. Cambiado de un cuadro al otro, elegir otro
+     elemento, editar o cancelar era un corte. */
+  const old = main.querySelector('.pr-pass__view:not([data-state="closing"])');
+  const view = document.createElement('div');
+  view.className = `pr-pass__view op-scroll${old ? ' is-quiet' : ''}`;
+  view.id = 'pp-view';
+  view.innerHTML = html;
+  Icons.mount(view);
+  if (old) dissolve(old);
+  main.prepend(view);
   scrollFade(view);
   if (P.mode !== 'view') view.querySelector('input')?.focus();
   if (P.mode === 'edit' && it) fillSecrets(it);
@@ -239,7 +250,7 @@ function bannerHTML() {
 /** Lo que se ve de un secreto: tapado (los puntos dibujados, y en el número los últimos cuatro) o él. */
 function secretHTML(it, f) {
   const v = P.revealed?.id === it.id ? P.revealed.values[f] : null;
-  if (v != null) return esc(f === 'number' ? groupNumber(v) : v);
+  if (v != null) return `<span class="pr-pass__secret">${esc(f === 'number' ? groupNumber(v) : v)}</span>`;
   if (f === 'number') return `<span class="pr-pass__dots pr-pass__dots--4"></span> ${esc(it.last4)}`;
   return `<span class="pr-pass__dots${f === 'password' ? '' : ' pr-pass__dots--4'}"></span>`;
 }
@@ -251,7 +262,7 @@ function field(label, icon, value, { copy = null, mono = false, secret = null } 
       <span class="pr-pass__fieldicon">${Icons.svg(icon)}</span>
       <div class="pr-pass__fieldbody">
         <div class="pr-pass__label">${esc(label)}</div>
-        <div class="pr-pass__value${mono || shown ? ' is-mono' : ''}${secret ? ' is-secret' : ''}"${secret ? ` id="pp-secret-${secret}"` : ''}>${value}</div>
+        <div class="pr-pass__value${mono ? ' is-mono' : ''}${secret ? ' is-secret' : ''}"${secret ? ` id="pp-secret-${secret}"` : ''}>${value}</div>
       </div>
       ${secret ? `<button class="op-iconbtn op-iconbtn--sm pr-pass__eye${shown ? ' is-on' : ''}" data-a="reveal" data-f="${secret}" aria-label="Mostrar" data-tip="${shown ? 'Ocultar' : 'Mostrar'}">${Icons.svg('eye', 'pr-eye__a')}${Icons.svg('eyeOff', 'pr-eye__b')}</button>` : ''}
       ${copy ? `<button class="op-iconbtn op-iconbtn--sm pr-pass__copy" data-copy="${copy}" aria-label="Copiar" data-tip="Copiar">${Icons.svg('copy', 'pr-copy__a')}${Icons.svg('check', 'pr-copy__b')}</button>` : ''}
@@ -571,10 +582,17 @@ function wire(el) {
       return paintMain();
     }
     if (a === 'form-eye') {
+      /* Los puntos de un campo no se pueden cruzar con el texto: el campo se
+         vela, cambia de tipo cuando no se ve y vuelve. Lo que manda es el
+         ojo, así un doble clic termina donde quedó él. */
       const input = b.parentElement.querySelector('input');
-      const show = input.type === 'password';
-      input.type = show ? 'text' : 'password';
-      b.classList.toggle('is-on', show);
+      b.classList.toggle('is-on');
+      input.classList.add('is-veiled');
+      clearTimeout(input.__veil);
+      input.__veil = setTimeout(() => {
+        input.type = b.classList.contains('is-on') ? 'text' : 'password';
+        input.classList.remove('is-veiled');
+      }, 110);
       return null;
     }
     if (!it) return null;
@@ -585,11 +603,9 @@ function wire(el) {
       else P.revealed.values[f] = await api.pass.reveal(it.id, f).catch(() => '');
       if (P.revealed?.id !== it.id) return null;    // se cambió de elemento mientras llegaba
       const shown = P.revealed.values[f] != null;
-      const v = main.querySelector(`#pp-secret-${f}`);
-      if (v) {
-        v.classList.toggle('is-mono', shown || f === 'number');
-        v.innerHTML = secretHTML(it, f);
-      }
+      // Los puntos y lo escrito se relevan en su lugar, y el alto acompaña
+      // (una contraseña larga ocupa más de un renglón).
+      swap(main.querySelector(`#pp-secret-${f}`), secretHTML(it, f), { size: true });
       b.classList.toggle('is-on', shown);
       b.dataset.tip = shown ? 'Ocultar' : 'Mostrar';
       return null;

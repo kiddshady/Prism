@@ -142,6 +142,11 @@
 .op-wincontrol:focus-visible { box-shadow: none; }
 .op-wincontrol:focus-visible::before { box-shadow: 0 0 0 2px var(--op-bg), 0 0 0 3.5px var(--op-ring); }
 .op-wincontrol .op-icon { width: 11px; height: 11px; stroke-width: 1.2; }
+/* Maximizar ↔ restaurar: los dos encimados, se cruzan. */
+.pr-winmax > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
+.pr-winmax .pr-winmax__b,
+.pr-winmax.is-max .pr-winmax__a { opacity: 0; transform: scale(.75); }
+.pr-winmax.is-max .pr-winmax__b { opacity: 1; transform: none; }
 
 /* ── Cuerpo ───────────────────────────────────────────────────────────────── */
 .op-body {

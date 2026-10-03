@@ -6,7 +6,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { Icons } from './icons.js';
-import { exit, scrollFade } from './motion.js';
+import { exit, scrollFade, collapse } from './motion.js';
 
 const GAP = 8;      // separación entre el overlay y su ancla
 const EDGE = 10;    // margen mínimo contra el borde de la ventana
@@ -45,8 +45,11 @@ const Tooltip = (() => {
     const el = current;
     current = null;
     anchor = null;
-    if (immediate) el.remove();
-    else { left = performance.now(); exit(el, { fallback: 160 }); }
+    /* Hasta el "ya" (un click, un scroll) se va con su salida corta: quitado
+       de un cuadro al otro, era lo único que desaparecía de golpe. Solo el
+       que se va por salir de su ancla calienta la espera del siguiente. */
+    if (!immediate) left = performance.now();
+    exit(el, { fallback: 160 });
   }
 
   function show(el) {
@@ -166,7 +169,23 @@ const Toast = (() => {
 
     ensure().appendChild(el);
 
-    const close = () => exit(el, { fallback: 260 });
+    /* Sale deslizándose y después se pliega: los de arriba bajan acompañando
+       en vez de caer de golpe cuando el que se fue sale del DOM. */
+    const close = () => {
+      if (el.dataset.state === 'closing') return;
+      el.dataset.state = 'closing';
+      let folded = false;
+      const fold = () => {
+        if (folded) return;
+        folded = true;
+        el.removeAttribute('data-state');   // collapse() la marca de nuevo
+        el.style.opacity = '0';
+        el.style.animation = 'none';        // ya terminó de salir: que no vuelva a entrar
+        collapse(el, { duration: 180 });
+      };
+      el.addEventListener('animationend', (e) => { if (e.target === el) fold(); });
+      setTimeout(fold, 260);
+    };
     el.querySelector('[data-close]').addEventListener('click', close);
 
     if (duration) {
@@ -201,7 +220,8 @@ const Menu = (() => {
     open = null;
     anchor?.classList.remove('is-open');
     onClose?.();
-    immediate ? el.remove() : exit(el, { fallback: 200 });
+    // También cuando lo reemplaza otro overlay: se va con su salida, no de golpe.
+    exit(el, { fallback: 200 });
     document.removeEventListener('keydown', onKey, true);
   }
 
@@ -269,6 +289,8 @@ const Menu = (() => {
       b.addEventListener('mousedown', (e) => e.preventDefault());
       b.addEventListener('click', () => { close(); it.onSelect?.(it); });
       el.appendChild(b);
+      // Un ítem vivo (un porcentaje que avanza mientras el menú está abierto).
+      it.mount?.(b);
     });
 
     layer().appendChild(el);

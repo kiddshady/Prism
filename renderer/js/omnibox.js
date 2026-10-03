@@ -18,6 +18,7 @@ import { Icons } from './icons.js';
 import { esc } from './ui.js';
 import { popover } from './layers.js';
 import { attachSuggest, splitUrl } from './suggest.js';
+import { swap, roll } from './motion.js';
 
 let box;
 let input;
@@ -42,12 +43,22 @@ function fullText(t) {
   return safeDecode(t.url || '');
 }
 
+/* La dirección se releva en su lugar (swap, motion.js): al cambiar de
+   pestaña o de página la vieja se esfuma y la nueva aparece, en vez de
+   cambiar de un cuadro al otro. */
 function paintDisplay(t) {
-  if (!t || t.internal === 'nueva') { display.innerHTML = ''; return; }
+  if (!t || t.internal === 'nueva') { swap(display, ''); return; }
   const p = splitUrl(t.url);
-  display.innerHTML = p.host
+  swap(display, p.host
     ? `${p.scheme ? `<span class="is-scheme">${esc(p.scheme)}</span>` : ''}<b>${esc(p.host)}</b>${esc(p.rest)}`
-    : `${p.scheme ? `<span class="is-scheme">${esc(p.scheme)}</span>` : ''}${esc(p.rest)}`;
+    : `${p.scheme ? `<span class="is-scheme">${esc(p.scheme)}</span>` : ''}${esc(p.rest)}`);
+}
+
+/** El ícono del sitio, relevado: el viejo se va mientras el nuevo aparece. */
+function setSite(key) {
+  if (site.dataset.key === key) return;
+  site.dataset.key = key;
+  swap(site, Icons.svg(key));
 }
 
 function paintSite(t) {
@@ -66,7 +77,7 @@ function paintSite(t) {
     else if (kind === 'http') { key = 'alert'; tip = 'Conexión no segura'; }
     else if (kind === 'file') { key = 'file'; tip = 'Archivo de tu compu'; }
   }
-  if (site.dataset.key !== key) { site.dataset.key = key; site.innerHTML = Icons.svg(key); }
+  setSite(key);
   site.classList.toggle('is-insecure', key === 'alert');
   site.dataset.tip = tip;
 }
@@ -90,9 +101,15 @@ function sync() {
   star.classList.toggle('is-on', !!t?.bookmarked);
   star.dataset.tip = t?.bookmarked ? 'Quitar de favoritos' : 'Agregar a favoritos';
 
+  // El zoom corre de un valor al otro; y si vuelve a 100, el chip se va
+  // diciendo el último que tuvo, no "100 %".
   const z = Math.round((t?.zoom || 1) * 100);
-  zoomChip.hidden = !t || !!t.internal || z === 100;
-  zoomChip.textContent = `${z} %`;
+  const showZoom = !!t && !t.internal && z !== 100;
+  if (showZoom) {
+    if (zoomChip.hidden) { zoomChip.__roll = null; zoomChip.textContent = `${z} %`; }
+    roll(zoomChip, z, (v) => { zoomChip.textContent = `${Math.round(v)} %`; }, { duration: 280, from: parseFloat(zoomChip.textContent) });
+  }
+  zoomChip.hidden = !showZoom;
 
   if (S.focusOmniOnNext && t?.internal === 'nueva') {
     S.focusOmniOnNext = false;
@@ -133,7 +150,8 @@ function onBlur() {
 function onType() {
   edited = true;
   // Mientras se escribe, el candado no dice nada de lo que va a pasar: lupa.
-  if (site.dataset.key !== 'search') { site.dataset.key = 'search'; site.innerHTML = Icons.svg('search'); site.classList.remove('is-insecure'); }
+  setSite('search');
+  site.classList.remove('is-insecure');
 }
 
 async function onGo(value, { newTab }) {
@@ -215,7 +233,7 @@ function siteInfo() {
     el.querySelectorAll('[data-revoke]').forEach((b) => b.addEventListener('click', async () => {
       await api.permissions.revoke(origin, b.dataset.revoke);
       S.settings = await api.settings.get();
-      ctl.refresh();
+      ctl.refresh({ fade: true });
     }));
   }, { width: 320, align: 'start' });
 }

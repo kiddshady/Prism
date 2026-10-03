@@ -114,6 +114,7 @@
 .pr-fakebox__input:focus-visible { box-shadow: none; }
 .pr-fakebox__input::selection { background: rgb(var(--op-accent-rgb) / .24); }
 
+.pr-ntp__tiles { display: flex; flex-direction: column; align-items: center; width: 100%; }
 .pr-tiles {
   display: flex;
   flex-wrap: wrap;
@@ -208,6 +209,7 @@
 .pr-row__host { flex: 1 1 0; min-width: 60px; font-size: var(--op-fs-12); color: var(--op-text-4); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pr-row .op-rowactions { flex: 0 0 auto; }
 .pr-row[data-state='closing'] { animation: pr-row-out 180ms var(--op-ease-in) both; }
+.pr-day[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
 @keyframes pr-row-out { to { opacity: 0; transform: translateX(8px); } }
 
 /* ── Ajustes ─────────────────────────────────────────────────────────────── */
@@ -241,8 +243,32 @@
 .pr-opt__hint { margin-top: 2px; font-size: var(--op-fs-11); color: var(--op-text-3); line-height: 1.45; }
 .pr-opt__ctl { flex: 0 0 auto; display: flex; align-items: center; gap: var(--op-2); }
 .pr-opt__path { font-family: var(--op-mono); font-size: 11px; color: var(--op-text-3); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; }
+.pr-opt__path.op-swap > .op-swap__item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pr-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 14px; }
-.pr-chips:empty { display: none; }
+/* Las filas que entran y salen de una lista (permisos, certificados) llevan
+   su propia raya: entre listas, la de `.pr-opt + .pr-opt` no llega. */
+.pr-opt--item { min-height: 44px; box-shadow: inset 0 1px 0 var(--op-line); }
+.pr-opt--label { min-height: 0; padding-bottom: 6px; box-shadow: inset 0 1px 0 var(--op-line); }
+.pr-dflt + .pr-auto { box-shadow: inset 0 1px 0 var(--op-line); }
+/* Lo que aparece según otro ajuste se despliega (0fr → 1fr) y se esfuma. */
+.pr-chipset,
+#s-certs-head,
+.pr-relaunch-note { opacity: 0; transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft); }
+.pr-chipset.is-open,
+#s-certs-head.is-open,
+.pr-relaunch-note.is-open { opacity: 1; }
+.pr-relaunch-note b { color: var(--op-text-2); font-weight: 500; }
+/* El botón de reiniciar se abre a lo ancho, igual que el buscador de la página. */
+.pr-hreveal {
+  display: grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  margin-right: calc(-1 * var(--op-2));
+  transition: grid-template-columns var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft), margin-right var(--op-t-3) var(--op-ease);
+}
+.pr-hreveal > * { min-width: 0; overflow: hidden; }
+.pr-hreveal.is-open { grid-template-columns: 1fr; opacity: 1; margin-right: 0; }
+.pr-hreveal:not(.is-open) { pointer-events: none; }
 .pr-chip-x { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px 0 9px; border-radius: var(--op-r-pill); background: var(--op-wash-1); box-shadow: var(--op-hairline); font-family: var(--op-mono); font-size: 11px; color: var(--op-text-2); animation: op-pop-in var(--op-t-2) var(--op-ease) both; }
 .pr-chip-x[data-state='closing'] { animation: op-pop-out 120ms var(--op-ease-in) both; }
 .pr-chip-x .op-iconbtn { width: 18px; height: 18px; border-radius: 50%; }
@@ -308,6 +334,7 @@
 .pr-waiting { flex: 1 1 auto; display: grid; place-items: center; }
 .pr-waiting__dot { width: 28px; height: 28px; display: grid; place-items: center; color: var(--op-text-4); animation: op-breathe 2.2s var(--op-ease-both) infinite; }
 .pr-waiting__dot img { width: 22px; height: 22px; border-radius: 4px; }
+.pr-waiting__dot > .op-swap__item { display: grid; place-items: center; }
 .pr-waiting__dot .op-icon { width: 22px; height: 22px; stroke-width: 1.2; }
 
 /* ── Preguntas (permisos, compartir pantalla) ────────────────────────────── */
@@ -317,7 +344,9 @@
 .pr-ask__icon .op-icon { width: 18px; height: 18px; }
 .pr-ask__text { font-size: var(--op-fs-13); color: var(--op-text-2); line-height: var(--op-lh-loose); }
 .pr-ask__origin { font-family: var(--op-mono); font-size: 12px; color: var(--op-text); user-select: text; }
-.pr-remember { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: var(--op-fs-12); color: var(--op-text-3); }
+.pr-remember { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: var(--op-fs-12); color: var(--op-text-3); transition: opacity var(--op-t-2) var(--op-ease-soft); }
+/* El sonido solo se comparte con una pantalla: con una ventana, la fila se apaga (sin saltar). */
+.pr-remember.is-dim { opacity: .4; }
 
 .pr-sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
 .pr-source {
@@ -331,7 +360,7 @@
   color: var(--op-text-2);
   text-align: left;
   font-size: var(--op-fs-11);
-  transition: var(--tr-surface);
+  transition: var(--tr-surface), color var(--op-t-1) var(--op-ease-soft);
 }
 .pr-source:hover { background: var(--op-wash-1); }
 .pr-source.is-selected { background: var(--op-wash-2); box-shadow: inset 0 0 0 1px var(--op-rim); color: var(--op-text); }
@@ -347,8 +376,6 @@
 /* Las vistas se apilan para poder cruzarse: la vieja se desvanece mientras la
    nueva aflora, en vez de que una reemplace a la otra de golpe. */
 .pr-internal > .pr-view { position: absolute; inset: 0; }
-.pr-list.is-settled .pr-row,
-.pr-list.is-settled .pr-dlrow { animation: none; }
 
 /* ── La pestaña nueva de incógnito ─────────────────────────────────────────
    La misma marca que la normal (lo que la distingue es el chip de la titlebar

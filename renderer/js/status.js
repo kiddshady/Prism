@@ -11,7 +11,7 @@
 
 import { api, S, on } from './state.js';
 import { Icons } from './icons.js';
-import { exit } from './motion.js';
+import { exit, reconcile, roll, swapText } from './motion.js';
 import { esc } from './ui.js';
 import { plural } from './format.js';
 
@@ -55,15 +55,31 @@ export function say(text, { icon = 'info', tone = 'default', ms = 4500 } = {}) {
   paintLeft();
 }
 
+/* Lo de la derecha se pone al día pieza por pieza (reconcile): rehecho con
+   cada dato de una descarga, el aviso volvía a aparecer desde cero varias
+   veces por segundo. La cuenta se releva, el porcentaje corre. */
 function paintRight() {
   const live = S.downloads.filter((d) => d.state === 'progressing');
   const known = live.filter((d) => d.total > 0);
-  const pct = known.length ? Math.round((known.reduce((s, d) => s + d.received, 0) / known.reduce((s, d) => s + d.total, 0)) * 100) : null;
+  const pct = known.length ? (known.reduce((s, d) => s + d.received, 0) / known.reduce((s, d) => s + d.total, 0)) * 100 : null;
   const parts = [];
-  if (!navigator.onLine) parts.push(`<span class="pr-status__item" style="color:var(--op-text-2)">${Icons.svg('wifiOff')} Sin conexión</span>`);
-  if (live.length) parts.push(`<span class="pr-status__item">${Icons.svg('download')} ${plural(live.length, 'descarga', 'descargas')}${pct != null ? ` · <span class="op-num">${pct} %</span>` : ''}</span>`);
-  const html = parts.join('');
-  if (right.dataset.html !== html) { right.dataset.html = html; right.innerHTML = html; }
+  if (!navigator.onLine) parts.push({ key: 'offline', html: `<span class="pr-status__item" style="color:var(--op-text-2)">${Icons.svg('wifiOff')} Sin conexión</span>` });
+  if (live.length) {
+    parts.push({
+      key: 'downloads',
+      count: plural(live.length, 'descarga', 'descargas'),
+      pct,
+      html: `<span class="pr-status__item">${Icons.svg('download')}<span class="pr-status__count">${plural(live.length, 'descarga', 'descargas')}</span><span class="pr-status__pct op-num${pct != null ? ' is-on' : ''}">· <span>${pct != null ? Math.round(pct) : 0} %</span></span></span>`,
+    });
+  }
+  reconcile(right, parts, {
+    update: (el, it) => {
+      swapText(el.querySelector('.pr-status__count'), it.count);
+      const p = el.querySelector('.pr-status__pct');
+      p.classList.toggle('is-on', it.pct != null);
+      if (it.pct != null) { const n = p.lastElementChild; roll(n, it.pct, (v) => { n.textContent = `${Math.round(v)} %`; }, { from: parseFloat(n.textContent) }); }
+    },
+  });
 }
 
 export function init() {

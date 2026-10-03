@@ -35,7 +35,7 @@ import { menu, pointAnchor, closePopover } from './layers.js';
 import { Menu, Tooltip } from './overlays.js';
 import * as Freeze from './freeze.js';
 import { hover } from './status.js';
-import { exit } from './motion.js';
+import { exit, collapse, expand, replaceSoft, swapText } from './motion.js';
 import { esc } from './ui.js';
 import { editBookmark, copyUrl } from './pages.js';
 import { openPage } from './menus.js';
@@ -80,20 +80,29 @@ function setIcon(el, favicon) {
     node.draggable = false;
     node.src = want;
     // Un favicon que no carga vuelve al globo y queda anotado: no se reintenta.
-    node.addEventListener('error', () => { brokenIcons.add(want); node.replaceWith(svgNode('globe')); }, { once: true });
+    node.addEventListener('error', () => { brokenIcons.add(want); replaceSoft(node, svgNode('globe')); }, { once: true });
   } else {
     node = svgNode('globe');
   }
+  // El viejo se apaga y el nuevo se enciende: cambiado de un cuadro al otro, saltaba.
   const old = el.querySelector(':scope > img, :scope > .op-icon');
-  if (old) old.replaceWith(node);
+  if (old) replaceSoft(old, node);
   else el.prepend(node);
+}
+
+/** El nombre de un favorito: se releva si cambió (renombrarlo), y se anota para el tooltip. */
+function setLabel(l, text) {
+  if (l.dataset.text === text) return;
+  const born = l.dataset.text == null;
+  l.dataset.text = text;
+  if (born) l.textContent = text; else swapText(l, text);
 }
 
 function update(el, b) {
   setIcon(el, b.favicon);
   let l = el.querySelector('.pr-bm__label');
   if (!l) { l = document.createElement('span'); l.className = 'pr-bm__label'; el.appendChild(l); }
-  if (l.textContent !== labelOf(b)) l.textContent = labelOf(b);
+  setLabel(l, labelOf(b));
 }
 
 function makeItem(b) {
@@ -122,7 +131,7 @@ function leave(el, left) {
 
 function showEmpty() {
   items.querySelectorAll(LIVE).forEach((el) => leave(el, el.offsetLeft));
-  more.hidden = true;
+  more.classList.remove('is-on');
   if (items.querySelector('.pr-bmbar__empty:not([data-state="closing"])')) return;
   items.insertAdjacentHTML('beforeend', `<div class="pr-bmbar__empty">${Icons.svg('star')}
     <span>Para tener un sitio a mano acá, tocá la estrella de la barra.</span>
@@ -184,7 +193,7 @@ function paint() {
   // Los que ya no entran se deslizaron contra el borde: recién ahora se esconden.
   setTimeout(() => {
     for (const el of flipping) el.classList.remove('is-flipping');
-    for (const el of later) el.hidden = true;
+    for (const el of later) hideBtn(el);
   }, 320);
   painted = true;
 }
@@ -194,30 +203,57 @@ function paint() {
  * Con `before` (un repintado), los que se veían y ya no entran no se esconden
  * todavía: se devuelven, para esconderlos cuando terminen de deslizarse.
  */
+/* El lugar que ocupa la flecha de la punta (22 px y el gap de la barra). La
+   flecha no se esconde con display:none para medir: prenderla y apagarla
+   en cada medición le reiniciaba la entrada, y parpadeaba con cada paso de
+   un resize. Se mide con cuentas, y ella se abre y se cierra a lo ancho. */
+const MORE_SPACE = 26;
+
+/** Uno que ya no entra se desvanece antes de esconderse (no desaparece de golpe). */
+function hideBtn(b) {
+  if (b.hidden || b.classList.contains('is-hiding')) return;
+  b.classList.add('is-hiding');
+  const done = () => {
+    clearTimeout(timer);
+    b.removeEventListener('animationend', onEnd);
+    if (!b.classList.contains('is-hiding')) return;
+    b.classList.remove('is-hiding');
+    b.hidden = true;
+  };
+  const onEnd = (e) => { if (e.target === b) done(); };
+  const timer = setTimeout(done, 240);
+  b.addEventListener('animationend', onEnd);
+}
+
 function fit(before = null) {
   const btns = [...items.querySelectorAll(LIVE)];
   if (!btns.length) return [];
   const was = new Map(btns.map((b) => [b, b.hidden]));
   btns.forEach((b) => { b.hidden = false; });
-  more.hidden = true;
-  const over = () => btns.findIndex((b) => b.offsetLeft + b.offsetWidth > items.clientWidth);
-  let i = over();
+  // Lo que mide la fila con la flecha cerrada, esté como esté ahora (o a mitad de camino).
+  const cs = getComputedStyle(bar);
+  const full = bar.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const over = (limit) => btns.findIndex((b) => b.offsetLeft + b.offsetWidth > limit);
+  let i = over(full);
   const later = [];
   if (i >= 0) {
-    more.hidden = false;       // la flecha le quita ancho a la fila: se mide de nuevo
-    i = over();
+    i = over(full - MORE_SPACE);   // la flecha le quita ancho a la fila
     for (const b of btns.slice(i)) {
       if (before?.has(b)) later.push(b);
-      else b.hidden = true;
+      else if (was.get(b)) b.hidden = true;     // ya estaba escondido: sigue igual
+      else hideBtn(b);
     }
   }
+  // Los que vuelven a entrar dejan de irse.
+  for (const b of i >= 0 ? btns.slice(0, i) : btns) b.classList.remove('is-hiding');
+  more.classList.toggle('is-on', i >= 0);
   cut = i >= 0 ? i : Infinity;
   // Al agrandar la ventana, los que vuelven a entrar no aparecen de golpe.
-  if (!before && painted) for (const b of btns) if (was.get(b) && !b.hidden) enter(b);
+  if (!before && painted) for (const b of btns) if (was.get(b) && !b.hidden && !b.classList.contains('is-hiding')) enter(b);
   // El nombre completo como tooltip, solo si no se lee entero.
   for (const b of btns) {
     const l = b.querySelector('.pr-bm__label');
-    if (l.scrollWidth > l.clientWidth + 1) b.dataset.tip = l.textContent;
+    if (l.scrollWidth > l.clientWidth + 1) b.dataset.tip = l.dataset.text || l.textContent;
     else delete b.dataset.tip;
   }
   return later;
@@ -401,7 +437,7 @@ function syncRow(row, b) {
   setIcon(row, b.favicon);
   let l = row.querySelector('.op-truncate');
   if (!l) { l = document.createElement('span'); l.className = 'op-truncate'; row.appendChild(l); }
-  if (l.textContent !== labelOf(b)) l.textContent = labelOf(b);
+  setLabel(l, labelOf(b));
 }
 
 function makeRow() {
@@ -419,9 +455,12 @@ function makeRow() {
 function fillMore() {
   if (!pan || mdrag) return;
   if (cut >= marks.length) { closeMore(); return; }   // ya entran todos
-  const had = new Map([...pan.el.querySelectorAll(ROW)].map((r) => [r.dataset.id, r]));
+  const had = new Map([...pan.el.querySelectorAll(`${ROW}:not([data-state="closing"])`)].map((r) => [r.dataset.id, r]));
+  const filled = had.size > 0;
+  const fresh = [];
   marks.slice(cut).forEach((b, j) => {
     const row = had.get(b.id) || makeRow();
+    if (!had.has(b.id)) fresh.push(row);
     had.delete(b.id);
     syncRow(row, b);   // si cambió su nombre o su ícono, también en una fila reusada
     row.dataset.id = b.id;
@@ -430,7 +469,9 @@ function fillMore() {
     row.style.transform = '';
     pan.el.appendChild(row);
   });
-  for (const r of had.values()) r.remove();
+  // Con el menú ya abierto, la que se va se pliega y la que llega se despliega.
+  for (const r of had.values()) collapse(r);
+  if (filled) fresh.forEach((r) => expand(r));
 }
 
 async function openMore() {
@@ -767,7 +808,7 @@ function cancelRowDrag() {
   const d = mdrag;
   if (!d) return;
   mdrag = null;
-  if (d.ghost) { d.ghost.remove(); d.ghost = null; }
+  if (d.ghost) { exit(d.ghost, { fallback: 200 }); d.ghost = null; }
   if (d.moved) {
     d.rows?.forEach((r) => { r.style.transform = ''; r.classList.remove('is-dragging', 'is-dropping', 'is-away'); });
     shownBtns().forEach((b) => { b.style.transform = ''; });

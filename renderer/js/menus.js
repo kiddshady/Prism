@@ -6,7 +6,8 @@
    solo se pueda hacer desde un menú.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { api, S, activeTab } from './state.js';
+import { api, S, activeTab, on } from './state.js';
+import { roll, swapText } from './motion.js';
 import { menu, pointAnchor } from './layers.js';
 import { newTab } from './tabstrip.js';
 import { addressField } from './suggest.js';
@@ -202,9 +203,29 @@ export async function fieldMenu(field, x, y) {
 function updateItems() {
   const u = S.update || {};
   if (u.phase === 'available') return [{ label: `Descargar Prism ${u.version}`, icon: 'download', onSelect: () => api.update.download() }, { sep: true }];
-  if (u.phase === 'downloading') return [{ label: `Descargando la ${u.version}… ${Math.round((u.pct || 0) * 100)} %`, icon: 'download', disabled: true }, { sep: true }];
+  if (u.phase === 'downloading') return [{ label: `Descargando la ${u.version}… ${Math.round((u.pct || 0) * 100)} %`, icon: 'download', disabled: true, mount: liveUpdate }, { sep: true }];
   if (u.phase === 'ready') return [{ label: `Reiniciar para actualizar a la ${u.version}`, icon: 'reload', onSelect: () => api.update.install() }, { sep: true }];
   return [];
+}
+
+/* Con el menú abierto la descarga sigue: el porcentaje corre en el ítem, y
+   si termina, el rótulo se releva al de "lista". Se suelta solo cuando el
+   menú ya no está. */
+function liveUpdate(b) {
+  const label = b.querySelector('span.op-truncate');
+  const text = (u) => (u.phase === 'downloading' ? `Descargando la ${u.version}… ${Math.round((u.pct || 0) * 100)} %` : `La ${u.version} está lista: reabrí el menú`);
+  let phase = 'downloading';
+  const shown = (S.update?.pct || 0) * 100;   // lo que dice el rótulo al abrir
+  const off = on('update', (u) => {
+    if (!b.isConnected) { off(); return; }
+    if (u.phase === 'downloading' && phase === 'downloading') {
+      const v = u.version;
+      roll(label, (u.pct || 0) * 100, (p) => { label.textContent = `Descargando la ${v}… ${Math.round(p)} %`; }, { from: shown });
+    } else if (u.phase !== phase) {
+      phase = u.phase;
+      swapText(label, text(u));
+    }
+  });
 }
 
 export function mainMenu(anchor, { openFind } = {}) {

@@ -48,8 +48,20 @@ function now() {
 function paintTime() {
   const d = st.duration;
   const t = scrub ? scrub.frac * d : now();
-  timeEl.textContent = d > 0 ? `${fmt(t)} / ${fmt(d)}` : '';
+  // Sin duración el tiempo se apaga con lo último que decía, no se vacía de golpe.
+  root.classList.toggle('has-dur', d > 0);
+  if (d > 0) timeEl.textContent = `${fmt(t)} / ${fmt(d)}`;
   bar.style.setProperty('--p', d > 0 ? String(Math.min(1, t / d)) : '0');
+}
+
+/* Un salto (diez segundos, las flechas, tocar la barra): mientras dura, la
+   barra viaja al lugar nuevo en vez de saltar. No puede quedar puesto: el
+   avance normal se escribe cuadro a cuadro y con transición iría atrasado. */
+let seekingTimer = 0;
+function seeking() {
+  root.classList.add('is-seeking');
+  clearTimeout(seekingTimer);
+  seekingTimer = setTimeout(() => root.classList.remove('is-seeking'), 450);
 }
 
 function loop() {
@@ -112,6 +124,7 @@ root.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const op = b.dataset.act;
+  if (op === 'skip') seeking();
   act(op, Number(b.dataset.arg) || 0);
   // Se responde en el acto; la página confirma un instante después.
   if (op === 'toggle') { st = { ...st, time: now(), paused: !st.paused }; at = performance.now(); paint(); }
@@ -161,11 +174,15 @@ bar.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   bar.setPointerCapture(e.pointerId);
   scrub = { frac: fracAt(e.clientX) };
+  seeking();
   root.classList.add('is-scrubbing');
   paint();
 });
 bar.addEventListener('pointermove', (e) => {
   if (!scrub) return;
+  // Arrastrando, la perilla va pegada al mouse: sin viaje.
+  clearTimeout(seekingTimer);
+  root.classList.remove('is-seeking');
   scrub.frac = fracAt(e.clientX);
   paintTime();
   // Mientras se arrastra, el video va mostrando por dónde anda (sin inundarlo de pedidos).
@@ -189,8 +206,8 @@ bar.addEventListener('pointercancel', () => endScrub(false));
 document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   if (k === ' ' || k === 'k') { e.preventDefault(); root.querySelector('[data-act="toggle"]').click(); }
-  else if (k === 'arrowleft') { e.preventDefault(); act('skip', -5); }
-  else if (k === 'arrowright') { e.preventDefault(); act('skip', 5); }
+  else if (k === 'arrowleft') { e.preventDefault(); seeking(); act('skip', -5); }
+  else if (k === 'arrowright') { e.preventDefault(); seeking(); act('skip', 5); }
   else if (k === 'm') { e.preventDefault(); root.querySelector('[data-act="mute"]').click(); }
   else return;
   wake();

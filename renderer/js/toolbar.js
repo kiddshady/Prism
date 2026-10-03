@@ -11,7 +11,8 @@ import { esc } from './ui.js';
 import { fmtBytes, fmtNum, plural } from './format.js';
 import { popover, currentPopover, popoverOpen } from './layers.js';
 import { mainMenu, openPage } from './menus.js';
-import { dlIcon, dlMeta } from './pages.js';
+import { dlItem, dlUpdate, dlCreated } from './pages.js';
+import { reconcile, roll, swapText } from './motion.js';
 
 let back; let fwd; let reload; let shield; let shieldCount; let dl; let menuBtn; let loadbar;
 let find; let findInput; let findCount;
@@ -34,16 +35,12 @@ function sync() {
   // El escudo: cuenta lo bloqueado en ESTA página.
   const off = !!t?.adblockOff;
   const n = t && !t.internal ? t.blocked || 0 : 0;
+  // Escudo ↔ escudo tachado: los dos íconos están encimados y se cruzan (CSS).
   shield.classList.toggle('is-off', off);
-  const key = off ? 'shieldOff' : 'shield';
-  if (shield.dataset.key !== key) {
-    shield.dataset.key = key;
-    shield.querySelector('svg')?.remove();
-    shield.insertAdjacentHTML('afterbegin', Icons.svg(key));
-  }
   // El número se queda puesto mientras la insignia se apaga: si se vaciara
-  // primero, se vería encogerse una pastilla vacía.
-  if (n && !off) shieldCount.textContent = n > 99 ? '99+' : String(n);
+  // primero, se vería encogerse una pastilla vacía. Y corre: mientras una
+  // página carga, sube de a varios.
+  if (n && !off) roll(shieldCount, n, (v) => { const r = Math.round(v); shieldCount.textContent = r > 99 ? '99+' : String(r); });
   shieldCount.classList.toggle('is-on', !!n && !off);
   shield.dataset.tip = off ? 'Bloqueador apagado en este sitio' : n ? `${plural(n, 'elemento bloqueado', 'elementos bloqueados')}` : 'Bloqueador';
 
@@ -57,6 +54,9 @@ let findOpen = false;
 export function openFind() {
   if (!isWebActive()) return;
   findOpen = true;
+  findDir = 0;
+  // Lo de la vez anterior se quedó para plegarse con la barra: ahora se va.
+  if (!findInput.value) paintCount('');
   find.classList.add('is-open');
   find.setAttribute('aria-hidden', 'false');
   findInput.focus();
@@ -64,24 +64,30 @@ export function openFind() {
   if (findInput.value) api.page.find(findInput.value, { newSession: true });
 }
 
+/* La cuenta se releva en su lugar: al ir a la siguiente sube, a la anterior
+   baja, como un contador. Escribiendo, solo se cruza. Al cerrar no se borra:
+   la barra se pliega con lo último que decía. */
+let findDir = 0;
+const paintCount = (text) => swapText(findCount, text, { dir: findDir });
+
 export function closeFind({ focusPage = false } = {}) {
   if (!findOpen) return;
   findOpen = false;
   find.classList.remove('is-open', 'is-miss');
   find.setAttribute('aria-hidden', 'true');
-  findCount.textContent = '';
   api.page.findStop();
   if (focusPage) api.page.focus();
 }
 
 export function findStep(forward = true) {
   if (!findOpen) { openFind(); return; }
+  findDir = forward ? 1 : -1;
   if (findInput.value) api.page.find(findInput.value, { forward, newSession: false });
 }
 
 function onFindResult(r) {
   if (!findOpen) return;
-  findCount.textContent = r.matches ? `${r.ordinal}/${r.matches}` : findInput.value ? '0/0' : '';
+  paintCount(r.matches ? `${r.ordinal}/${r.matches}` : findInput.value ? '0/0' : '');
   find.classList.toggle('is-miss', !!findInput.value && r.final && !r.matches);
 }
 
@@ -123,14 +129,14 @@ function shieldPanel() {
       e.currentTarget.classList.toggle('is-on');
       await api.adblock.toggleSite(t.url).catch(() => null);
       S.settings = await api.settings.get();
-      setTimeout(() => ctl.refresh(), 200);
+      setTimeout(() => ctl.refresh({ fade: true }), 200);
     });
     el.querySelector('#sh-global').addEventListener('click', async (e) => {
       // Lo que muestra el switch, no "lo contrario" de lo que había al abrir:
       // un doble clic mandaba dos veces lo mismo.
       const on = e.currentTarget.classList.toggle('is-on');
       S.settings = await api.settings.save({ adblock: on });
-      setTimeout(() => ctl.refresh(), 200);
+      setTimeout(() => ctl.refresh({ fade: true }), 200);
     });
     el.querySelector('#sh-settings').addEventListener('click', () => { ctl.close(); openPage('ajustes'); });
   }, { width: 320 });
@@ -145,7 +151,21 @@ function syncDownloads(justFinished = false) {
   const total = known.reduce((s, d) => s + d.total, 0);
   const got = known.reduce((s, d) => s + d.received, 0);
   dl.classList.toggle('is-indeterminate', live.length > 0 && !total);
-  dl.style.setProperty('--p', String(total ? Math.round((got / total) * 100) : 0));
+  const wasActive = dl.dataset.active === '1';
+  dl.dataset.active = live.length ? '1' : '';
+  const p = String(total ? Math.round((got / total) * 100) : 0);
+  if (live.length && !wasActive) {
+    // Arranca de su valor sin desenrollarse desde el lleno de la vez anterior.
+    dl.classList.add('is-fresh');
+    dl.style.setProperty('--p', p);
+    void dl.getBoundingClientRect();
+    dl.classList.remove('is-fresh');
+  } else if (live.length) {
+    dl.style.setProperty('--p', p);
+  } else if (wasActive) {
+    // Terminó: el arco se completa mientras el anillo se apaga, no se desenrolla.
+    dl.style.setProperty('--p', '100');
+  }
   dl.dataset.tip = live.length ? `${plural(live.length, 'descarga', 'descargas')} en curso` : 'Descargas';
   if (justFinished) {
     dl.classList.remove('is-done');
@@ -155,36 +175,29 @@ function syncDownloads(justFinished = false) {
   if (popoverOpen(dl)) currentPopover()?.refresh();
 }
 
+/* El panel se arma una vez; cada dato que llega lo pone al día fila por fila
+   (reconcile + dlUpdate, de pages.js). Rehecho entero con cada uno, la barra
+   saltaba, los íconos cambiaban de golpe y se perdía el hover. */
 function downloadsPanel() {
   popover(dl, (el, ctl) => {
+    if (!el.dataset.built) {
+      el.dataset.built = '1';
+      el.innerHTML = `
+        <div class="pr-pop__head">
+          <div class="op-grow"><div class="pr-pop__title">Descargas</div></div>
+          <button class="op-iconbtn op-iconbtn--sm" data-a="folder" data-tip="Abrir la carpeta"><i data-icon="folderOpen"></i></button>
+        </div>
+        <div class="pr-pop__body op-scroll pr-dlpop__list"></div>
+        <div class="pr-pop__foot">
+          <span class="op-meta op-grow op-truncate pr-dlpop__dir"></span>
+          <button class="op-btn op-btn--ghost op-btn--sm" data-a="all">Ver todas</button>
+        </div>`;
+    }
     const list = S.downloads.slice(0, 30);
-    el.innerHTML = `
-      <div class="pr-pop__head">
-        <div class="op-grow"><div class="pr-pop__title">Descargas</div></div>
-        <button class="op-iconbtn op-iconbtn--sm" data-a="folder" data-tip="Abrir la carpeta"><i data-icon="folderOpen"></i></button>
-      </div>
-      ${list.length ? `<div class="pr-pop__body op-scroll">${list.map((d) => `
-        <div class="pr-dlrow${d.state === 'interrupted' ? ' is-failed' : ''}${d.state === 'cancelled' || d.missing ? ' is-muted' : ''}" data-id="${d.id}" style="animation:none">
-          <div class="pr-dlrow__icon">${Icons.svg(dlIcon(d))}</div>
-          <div class="pr-dlrow__main">
-            <div class="pr-dlrow__name op-copyable">${esc(d.filename)}</div>
-            <div class="pr-dlrow__meta">${esc(dlMeta(d))}</div>
-            ${d.state === 'progressing' ? `<div class="op-meter${d.total ? '' : ' op-meter--indeterminate'}"><div class="op-meter__fill" style="--op-pct:${d.total ? Math.round((d.received / d.total) * 100) : 0}%"></div></div>` : ''}
-          </div>
-          <div class="pr-dlrow__actions">
-            ${d.state === 'progressing'
-              ? `<button class="op-iconbtn op-iconbtn--sm" data-a="${d.paused ? 'resume' : 'pause'}" data-tip="${d.paused ? 'Seguir' : 'Pausar'}"><i data-icon="${d.paused ? 'resume' : 'pause'}"></i></button>
-                 <button class="op-iconbtn op-iconbtn--sm" data-a="cancel" data-tip="Cancelar"><i data-icon="close"></i></button>`
-              : d.state === 'completed' && !d.missing
-                ? `<button class="op-iconbtn op-iconbtn--sm" data-a="show" data-tip="Mostrar en la carpeta"><i data-icon="folder"></i></button>`
-                : `<button class="op-iconbtn op-iconbtn--sm" data-a="retry" data-tip="Reintentar"><i data-icon="retry"></i></button>`}
-          </div>
-        </div>`).join('')}</div>`
-        : '<div class="pr-pop__empty">Todavía no bajaste nada.</div>'}
-      <div class="pr-pop__foot">
-        <span class="op-meta op-grow op-truncate">${esc(S.downloadsDir || '')}</span>
-        <button class="op-btn op-btn--ghost op-btn--sm" data-a="all">Ver todas</button>
-      </div>`;
+    reconcile(el.querySelector('.pr-dlpop__list'), list.length
+      ? list.map((d) => dlItem(d, true))
+      : [{ key: '__empty', html: '<div class="pr-pop__empty">Todavía no bajaste nada.</div>' }], { update: dlUpdate, created: dlCreated, height: true });
+    swapText(el.querySelector('.pr-dlpop__dir'), S.downloadsDir || '');
     el.onclick = async (e) => {
       const b = e.target.closest('[data-a]');
       const row = e.target.closest('.pr-dlrow');

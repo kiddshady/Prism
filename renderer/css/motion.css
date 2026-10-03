@@ -148,6 +148,45 @@
   animation: op-shimmer 1.7s var(--op-ease-both) infinite;
 }
 
+/* ── Relevo de contenido (swap() en motion.js) ───────────────────────────────
+   El valor viejo y el nuevo en la misma celda: no hay "al lado" ni salto al
+   terminar. El nuevo espera a que el viejo casi no se vea, y la salida va en
+   in-out para no caer de golpe con alguien esperando detrás. */
+/* Doble clase: le gana al display propio del elemento (una fila de flex). */
+.op-swap.op-swap { display: grid; }
+.op-swap > .op-swap__item {
+  grid-area: 1 / 1;
+  min-width: 0;
+  animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both;
+}
+/* Un texto que se corta con puntos suspensivos se sigue cortando adentro. */
+.op-truncate.op-swap > .op-swap__item,
+.op-swap--truncate > .op-swap__item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Un rótulo con ícono (un botón) sigue siendo una fila adentro de su celda. */
+.op-swap--row > .op-swap__item { display: inline-flex; align-items: center; gap: inherit; }
+.op-swap > .op-swap__item[data-dir='up']   { animation-name: op-swap-up-in; }
+.op-swap > .op-swap__item[data-dir='down'] { animation-name: op-swap-down-in; }
+.op-swap > .op-swap__item.is-after { animation-delay: 60ms; }
+.op-swap > .op-swap__item.is-settled { animation: none; }
+/* Después de is-settled, con la misma especificidad: salir siempre gana. */
+.op-swap > .op-swap__item[data-state='closing'] { animation: op-swap-out 150ms var(--op-ease-both) both; }
+.op-swap > .op-swap__item[data-dir='up'][data-state='closing']   { animation-name: op-swap-up-out; }
+.op-swap > .op-swap__item[data-dir='down'][data-state='closing'] { animation-name: op-swap-down-out; }
+
+/* Las salidas sin `from`: parten de donde estén, aunque las agarre entrando. */
+@keyframes op-swap-out      { to { opacity: 0 } }
+@keyframes op-swap-up-in    { from { opacity: 0; transform: translateY(5px) } to { opacity: 1; transform: none } }
+@keyframes op-swap-up-out   { to { opacity: 0; transform: translateY(-5px) } }
+@keyframes op-swap-down-in  { from { opacity: 0; transform: translateY(-5px) } to { opacity: 1; transform: none } }
+@keyframes op-swap-down-out { to { opacity: 0; transform: translateY(5px) } }
+
+/* ── Fundido (dissolve() en motion.js) ───────────────────────────────────────
+   El calco de lo que se va, encima de lo nuevo. Cada superficie le pone su
+   fondo opaco: si se viera a través, durante el fundido estarían las dos. */
+.op-dissolving { position: relative; z-index: 1; pointer-events: none; }
+.op-dissolving[data-state='closing'] { animation: op-dissolve var(--op-t-2) var(--op-ease-both) both; }
+@keyframes op-dissolve { to { opacity: 0 } }
+
 /* ── Transición de vista ─────────────────────────────────────────────────────
    Al cambiar de sección la vista AFLORA: sube apenas y se materializa. Es la
    firma de Opal — lo nuevo emerge hacia la superficie del vidrio. */

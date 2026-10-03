@@ -421,16 +421,23 @@ function createPip({ store, icon = null }) {
     destroy(win, ui);
   }
 
-  /** La pestaña se cierra: la ventanita se va sin devolver nada. */
+  /** La pestaña se cierra: la ventanita se va sin devolver nada. Se desvanece
+      con el video todavía adentro (callado) en vez de desaparecer de golpe; la
+      promesa avisa cuándo ya se puede cerrar la página. */
   function drop(t) {
     const c = cur;
-    if (!c || c.t !== t) return;
+    if (!c || c.t !== t) return null;
     cur = null;
     c.closing = true;
-    try { if (!c.win.isDestroyed() && t.view) c.win.contentView.removeChildView(t.view); } catch { /* nada */ }
     t.pip = false;
     t.away = false;
-    destroy(c.win, c.ui);
+    const view = t.view;
+    try { view?.webContents.setAudioMuted(true); } catch { /* nada */ }
+    return (async () => {
+      if (!c.win.isDestroyed()) await fade(c.win, c.win.getOpacity(), 0, FADE_OUT);
+      try { if (!c.win.isDestroyed() && view) c.win.contentView.removeChildView(view); } catch { /* nada */ }
+      destroy(c.win, c.ui);
+    })();
   }
 
   function destroy(win, ui) {

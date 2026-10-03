@@ -102,7 +102,7 @@ body { overflow: hidden; }
   height: 1.5px;
   background: var(--op-line-3);
   transform-origin: left;
-  animation: op-toast-life var(--life, 6000ms) linear forwards;
+  animation: op-toast-life var(--life, 6000ms) linear forwards, op-fade-in var(--op-t-2) var(--op-ease-soft) both;
 }
 .pr-card:hover .pr-card__life { animation-play-state: paused; }
 .pr-card--error .pr-card__life { background: var(--op-danger-ring); }
