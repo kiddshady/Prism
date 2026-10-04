@@ -194,7 +194,7 @@ export async function fieldMenu(field, x, y) {
     { label: 'Suprimir', disabled: ro || !hasSel, onSelect: () => exec('delete') },
     { sep: true },
     { label: 'Seleccionar todo', key: 'Ctrl+A', disabled: !field.value || all, onSelect: () => field.select() },
-  ], { align: 'start' });
+  ], { align: 'start', from: field });
 }
 
 /* ── Principal ───────────────────────────────────────────────────────────── */

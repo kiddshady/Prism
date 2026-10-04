@@ -17,11 +17,19 @@ const layer = () => document.getElementById('op-layer');
 
 let menuAnchor = null;
 
-/** Menu.show de Opal, con la página congelada mientras está abierto. */
-export async function menu(anchor, items, opts = {}) {
+/**
+ * Menu.show de Opal, con la página congelada mientras está abierto.
+ * `opts.from`: dónde nació el menú cuando no es el ancla (el campo de un
+ * click derecho, que se ancla en un punto).
+ */
+export async function menu(anchor, items, { from, ...opts } = {}) {
   // Pedir el menú del mismo ancla es cerrarlo (el toggle de Opal).
   if (Menu.isOpen && menuAnchor === anchor) { Menu.close(); return; }
-  closePopover(true);
+  /* Un menú que nace ADENTRO de un panel (el click derecho en un campo de la
+     bóveda) no lo cierra. Lo cerraba, con lo tipeado adentro, y su onClose
+     contestaba por la persona: la oferta de guardar una contraseña se daba
+     por rechazada. */
+  if (!pop?.el.contains(from || anchor)) closePopover(true);
   Tooltip.hide(true);
   const release = await Freeze.hold();
   menuAnchor = anchor;
@@ -150,7 +158,13 @@ export async function popover(anchor, build, { width = 340, align = 'end', onClo
     return Promise.resolve();
   };
 
-  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closePopover(); } };
+  const onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    // Con un menú abierto encima (el click derecho en un campo), el Escape es suyo.
+    if (document.querySelector('.op-menu:not([data-state="closing"])')) return;
+    e.stopPropagation();
+    closePopover();
+  };
   // Click afuera cierra. En captura, y dejando pasar al ancla: su propio
   // handler es el que alterna (si no, cerrar y reabrir competirían).
   const onDown = (e) => {
