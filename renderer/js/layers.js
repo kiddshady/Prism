@@ -78,6 +78,12 @@ export async function confirm(opts) {
    nuevos sin cerrarlo (las descargas avanzan mientras está abierto). */
 
 let pop = null;
+/* Cada pedido saca un número. Entre el pedido y el panel está la foto de la
+   página (de 50 a 200 ms): un segundo click en ese rato (un doble click en el
+   escudo, descargas justo después) armaba DOS paneles, el primero quedaba
+   huérfano encima de todo y su congelado no se soltaba nunca. Ahora, el que
+   termina de esperar y ya no es el último, se retira. */
+let popSeq = 0;
 
 export function closePopover(immediate = false) {
   if (!pop) return;
@@ -96,11 +102,13 @@ export const popoverOpen = (anchor) => !!pop && (!anchor || pop.anchor === ancho
 
 export async function popover(anchor, build, { width = 340, align = 'end', onClose } = {}) {
   if (pop && pop.anchor === anchor) { closePopover(); return null; }
+  const ticket = ++popSeq;
   closePopover(true);
   Menu.close(true);
   Tooltip.hide(true);
 
   const release = await Freeze.hold();
+  if (ticket !== popSeq) { release(); return null; }
   const el = document.createElement('div');
   el.className = 'pr-pop';
   el.style.width = `${width}px`;
