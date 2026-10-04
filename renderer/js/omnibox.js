@@ -37,10 +37,12 @@ function safeDecode(s) {
   try { return decodeURI(s); } catch { return s; }
 }
 
-/** Lo que se ve en el campo con foco: la dirección entera, legible. */
+/** Lo que se ve en el campo con foco: la dirección entera, legible. Los
+    espacios (y cualquier otro blanco) quedan codificados, como en Chrome:
+    así un Enter para recargar, o lo que se copia, sigue siendo un link. */
 function fullText(t) {
   if (!t || t.internal === 'nueva') return '';
-  return safeDecode(t.url || '');
+  return safeDecode(t.url || '').replace(/\s/g, (c) => encodeURIComponent(c));
 }
 
 /* La dirección se releva en su lugar (swap, motion.js): al cambiar de

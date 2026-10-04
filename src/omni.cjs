@@ -12,6 +12,8 @@
    gana la búsqueda (que siempre llega a algún lado).
    ═══════════════════════════════════════════════════════════════════════════ */
 
+const { pathToFileURL } = require('url');
+
 /** Los buscadores. `%s` es la consulta ya codificada. */
 const ENGINES = {
   google: {
@@ -91,12 +93,23 @@ function classify(input, engineId = 'google') {
     url: engine(engineId).search.replace('%s', encodeURIComponent(text)),
   });
 
+  /* Una dirección con esquema y espacios en la ruta (el PDF de la cátedra en
+     el campus, un archivo de la compu) sigue siendo una dirección: los
+     espacios se codifican, como en Chrome. Pasa al apretar Enter en la barra
+     o al pegar un link así; antes se buscaba en Google, con la dirección
+     entera adentro. El host no puede tener espacios: "https://github.com
+     cosas" sigue siendo una búsqueda. */
+  if (/\s/.test(text) && /^(https?:\/\/[^\s/?#]+|file:\/\/[^\s/?#]*)[/?#]/i.test(text)) {
+    try { return { type: 'url', url: new URL(text).href }; } catch { /* no era una dirección */ }
+  }
+
   // Con espacios nunca es una dirección (salvo una ruta de Windows, abajo).
   const winPath = /^[a-z]:[\\/]/i.test(text);
   if (/\s/.test(text) && !winPath) return search();
 
-  // Ruta de Windows: C:\algo → file:///C:/algo
-  if (winPath) return { type: 'url', url: `file:///${text.replace(/\\/g, '/')}` };
+  /* Ruta de Windows: C:\algo → file:///C:/algo. Con pathToFileURL y no a
+     mano: "Apuntes #3.pdf" armado a mano se cortaba en el # (el ancla). */
+  if (winPath) return { type: 'url', url: pathToFileURL(text, { windows: true }).href };
 
   // Esquema explícito. `localhost:3000` también tiene forma de esquema — por
   // eso se exige que el esquema sea uno conocido.

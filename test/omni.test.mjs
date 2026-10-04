@@ -38,6 +38,13 @@ isUrl('view-source:https://ejemplo.com', 'view-source:https://ejemplo.com');
 isUrl('C:\\tools\\Nexus\\README.md', 'file:///C:/tools/Nexus/README.md');
 isUrl('prism://historial', 'prism://historial');
 isUrl('notas.md/x', 'https://notas.md/x');
+// Con espacios en la ruta: la barra muestra la dirección legible, y un Enter
+// (para recargar) la volvía a mandar. Antes terminaba en Google.
+isUrl('https://campus.umaza.edu.ar/pluginfile.php/123/Guía TP 3.pdf', 'https://campus.umaza.edu.ar/pluginfile.php/123/Gu%C3%ADa%20TP%203.pdf');
+isUrl('file:///C:/Users/fran/Mis documentos/Apuntes.pdf', 'file:///C:/Users/fran/Mis%20documentos/Apuntes.pdf');
+isUrl('https://ejemplo.com/?q=hola mundo', 'https://ejemplo.com/?q=hola%20mundo');
+isUrl('C:\\Users\\fran\\Mis documentos\\Apuntes.pdf', 'file:///C:/Users/fran/Mis%20documentos/Apuntes.pdf');
+isUrl('C:\\Apuntes\\Farmaco #3.pdf', 'file:///C:/Apuntes/Farmaco%20%233.pdf');
 
 console.log('\n2. Búsquedas');
 isSearch('paracetamol dosis pediatrica');
@@ -48,6 +55,8 @@ isSearch('javascript:alert(1)');
 isSearch('prism://noexiste');
 isSearch('https://');
 isSearch('qué es un AINE');
+isSearch('https://github.com cosas');
+isSearch('http:// algo');
 
 console.log('\n3. Buscadores');
 const g = omni.classify('a b', 'google');

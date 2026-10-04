@@ -62,6 +62,8 @@ async function until(fn, ms = 6000) {
 const PAGES = {
   '/': '<title>Inicio de prueba</title><body style="font:16px sans-serif"><h1>Hola Prism</h1><p>fiebre fiebre fiebre</p><a id="l" href="/dos">dos</a></body>',
   '/dos': '<title>Página dos</title><body><h1>Dos</h1></body>',
+  /* Como los PDF de la cátedra en el campus: la dirección lleva espacios (%20). */
+  '/Gu%C3%ADa%20TP%203': '<title>Guía TP 3</title><body><h1>Guía</h1></body>',
   '/titulo-largo': `<title>${'Un título larguísimo como el de un posteo de X, que no entra en una línea '.repeat(3)}</title><body></body>`,
   '/login': '<title>Login</title><body><form action="/bienvenida" method="post"><input id="u" name="usuario" autocomplete="username"><input id="p" type="password" name="clave"><button id="b">Entrar</button></form></body>',
   '/bienvenida': '<title>Bienvenida</title><body><h1>Adentro</h1></body>',
@@ -161,7 +163,10 @@ function lockFile(file) {
   });
 }
 
+/** Cuántas veces se pidió cada dirección (para saber si una página se recargó). */
+const hits = {};
 const server = http.createServer((req, res) => {
+  hits[req.url] = (hits[req.url] || 0) + 1;
   if (req.url === '/archivo.bin') {
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="archivo.bin"' });
     return res.end(Buffer.alloc(64 * 1024, 7));
@@ -219,6 +224,22 @@ app.whenReady().then(async () => {
     `vista ${JSON.stringify(b)} vs page ${JSON.stringify(rect)}`);
   ok('la omnibox muestra el host partido', await until(() => js(`document.getElementById('omni-display').querySelector('b')?.textContent === '127.0.0.1:${server.address().port}'`)));
   ok('se registró en el historial', ctx.library.listVisits().some((v) => v.url === `${BASE}/`));
+
+  console.log('\n2a. Enter en una dirección con espacios');
+  const guia = `${BASE}/Gu%C3%ADa%20TP%203`;
+  await js(`window.prism.tabs.navigate(null, '${guia}')`);
+  ok('carga la página con espacios en la dirección', await until(() => ctx.tabs.active.title === 'Guía TP 3' && !ctx.tabs.active.loading));
+  win.webContents.focus();
+  await js(`document.getElementById('omni-input').focus(); true`);
+  ok('la barra la muestra legible, con los espacios como %20', await until(() => js(`document.getElementById('omni-input').value === ${JSON.stringify(`${BASE}/Guía%20TP%203`)}`)), await js(`document.getElementById('omni-input').value`));
+  const pedidos = hits['/Gu%C3%ADa%20TP%203'];
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
+  win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' });
+  win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
+  ok('Enter la recarga', await until(() => hits['/Gu%C3%ADa%20TP%203'] > pedidos));
+  ok('y no se va a buscar a Google', ctx.tabs.active.url === guia, ctx.tabs.active.url);
+  await js(`window.prism.tabs.navigate(null, '${BASE}/')`);
+  await until(() => ctx.tabs.active.title === 'Inicio de prueba' && !ctx.tabs.active.loading);
 
   console.log('\n2b. La statusbar al pasar de un link a otro');
   ctx.send('page:hover', `${BASE}/uno`);
