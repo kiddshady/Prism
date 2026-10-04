@@ -51,6 +51,10 @@ const RADIUS = 10;
 const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const MAX_CLOSED = 25;
 const SLEEP_CHECK = 60 * 1000;
+/* Una pestaña que sonó hace poco no se duerme: Chromium la da por callada a
+   los 2 s del último sonido, y el barrido podía caer justo en el hueco entre
+   dos temas o en un silencio de una llamada. */
+const AUDIO_GRACE = 10 * 60 * 1000;
 /** Mundo aislado propio: lo que Prism corre en una página, fuera del alcance de sus scripts. */
 const PRISM_WORLD = 1001;
 /** Aire entre las dos mitades de una vista dividida (ahí vive el divisor). */
@@ -375,6 +379,8 @@ function createTabs(ctx) {
       if (t.pip) ctx.pip?.lost(t);
       // El contador del escudo es por página: una navegación nueva lo reinicia.
       t.pendingBlocked = 0;
+      // La llamada (cámara, micrófono, pantalla) era de la página que se va.
+      t.usesMedia = false;
       t.navPending = true;
     });
 
@@ -458,7 +464,11 @@ function createTabs(ctx) {
       touch();
     });
 
-    wc.on('audio-state-changed', (e) => { t.audible = !!e.audible; touch(); });
+    wc.on('audio-state-changed', (e) => {
+      if (t.audible && !e.audible) t.lastAudible = Date.now();
+      t.audible = !!e.audible;
+      touch();
+    });
 
     wc.on('update-target-url', (_e, url) => {
       if (t.id === activeId) ctx.send('page:hover', url || '');
@@ -905,10 +915,19 @@ function createTabs(ctx) {
   function canSleep(t, now = Date.now()) {
     const min = Number(ctx.settings.sleepTabs) || 0;
     if (!min || !t.view || t.internal || t.pinned || t.pip || isVisible(t.id)) return false;
-    if (t.sleeping || t.loading || !t.shown || t.error || t.crashed || t.audible) return false;
+    if (t.sleeping || t.loading || !t.shown || t.error || t.crashed) return false;
+    return !inUse(t, now) && now - t.lastSeen >= min * 60 * 1000;
+  }
+
+  /** Lo que la persona perdería si se duerme ahora: lo que suena, una llamada. */
+  function inUse(t, now) {
+    if (t.audible || (t.lastAudible && now - t.lastAudible < AUDIO_GRACE)) return true;
+    /* Una llamada en segundo plano (Meet con todos callados) no suena, pero
+       dormirla la corta. Lo que tuvo cámara, micrófono o pantalla queda
+       despierto hasta que la pestaña se va a otra página. */
+    if (t.usesMedia) return true;
     const wc = t.view.webContents;
-    if (wc.isCurrentlyAudible() || wc.isDevToolsOpened() || wc.isBeingCaptured()) return false;
-    return now - t.lastSeen >= min * 60 * 1000;
+    return wc.isCurrentlyAudible() || wc.isDevToolsOpened() || wc.isBeingCaptured();
   }
 
   /* Chromium anota el scroll y lo escrito en los formularios en su historial
@@ -926,15 +945,17 @@ function createTabs(ctx) {
     });
   }
 
-  async function sleep(id) {
+  async function sleep(id, now = Date.now()) {
     const t = get(id);
     if (!t?.view || t.internal || isVisible(t.id) || t.sleeping) return false;
     const view = t.view;
     t.sleeping = true;
     await noteState(view.webContents);
     t.sleeping = false;
-    // Mientras tanto la pudieron mirar, cerrar o navegar a una página propia.
-    if (t.view !== view || isVisible(t.id) || !get(t.id)) return false;
+    /* Mientras tanto (hasta 1,5 s) la pudieron mirar, cerrar o navegar a una
+       página propia, o pudo empezar a sonar o a llamar: se vuelve a mirar.
+       (No canSleep entero: el replaceState de recién la deja "cargando".) */
+    if (t.view !== view || isVisible(t.id) || !get(t.id) || inUse(t, Math.max(now, Date.now()))) return false;
     const nav = view.webContents.navigationHistory;
     const entries = nav.getAllEntries();
     t.slept = entries.length ? { entries, index: nav.getActiveIndex() } : null;
@@ -947,7 +968,7 @@ function createTabs(ctx) {
 
   async function sweep(now = Date.now()) {
     let n = 0;
-    for (const t of [...tabs]) if (canSleep(t, now) && await sleep(t.id)) n++;
+    for (const t of [...tabs]) if (canSleep(t, now) && await sleep(t.id, now)) n++;
     return n;
   }
   setInterval(() => { sweep().catch((err) => console.error('[dormir]', err.message)); }, SLEEP_CHECK);
@@ -1217,6 +1238,8 @@ function createTabs(ctx) {
     closeIfDownloadOnly, countBlocked,
     snapshot, emit,
     byWebContents: (id) => byWc.get(id) || null,
+    /** La pestaña recibió cámara, micrófono o pantalla (web.cjs): no se duerme. */
+    markMedia(wcId) { const t = byWc.get(wcId); if (t) t.usesMedia = true; },
     get active() { return active(); },
     get list() { return tabs; },
     get fullscreen() { return fullscreen; },

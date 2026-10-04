@@ -15,7 +15,7 @@
    Todo lo sensible pasa por una pregunta propia, y la respuesta se recuerda.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { session, desktopCapturer, ipcMain } = require('electron');
+const { session, desktopCapturer, ipcMain, webContents } = require('electron');
 const path = require('path');
 const omni = require('./omni.cjs');
 
@@ -170,7 +170,13 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
     return 'prompt';
   }
 
-  web.setPermissionRequestHandler((wc, permission, callback, details) => {
+  web.setPermissionRequestHandler((wc, permission, answer, details) => {
+    /* Una pestaña con cámara o micrófono está en una llamada aunque nadie
+       hable: no se duerme (tabs.cjs, canSleep). */
+    const callback = (yes) => {
+      if (yes && permission === 'media' && (details?.mediaTypes || []).length && wc) ctx.tabs?.markMedia(wc.id);
+      answer(yes);
+    };
     if (ALLOW.has(permission)) return callback(true);
     /* Compartir pantalla (getDisplayMedia) llega como 'media' sin tipos
        (desde Electron 45, como 'display-capture'). La que pregunta es el
@@ -268,6 +274,9 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
       });
       const src = pick && sources.find((s) => s.id === pick.id);
       if (!src) return callback({});
+      // Presentando: la pestaña no se duerme (tabs.cjs, canSleep).
+      const wc = request.frame && webContents.fromFrame(request.frame);
+      if (wc) ctx.tabs?.markMedia(wc.id);
       callback({ video: src, ...(pick.audio && src.id.startsWith('screen') ? { audio: 'loopback' } : {}) });
     } catch (err) {
       console.error('[display-media]', err.message);

@@ -62,6 +62,11 @@ async function until(fn, ms = 6000) {
 const PAGES = {
   '/': '<title>Inicio de prueba</title><body style="font:16px sans-serif"><h1>Hola Prism</h1><p>fiebre fiebre fiebre</p><a id="l" href="/dos">dos</a></body>',
   '/dos': '<title>Página dos</title><body><h1>Dos</h1></body>',
+  /* Un sonido de un instante, como el final de un tema. */
+  '/tono': `<title>Tono</title><body><script>
+    const c = new AudioContext(); const o = c.createOscillator(); const g = c.createGain();
+    g.gain.value = 0.2; o.connect(g).connect(c.destination); o.start(); setTimeout(() => o.stop(), 700);
+  </script></body>`,
   /* Como los PDF de la cátedra en el campus: la dirección lleva espacios (%20). */
   '/Gu%C3%ADa%20TP%203': '<title>Guía TP 3</title><body><h1>Guía</h1></body>',
   '/titulo-largo': `<title>${'Un título larguísimo como el de un posteo de X, que no entra en una línea '.repeat(3)}</title><body></body>`,
@@ -557,6 +562,21 @@ app.whenReady().then(async () => {
   ok('despertar no suma una visita al historial', visitas() === antes);
   T.back();
   ok('y atrás vuelve a la anterior', await until(() => ta.title === 'Inicio de prueba'));
+  /* El hueco entre dos temas: una pestaña que sonó hace un momento no se
+     duerme. Silenciada, así la prueba no suena en la compu de nadie. */
+  T.mute(pa, true);
+  await T.navigate(pa, `${BASE}/tono`);
+  ok('suena y se calla (Chromium la da por callada a los ~2 s)', await until(() => ta.lastAudible > 0 && !ta.audible, 10000), JSON.stringify({ audible: ta.audible, lastAudible: ta.lastAudible }));
+  T.activate(pb);
+  ta.lastSeen = Date.now() - 31 * 60 * 1000;
+  await T.sweep();
+  ok('sonó hace un momento: no se duerme', !!ta.view);
+  ta.lastAudible = Date.now() - 11 * 60 * 1000;
+  await T.sweep();
+  ok('hace más de 10 minutos que no suena: se duerme', !ta.view);
+  T.activate(pa);
+  await until(() => ta.view && !ta.loading);
+  T.mute(pa, false);
   T.pin(pb, false);
   ok('desfijar la deja primera entre las comunes', !T.list[0].pinned && T.list[0].id === pb);
   ok('y en la tira recupera su ancho', await until(() => tabEl(pb, `!el.classList.contains('is-pinned') && el.getBoundingClientRect().width > 60`)));
@@ -936,6 +956,19 @@ app.whenReady().then(async () => {
   ok('antes de decidir, el sitio lee "prompt" y no "denied"', r.antes === 'prompt' && r.noti === 'default', JSON.stringify(r));
   ok('permitir da video y audio en vivo', r.pistas === 'audio:live,video:live', JSON.stringify(r));
   ok('y el sitio ya lee "granted", con los dispositivos por su nombre', r.despues === 'granted' && r.nombres, JSON.stringify(r));
+  /* Una llamada en segundo plano con todos callados no suena: igual no se
+     duerme (dormirla corta la llamada). */
+  const enLlamada = ctx.tabs.active;
+  const sleepAntes = ctx.settings.sleepTabs;
+  await ctx.saveSettings({ sleepTabs: 30 });
+  const otraId = ctx.tabs.create({ url: `${BASE}/dos` });
+  await until(() => ctx.tabs.active.title === 'Página dos');
+  enLlamada.lastSeen = Date.now() - 31 * 60 * 1000;
+  await ctx.tabs.sweep();
+  ok('una pestaña en una llamada no se duerme aunque haga rato que no la mirás', !!enLlamada.view && enLlamada.usesMedia === true);
+  ctx.tabs.close(otraId);
+  await ctx.saveSettings({ sleepTabs: sleepAntes });
+  await until(() => ctx.tabs.active === enLlamada);
   ok('sin "Recordar" no se guarda nada', !ctx.settings.permissions?.[BASE]?.camera && !ctx.settings.permissions?.[BASE]?.microphone);
   ctx.tabs.active.view.webContents.reload();
   r = await resultado();
@@ -1050,6 +1083,7 @@ app.whenReady().then(async () => {
   await js(`[...document.querySelectorAll('.op-modal__foot .op-btn')].find((b) => b.textContent.includes('Compartir')).click()`);
   const presenta = () => ctx.tabs.active.view.webContents.executeJavaScript('window.__r || null');
   ok('y compartir le da el video a la página', await until(async () => String(await presenta()).startsWith('stream video'), 6000), String(await presenta()));
+  ok('la pestaña que presenta no se duerme', ctx.tabs.active.usesMedia === true);
   await until(() => js(`!document.querySelector('.op-scrim')`));
 
   console.log('\n11. Páginas propias');
