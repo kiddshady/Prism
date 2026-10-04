@@ -106,7 +106,7 @@ function shieldPanel() {
       <div class="pr-pop__head">
         <div class="op-grow">
           <div class="pr-pop__title">Bloqueador</div>
-          <div class="pr-pop__sub">${!stats.ready && global ? 'Bajando las listas de filtros…' : 'Anuncios, rastreadores y carteles de cookies'}</div>
+          <div class="pr-pop__sub">${!stats.ready && global ? (stats.error ? 'No se pudieron bajar las listas: Prism vuelve a probar solo' : 'Bajando las listas de filtros…') : 'Anuncios, rastreadores y carteles de cookies'}</div>
         </div>
       </div>
       <div class="pr-shieldpop__stat">

@@ -258,7 +258,7 @@ function register() {
       return { host, allowed };
     });
   });
-  handle('adblock:stats', (ctx) => ({ ready: ctx.adblock.ready, total: ctx.adblock.total }));
+  handle('adblock:stats', (ctx) => ({ ready: ctx.adblock.ready, total: ctx.adblock.total, error: ctx.adblock.error }));
 
   /* Certificados de la red local (certs.cjs). Aceptar es aceptar el que se
      rechazó en ESA pestaña: la ventana no manda huellas, solo dice cuál. */
