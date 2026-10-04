@@ -28,6 +28,8 @@ const MAX_W = 236;
 const MIN_W = 40;
 const NEWTAB_SPACE = 40;
 const PIN_W = 40;
+/** Lo que se esfuma del lado con pestañas escondidas (el mismo número que prism.css). */
+const FADE = 32;
 
 const INTERNAL_ICON = {
   nueva: 'prism',
@@ -78,6 +80,15 @@ function layout() {
     el.classList.toggle('is-tiny', !pin && w < 58);
   });
   newBtn.style.setProperty('--x', `${Math.min(total - scroll, avail) + 4}px`);
+  /* Si no entran ni al mínimo, la capa de pestañas termina antes del «+» (la
+     que caía debajo se dibujaba con la cruz encima, como una mira) y el lado
+     que tiene pestañas escondidas se esfuma: el corte seco no decía que había
+     más. */
+  const over = total > avail;
+  host.classList.toggle('is-over', over);
+  host.classList.toggle('has-before', over && scroll > 0);
+  host.classList.toggle('has-after', over && scroll < total - avail);
+  host.style.setProperty('--avail', `${avail}px`);
 }
 
 function revealActive() {
@@ -87,8 +98,9 @@ function revealActive() {
   const avail = strip.clientWidth - NEWTAB_SPACE;
   const x0 = xAt(i, w);
   const x1 = x0 + (i < pinned ? PIN_W : w);
-  if (x0 < scroll) scroll = x0;
-  else if (x1 > scroll + avail) scroll = x1 - avail;
+  // Fuera de lo esfumado: la activa no queda medio apagada contra un borde.
+  if (x0 < scroll + FADE) scroll = Math.max(0, x0 - FADE);
+  else if (x1 > scroll + avail - FADE) scroll = x1 - avail + FADE;
 }
 
 /* ── Contenido de una pestaña ──────────────────────────────────────────── */

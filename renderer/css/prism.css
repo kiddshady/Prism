@@ -95,10 +95,26 @@
   overflow: hidden;
 }
 
+/* El desborde: tabstrip.js pone .is-over cuando las pestañas no entran ni al
+   mínimo, y .has-before / .has-after del lado donde hay escondidas. Ahí se
+   esfuma (la misma receta de .op-scroll, en horizontal y animada). */
+@property --pr-fade-before { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --pr-fade-after  { syntax: '<length>'; inherits: false; initial-value: 0px; }
 .pr-strip__tabs {
   position: absolute;
   inset: 0;
+  transition: --pr-fade-before var(--op-t-3) var(--op-ease-soft),
+              --pr-fade-after var(--op-t-3) var(--op-ease-soft);
 }
+.pr-strip__tabs.is-over {
+  right: auto;
+  width: var(--avail);
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--pr-fade-before),
+    #000 calc(100% - var(--pr-fade-after)), transparent 100%);
+}
+.pr-strip__tabs.has-before { --pr-fade-before: 32px; }
+.pr-strip__tabs.has-after  { --pr-fade-after: 32px; }
 
 /* ── La pestaña ──────────────────────────────────────────────────────────────
    Posicionada por JS (tabstrip.js): --x y --w. Así el reordenar y el cerrar

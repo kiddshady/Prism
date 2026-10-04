@@ -657,7 +657,7 @@ app.whenReady().then(async () => {
   T.close(lk);
   T.close(sx);
 
-  console.log('\n7g. La tira: cerrar');
+  console.log('\n7g. La tira: cerrar y desbordar');
   /* Cerrar una del medio: la que se va se pliega con la vecina. Quieta en su
      ancho, la vecina se le metía encima mientras todavía se veía. Se mide
      cuadro a cuadro, en el cromo. */
@@ -684,7 +684,22 @@ app.whenReady().then(async () => {
   const cuadros = await js('window.__cuadros');
   const encimadas = Math.max(0, ...cuadros.filter((c) => c.opacidad > 0.05).map((c) => c.encima));
   ok('cerrar una del medio: la vecina no se le mete encima mientras se ve', cuadros.length > 10 && encimadas <= 0.5, `${cuadros.length} cuadros · ${encimadas.toFixed(1)} px`);
+  /* Muchas pestañas: la capa termina antes del «+» (la que caía debajo se
+     dibujaba con la cruz encima) y el lado con escondidas se esfuma. */
+  for (let i = 0; i < 40; i++) extra.push(T.create({ url: `${BASE}/dos` }));
+  await sleep(2500);
+  T.activate(T.list[0].id);
+  await sleep(700);
+  const tira = () => js(`(() => { const h = document.getElementById('tabs'); return { clases: h.className, capa: Math.round(h.getBoundingClientRect().right), mas: Math.round(document.getElementById('btn-newtab').getBoundingClientRect().left) }; })()`);
+  let ti = await tira();
+  ok('con 40 pestañas, la capa termina antes del «+»', ti.capa <= ti.mas, JSON.stringify(ti));
+  ok('y se esfuma el lado con pestañas escondidas', /is-over/.test(ti.clases) && /has-after/.test(ti.clases) && !/has-before/.test(ti.clases), ti.clases);
+  T.activate(T.list[T.list.length - 1].id);
+  await until(async () => /has-before/.test((await tira()).clases));
+  ti = await tira();
+  ok('del otro lado al llegar al final', /has-before/.test(ti.clases) && !/has-after/.test(ti.clases), ti.clases);
   for (const id of extra) if (T.list.some((t) => t.id === id)) T.close(id);
+  ok('y sin desborde, la tira vuelve a ser la de siempre', await until(async () => !/is-over/.test((await tira()).clases)));
 
   console.log('\n8. Errores');
   ctx.tabs.create({ url: 'http://127.0.0.1:1/' });
