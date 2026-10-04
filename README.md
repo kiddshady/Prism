@@ -11,6 +11,7 @@ npm run dev     # con la consola del cromo en la terminal
 npm start
 npm test        # lógica pura: omnibox, cuentas, historial, atajos, tokens, disco, registro de Windows
 npm run smoke   # levanta Prism de verdad contra un servidor local y lo recorre
+                # (después, con «Oscurecer todo» prendido, y el bloqueador sin red)
 npm run icons   # regenera build/icon.ico, icon.png y tray.ico desde el código
 npm run build   # instalador en dist/, sin publicar
 npm run release # publica en GitHub (ver abajo)
@@ -27,7 +28,8 @@ npm run release # publica en GitHub (ver abajo)
 - **Dormidas**: la pestaña que no mirás hace un rato (30 min por defecto, se
   cambia en Ajustes) cierra su proceso y libera memoria. Al mirarla vuelve
   donde estaba: misma página, atrás y adelante, scroll y formularios. Nunca se
-  duermen las fijadas ni las que suenan.
+  duermen las fijadas, las que suenan o sonaron hace menos de 10 minutos (el
+  hueco entre dos temas), ni las que están en una llamada o presentando.
 - **Vista dividida**: dos pestañas lado a lado, unidas en la tira. Se arma
   desde el menú de la pestaña (con una nueva o con la actual) o con *Abrir el
   enlace al costado*. La barra de direcciones maneja la mitad activa (la del
@@ -44,7 +46,9 @@ npm run release # publica en GitHub (ver abajo)
   acá; sin eval, con un parser propio.
 - **Bloqueador** de anuncios, rastreadores y carteles de cookies (motor de
   Ghostery con listas de EasyList, EasyPrivacy y uBlock Origin). Cuenta lo que
-  bloquea en cada página y se apaga por sitio desde el escudo.
+  bloquea en cada página y se apaga por sitio desde el escudo. Las listas se
+  renuevan cada semana por detrás; sin red, sigue con las de antes y vuelve a
+  probar sola.
 - **Historial** agrupado por día, con búsqueda. **Favoritos** con la estrella
   o Ctrl+D, e importados de Chrome, Edge o Brave (o de un HTML exportado).
   **Descargas** con progreso, pausa y reintento. Salir (o reiniciar para
@@ -85,7 +89,8 @@ npm run release # publica en GitHub (ver abajo)
 - **Sesión**: vuelve con las pestañas de antes, y cada una carga recién
   cuando la mirás.
 - **Oscuro**: los sitios ven `prefers-color-scheme: dark`, y hay un ajuste
-  para oscurecer también los que no tienen modo oscuro.
+  para oscurecer también los que no tienen modo oscuro. Lo de Prism, los PDF
+  y las hojas para imprimir no se tocan.
 - **Atajos** de Chrome (la tabla completa está en Ajustes).
 - **Vive en la bandeja.** Cerrar la ventana no cierra Prism: se esconde con
   las pestañas vivas (la música sigue, las descargas siguen). Salir de verdad
@@ -239,6 +244,17 @@ el instalador le saca a `file://` el privilegio de leer otros archivos.
   antivirus o un backup lo tiene abierto), se reintenta, y si no se suelta,
   ese archivo no se escribe en toda la corrida: arrancar vacío y guardar
   encima lo borraba. Un JSON roto se aparta como `.corrupto-…` y se avisa.
+- **`WebContentsForceDark` no hace nada en Electron.** Es la feature de
+  Chrome para oscurecer los sitios, y la lee la capa de Chrome, que Electron
+  no trae. El que oscurece es Blink: `--blink-settings=forceDarkModeEnabled=true`.
+  Vale para todos los renderers, también el cromo: lo que declara
+  `color-scheme: dark` queda afuera (base.css lo declara).
+- **Ghostery no mira el estado de lo que baja.** Una lista que contesta 404 o
+  429 se parseaba como filtros y el motor quedaba cacheado una semana sin
+  ella. El fetch que se le pasa tira error si la respuesta no es `ok`.
+- **Un menú recién creado ya está animando.** Medido con
+  `getBoundingClientRect` sale achicado por la escala de su entrada, y se
+  ubicaba como si fuera más chico: el tamaño va con `offsetWidth`.
 - **Probar la app empaquetada cerrando solo su PID.** `dist/win-unpacked/Prism.exe`
   se llama igual que el instalado: cerrar por nombre mata el Prism de quien
   lo está usando. Y al relanzarse, el PID cambia: se buscan los de esa ruta.
