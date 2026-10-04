@@ -121,7 +121,7 @@ function unexpandScroller() {
 const settle = 'new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))';
 
 function createCapture(ctx) {
-  const { app, clipboard, nativeImage, shell } = require('electron');
+  const { app, clipboard, ClipboardItem, nativeImage, shell } = require('electron');
   const { PRISM_WORLD } = require('./tabs.cjs');
   let busy = false;
 
@@ -218,10 +218,12 @@ function createCapture(ctx) {
       const folder = dir();
       await fsp.mkdir(folder, { recursive: true });
       const file = path.join(folder, fileName(t.url, new Date(), full));
-      await fsp.writeFile(file, image.toPNG());
+      const png = image.toPNG();
+      await fsp.writeFile(file, png);
 
       const copied = width * height <= MAX_CLIPBOARD_PX;
-      if (copied) clipboard.writeImage(image);
+      // Desde Electron 44 el portapapeles es el de la web: la imagen va como un PNG.
+      if (copied) await clipboard.write([new ClipboardItem({ 'image/png': new Blob([png], { type: 'image/png' }) })]);
       const where = folderLabel(folder);
       ctx.card.show({
         kind: 'done',

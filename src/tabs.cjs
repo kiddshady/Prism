@@ -1116,11 +1116,11 @@ function createTabs(ctx) {
       }
       case 'link-incognito': return p.url && ctx.openIncognito?.(p.url);
       case 'video-pip': return t && ctx.pip?.fromContext(ctx, t, t.contextFrame);
-      case 'link-copy': return p.url && clipboard.writeText(p.url);
+      case 'link-copy': return p.url && clipboard.writeText(p.url).catch(() => {});
       case 'link-save': return p.url && ctx.web.downloadURL(p.url);
       case 'image-tab': return p.url && create({ url: p.url, active: false, index: indexOf(activeId) + 1 });
       case 'image-copy': return wc?.copyImageAt(Math.round(p.x), Math.round(p.y));
-      case 'image-copy-url': return p.url && clipboard.writeText(p.url);
+      case 'image-copy-url': return p.url && clipboard.writeText(p.url).catch(() => {});
       case 'image-save': return p.url && ctx.web.downloadURL(p.url);
       case 'copy': return wc?.copy();
       case 'cut': return wc?.cut();

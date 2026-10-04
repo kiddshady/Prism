@@ -13,10 +13,10 @@
     "url": "https://github.com/kiddshady/Prism.git"
   },
   "scripts": {
-    "start": "electron .",
-    "dev": "electron . --dev",
+    "start": "electron --enable-features=OverlayScrollbar .",
+    "dev": "electron --enable-features=OverlayScrollbar . --dev",
     "test": "node test/tokens.test.mjs && node test/store.test.mjs && node test/format.test.mjs && node test/omni.test.mjs && node test/vault.test.mjs && node test/certs.test.mjs && node test/library.test.mjs && node test/import.test.mjs && node test/capture.test.mjs && node test/shortcuts.test.mjs && node test/default-browser.test.mjs && node test/calc.test.mjs",
-    "smoke": "electron test/smoke.cjs",
+    "smoke": "electron --enable-features=OverlayScrollbar test/smoke.cjs",
     "icons": "node tools/icons.mjs",
     "build": "electron-builder --win --publish never",
     "release": "node tools/release.mjs"
@@ -26,7 +26,7 @@
     "electron-updater": "^6.8.9"
   },
   "devDependencies": {
-    "electron": "40.10.2",
+    "electron": "44.5.1",
     "electron-builder": "^26.15.3",
     "pdfjs-dist": "^6.3.289"
   },

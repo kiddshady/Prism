@@ -67,10 +67,19 @@ const early = (() => {
    sitios que pintan un <html> de otro color que su contenido (Instagram) por
    ahí asomaba una franja. Las de la ventana siguen siendo las propias: el CSS
    de base.css las dibuja, y una scrollbar con estilo nunca es flotante.
-   Un solo enable-features: si se pone dos veces, el segundo pisa al primero. */
-const FEATURES = ['OverlayScrollbar', 'FluentOverlayScrollbar', 'FluentScrollbar'];
-if (early.forceDark) FEATURES.push('WebContentsForceDark');
-app.commandLine.appendSwitch('enable-features', FEATURES.join(','));
+   Desde Electron 44 (Chromium 152) eso se decide ANTES de que corra este
+   archivo: un appendSwitch('enable-features') llega tarde y no hace nada.
+   Tiene que venir en la línea de comandos de verdad. Los scripts de
+   package.json (start, dev, smoke) lo pasan; la app instalada, si no lo
+   trae, se relanza una vez con él antes de abrir ninguna ventana (abajo,
+   después del candado de instancia única: ~0,2 s, una vez por arranque).
+   Lo de acá suma, no pisa: un segundo enable-features reemplaza al primero. */
+const OVERLAY = '--enable-features=OverlayScrollbar';
+const overlayFromLaunch = process.argv.some((a) => a.startsWith('--enable-features=') && a.slice(18).split(',').includes('OverlayScrollbar'));
+const FEATURES = new Set(app.commandLine.getSwitchValue('enable-features').split(',').filter(Boolean));
+FEATURES.add('OverlayScrollbar');
+if (early.forceDark) FEATURES.add('WebContentsForceDark');
+app.commandLine.appendSwitch('enable-features', [...FEATURES].join(','));
 
 /* Modo de verificación (tools/shot.ps1 y el humo): la ventana vive FUERA de
    pantalla, sin robar el foco, con su propio perfil. Así se la puede manejar y
@@ -95,6 +104,16 @@ nativeTheme.themeSource = 'dark';
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
+}
+
+/* La app instalada que arrancó sin las scrollbars flotantes (un acceso
+   directo, Windows al iniciar sesión, un link) se relanza con ellas. El
+   flag va PRIMERO: lo que viene después de -- (un link) Chromium ya no lo
+   lee como opción. El proceso nuevo arranca cuando este terminó de irse,
+   así que el candado lo toma él. */
+if (app.isPackaged && !overlayFromLaunch) {
+  app.relaunch({ args: [OVERLAY, ...process.argv.slice(1)] });
+  app.exit(0);
 }
 
 /** La fila de los guardados de ajustes (ver ctx.updateSettings). */

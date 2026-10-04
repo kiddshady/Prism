@@ -668,7 +668,8 @@ app.whenReady().then(async () => {
   ok('la lista cae debajo del campo', await (async () => {
     const r = await lwc.executeJavaScript(`(() => { const r = document.getElementById('u').getBoundingClientRect(); return { x: r.left, y: r.bottom }; })()`);
     const b = ctx.tabs.active.view.getBounds();
-    const f = ctx.fill.webContents && await ctx.fill.webContents.executeJavaScript(`(() => { const r = document.getElementById('box').getBoundingClientRect(); return { x: r.left, y: r.top }; })()`);
+    // Su lugar de layout (offset), no el rectángulo: mientras entra, el transform la corre unos píxeles.
+    const f = ctx.fill.webContents && await ctx.fill.webContents.executeJavaScript(`(() => { const b = document.getElementById('box'); return { x: b.offsetLeft, y: b.offsetTop }; })()`);
     const v = ctx.win.contentView.children.find((c) => c.webContents === ctx.fill.webContents)?.getBounds();
     return !!f && !!v && Math.abs(v.x + f.x - (b.x + r.x)) <= 2 && Math.abs(v.y + f.y - (b.y + r.y + 4)) <= 2;
   })());

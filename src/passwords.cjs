@@ -331,15 +331,20 @@ function createPasswords(ctx) {
      mismo con el número, el código y el PIN de una tarjeta. */
   const COPY = { login: ['username', 'email', 'password'], card: ['holder', 'number', 'expiry', 'cvv', 'pin'] };
   let clipTimer = null;
-  chrome('pass:copy', (id, field) => {
+  chrome('pass:copy', async (id, field) => {
     const it = vault.get(String(id));
     if (!it || !COPY[kindOf(it)].includes(field)) return false;
     const value = field === 'expiry' ? V.shortExpiry(it.expiry) : it[field];
     if (!value) return false;
-    clipboard.writeText(value);
+    await clipboard.writeText(value);
     if (SECRET[kindOf(it)].includes(field)) {
       clearTimeout(clipTimer);
-      clipTimer = setTimeout(() => { if (clipboard.readText() === value) clipboard.clear(); }, CLIPBOARD_MS);
+      /* Desde Electron 44 leer el portapapeles es asíncrono: comparado sin
+         esperar, era una promesa contra el texto, nunca igual, y lo copiado
+         no se borraba nunca. */
+      clipTimer = setTimeout(async () => {
+        try { if ((await clipboard.readText()) === value) clipboard.clear(); } catch { /* sin portapapeles */ }
+      }, CLIPBOARD_MS);
     }
     return true;
   });

@@ -130,7 +130,8 @@ function register() {
   /* ── Omnibox ───────────────────────────────────────────────────────────── */
   /* El click derecho en un campo del cromo (menus.js) pega sin pedirle permiso
      a Chromium, y "Pegar e ir" necesita saber qué hay antes de ofrecerlo. */
-  handle('clip:read', () => clipboard.readText().slice(0, 100000));
+  // Desde Electron 44 el portapapeles es asíncrono, como el de la web.
+  handle('clip:read', async () => (await clipboard.readText()).slice(0, 100000));
   handle('omni:suggest', (ctx, q) => {
     const r = ctx.library.suggest(str(q, 500), 6, { history: ctx.settings.historySuggest !== false });
     // Una cuenta o una conversión ("250/3", "500 mg a g") trae su resultado (calc.cjs).
