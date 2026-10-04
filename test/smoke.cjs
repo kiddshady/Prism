@@ -91,6 +91,15 @@ const PAGES = {
   '/pago-iframe-mismo': '<title>Pago mismo</title><body style="margin:0"><div style="padding:40px"><iframe id="pay" src="/campos" width="420" height="44" style="border:0;display:block"></iframe></div></body>',
   '/anuncio': '<body style="margin:0"><input id="n" autocomplete="cc-number" style="width:200px;height:30px"></body>',
   '/geo': '<title>Geo</title><body><script>navigator.geolocation.getCurrentPosition(()=>{},()=>{})</script></body>',
+  /* Una página que abre cosas sola (sin que nadie la toque): una ventana y una
+     pestaña al cargar. Y un botón que abre una ventana con un click de verdad. */
+  '/abre': `<title>Abre</title><body style="margin:0"><button id="b" style="width:200px;height:60px"
+    onclick="window.open('/dos', 'p', 'width=420,height=320')">abrir</button>
+    <script>setTimeout(() => { window.open('/tres-x', 'q', 'width=300,height=300'); window.open('/dos'); }, 300);</script></body>`,
+  /* Links a aplicaciones de la compu: uno de los que se niegan siempre y uno común. */
+  '/externo': `<title>Externo</title><body style="margin:0;font:16px sans-serif">
+    <a id="ms" href="search-ms:query=prism" style="display:block;height:40px">buscar en el Explorador</a>
+    <a id="mail" href="mailto:fran@example.com" style="display:block;height:40px">escribir</a></body>`,
   /* Lo que hace una videollamada al entrar: mira el permiso, pide cámara y
      micrófono, y lista los dispositivos. */
   '/llamada': `<title>Llamada</title><body><script>
@@ -879,6 +888,60 @@ app.whenReady().then(async () => {
   const ajeno = await js(`window.prism.settings.remove('permissions', 'x').then(() => 'pasó', (e) => e.message)`);
   ok('y solo se puede con las listas previstas', ajeno === 'Esa lista no existe.', ajeno);
   await ctx.saveSettings({ adblockAllow: [] });
+
+  console.log('\n10d. Lo que un sitio abre solo');
+  const OTRO = BASE.replace('127.0.0.1', 'localhost');
+  /** Un clic de verdad en el cromo, en el centro de lo que diga el selector. */
+  const clicCromo = async (sel) => {
+    const p = await js(`(() => { const r = document.querySelector(\`${sel}\`).getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+    for (const type of ['mouseDown', 'mouseUp']) win.webContents.sendInputEvent({ type, x: p.x, y: p.y, button: 'left', clickCount: 1 });
+  };
+  /** Un clic de verdad en la página activa, en el centro de lo que diga el selector. */
+  const clicPagina = async (sel) => {
+    const pw = ctx.tabs.active.view.webContents;
+    const p = await pw.executeJavaScript(`(() => { const r = document.querySelector('${sel}').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+    pw.focus();
+    for (const type of ['mouseDown', 'mouseUp']) pw.sendInputEvent({ type, x: p.x, y: p.y, button: 'left', clickCount: 1 });
+  };
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${OTRO}/geo`);
+  ok('un sitio nuevo pregunta por la ubicación', await pregunta());
+  ok('el foco arranca en el diálogo, no en "Permitir"', await until(() => js(`document.activeElement?.classList.contains('op-modal')`), 1000));
+  await clicCromo('.op-modal__foot .op-btn--primary');
+  await sleep(250);
+  ok('un clic en "Permitir" apenas aparece no cuenta', await js(`!!document.querySelector('.op-modal .pr-ask')`) && !ctx.settings.permissions?.[OTRO]?.geolocation);
+  await sleep(600);
+  await clicCromo('.op-modal__foot .op-btn:not(.op-btn--primary)');
+  ok('pasado el armado, el clic sí cuenta', await until(() => ctx.settings.permissions?.[OTRO]?.geolocation === 'deny'), JSON.stringify(ctx.settings.permissions?.[OTRO]));
+  await until(() => js(`!document.querySelector('.op-scrim')`));
+
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/externo`);
+  await until(() => ctx.tabs.active.title === 'Externo' && !ctx.tabs.active.loading);
+  await sleep(300);
+  await clicPagina('#ms');
+  await sleep(900);
+  ok('un link «search-ms:» se niega sin preguntar', !(await js(`!!document.querySelector('.op-modal .pr-ask')`)) && !Object.keys(ctx.settings.permissions?.[BASE] || {}).some((k) => k.startsWith('openExternal')));
+  await clicPagina('#mail');
+  ok('un «mailto:» pregunta, y dice cuál es', await pregunta() && await js(`document.querySelector('.pr-ask__text').textContent.includes('«mailto:»')`), await js(`document.querySelector('.pr-ask__text')?.textContent`));
+  await sleep(700);
+  await js(`[...document.querySelectorAll('.op-modal__foot .op-btn')].find((b) => b.textContent.includes('Bloquear')).click()`);
+  ok('y se recuerda por esquema: «no» a mailto: no dice nada de los demás', await until(() => ctx.settings.permissions?.[BASE]?.['openExternal:mailto'] === 'deny') && !ctx.settings.permissions?.[BASE]?.openExternal);
+  await until(() => js(`!document.querySelector('.op-scrim')`));
+
+  const { BrowserWindow } = require('electron');
+  const ventanas = BrowserWindow.getAllWindows().length;
+  const pestanas = ctx.tabs.list.length;
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/abre`);
+  await until(() => ctx.tabs.active.title === 'Abre' && !ctx.tabs.active.loading);
+  await sleep(1200);
+  ok('sin un clic, ni ventana ni pestaña nueva', BrowserWindow.getAllWindows().length === ventanas && ctx.tabs.list.length === pestanas,
+    `${ventanas} → ${BrowserWindow.getAllWindows().length} ventanas, ${pestanas} → ${ctx.tabs.list.length} pestañas`);
+  const aviso = ctx.win.contentView.children.find((v) => v.webContents?.getURL().endsWith('card.html'));
+  ok('y la tarjeta avisa que la bloqueó', ctx.card.shown && !!aviso && (await aviso.webContents.executeJavaScript('document.body.innerText')).includes('Ventana emergente bloqueada'));
+  await clicPagina('#b');
+  ok('con un clic de verdad, la ventana se abre', await until(() => BrowserWindow.getAllWindows().length === ventanas + 1));
+  const emergente = BrowserWindow.getAllWindows().find((w) => w !== win && !w.isDestroyed() && w.webContents.getURL().includes('/dos'));
+  ok('y su título dice primero de qué sitio es', await until(() => emergente?.getTitle().startsWith('127.0.0.1 · ')), emergente?.getTitle());
+  emergente?.destroy();
 
   console.log('\n11. Páginas propias');
   for (const p of ['historial', 'favoritos', 'descargas', 'ajustes']) {
