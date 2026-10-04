@@ -64,8 +64,13 @@ flota directo sobre la niebla, `backdrop-filter: var(--op-glass)`.
 ### Texto — escalera de énfasis
 
 `--op-text` (primario, nunca blanco puro) · `--op-text-2` (secundario) ·
-`--op-text-3` (muted: metadatos, labels) · `--op-text-4` (faint: deshabilitado,
-placeholder).
+`--op-text-3` (muted: metadatos, labels, atajos) · `--op-text-4` (faint:
+deshabilitado, placeholder, íconos de adorno).
+
+`--op-text-3` es el gris más bajo que todavía **se lee**: pasa 4,5:1 (WCAG,
+texto chico) sobre el fondo y sobre las tres hojas, y el test de tokens lo
+verifica. `--op-text-4` no se lee y no lleva datos: la hora o el sitio de una
+fila, un atajo, la ayuda de un campo, un estado vacío van en `--op-text-3`.
 
 ### Acento — la luz no rellena, talla
 
@@ -73,6 +78,12 @@ placeholder).
 fuerte / seleccionado), `--op-wash-3` (activo / presionado), `--op-ring` (focus),
 `--op-select` (`::selection`). Todos salen de `--op-accent-rgb`: cambiar el
 triplete los re-tinta a todos.
+
+**El anillo de foco es un `outline`**, no un `box-shadow` (base.css): casi todos
+los controles declaran su propia sombra en una hoja que carga después, con la
+misma especificidad, y la sombra del anillo perdía. Lo que marca el foco a su
+manera (un campo que se hunde) lo apaga con `outline: none`, nunca con
+`box-shadow: none`.
 
 **La ley de Opal:** el acento nunca rellena un plano. Vive en cantos, líneas y
 puntos — el rim del primario, el fill de 3px del meter y el slider, el halo de

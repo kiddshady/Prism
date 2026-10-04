@@ -255,6 +255,13 @@ el instalador le saca a `file://` el privilegio de leer otros archivos.
 - **Un menú recién creado ya está animando.** Medido con
   `getBoundingClientRect` sale achicado por la escala de su entrada, y se
   ubicaba como si fuera más chico: el tamaño va con `offsetWidth`.
+- **El anillo de foco con `box-shadow` lo pisa cualquier control con sombra
+  propia.** Primario, secundario, switches, checks y selects quedaban sin
+  ninguna marca de foco con el teclado. Es un `outline` (docs/sistema.md).
+- **Una página propia que se rehace al volver pierde todo.** Cambiar de
+  pestaña desarmaba Historial, Favoritos o Ajustes: al volver entraban de
+  cero, arriba de todo y sin la búsqueda. Quedan guardadas, escondidas e
+  inertes, mientras su pestaña siga abierta (pages.js, park).
 - **Probar la app empaquetada cerrando solo su PID.** `dist/win-unpacked/Prism.exe`
   se llama igual que el instalado: cerrar por nombre mata el Prism de quien
   lo está usando. Y al relanzarse, el PID cambia: se buscan los de esa ruta.
