@@ -450,7 +450,7 @@
 }
 .op-empty .op-icon { width: 34px; height: 34px; color: var(--op-text-4); stroke-width: 1; }
 .op-empty__title { font-size: var(--op-fs-15); font-weight: var(--op-w-medium); color: var(--op-text-2); }
-.op-empty__text { font-size: var(--op-fs-12); color: var(--op-text-4); max-width: 320px; line-height: var(--op-lh-loose); }
+.op-empty__text { font-size: var(--op-fs-12); color: var(--op-text-3); max-width: 320px; line-height: var(--op-lh-loose); }
 
 /* ── Consola de log ───────────────────────────────────────────────────────── */
 .op-log {

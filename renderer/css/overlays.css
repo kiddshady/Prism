@@ -49,7 +49,7 @@
   text-overflow: ellipsis;
 }
 .op-tooltip[data-state='closing'] { animation: op-pop-out 100ms var(--op-ease-in) both; }
-.op-tooltip__key { margin-left: var(--op-2); color: var(--op-text-4); }
+.op-tooltip__key { margin-left: var(--op-2); color: var(--op-text-3); }
 
 /* ── Menú contextual / dropdown ──────────────────────────────────────────── */
 /* Los overlays que scrollean también se esfuman: la regla del corte-nunca no
@@ -114,7 +114,7 @@
   cursor: default;
   transition: var(--tr-color);
 }
-.op-menuitem .op-icon { width: 14px; height: 14px; color: var(--op-text-4); transition: color var(--op-t-1) var(--op-ease-soft); }
+.op-menuitem .op-icon { width: 14px; height: 14px; color: var(--op-text-3); transition: color var(--op-t-1) var(--op-ease-soft); }
 .op-menuitem:hover, .op-menuitem.is-active { background: var(--op-wash-2); color: var(--op-text); }
 .op-menuitem:hover .op-icon, .op-menuitem.is-active .op-icon { color: var(--op-text-2); }
 .op-menuitem.is-selected .op-icon:last-child { color: var(--op-accent); }
@@ -131,7 +131,7 @@
    cuando el mouse se paraba encima. Misma especificidad, declarada después. */
 .op-menuitem--danger:hover .op-icon,
 .op-menuitem--danger.is-active .op-icon { color: var(--op-danger); }
-.op-menuitem__key { margin-left: auto; font-size: var(--op-fs-10); color: var(--op-text-4); }
+.op-menuitem__key { margin-left: auto; font-size: var(--op-fs-10); color: var(--op-text-3); }
 .op-menu__sep { height: 1px; margin: var(--op-1) var(--op-2); background: var(--op-line); }
 .op-menu__label {
   padding: var(--op-2) var(--op-2) var(--op-1);
@@ -139,7 +139,7 @@
   font-weight: var(--op-w-semi);
   letter-spacing: var(--op-track-caps);
   text-transform: uppercase;
-  color: var(--op-text-4);
+  color: var(--op-text-3);
 }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */

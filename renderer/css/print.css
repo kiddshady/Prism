@@ -162,7 +162,7 @@
 }
 .pr-sheet.is-drawn canvas { opacity: 1; }
 .pr-print.is-gray .pr-sheet__paper canvas { filter: grayscale(1); }
-.pr-sheet__num { font-size: var(--op-fs-11); color: var(--op-text-4); }
+.pr-sheet__num { font-size: var(--op-fs-11); color: var(--op-text-3); }
 
 .pr-print__busy {
   position: absolute;

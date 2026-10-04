@@ -104,5 +104,33 @@ const files = [path.join(ROOT, 'main.cjs'), path.join(ROOT, 'preload.cjs')];
 const sucios = files.filter((f) => /(--ox-|\.ox-|"ox-|'ox-)/.test(fs.readFileSync(f, 'utf8')));
 ok('sin restos del prefijo de Onyx', sucios.length === 0, sucios.join(', '));
 
+console.log('\n6. Lo que se lee, se lee');
+/* WCAG pide 4,5:1 para texto chico. text-3 es el gris más bajo que lleva
+   información (las ayudas de Ajustes, la hora del historial, los atajos), y
+   tiene que pasar sobre el fondo y sobre las tres hojas. */
+const lumOf = (hex) => {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => { const [x, y] = [lumOf(a), lumOf(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const whiteOver = (hex, alpha) => `#${[1, 3, 5].map((i) => { const v = parseInt(hex.slice(i, i + 2), 16); return Math.round(v + alpha * (255 - v)).toString(16).padStart(2, '0'); }).join('')}`;
+const textDecl = (n) => css.match(new RegExp(`--op-text-${n}:\\s*oklch\\(([\\d.]+)%\\s*calc\\(([\\d.]+)\\s*\\*\\s*var\\(--op-tint\\)\\)`));
+const t3 = textDecl(3);
+const fondoHex = oklchToHex(Number(bgDecl[1]) / 100, Number(bgDecl[2]) * tint, hue);
+const t3Hex = t3 && oklchToHex(Number(t3[1]) / 100, Number(t3[2]) * tint, hue);
+for (const s of ['bg', 's1', 's2', 's3']) {
+  const alpha = s === 'bg' ? 0 : Number(css.match(new RegExp(`--op-${s}:\\s*rgb\\(255 255 255 / ([\\d.]+)\\)`))?.[1]);
+  const fondo = whiteOver(fondoHex, alpha);
+  const r = t3Hex ? contrast(t3Hex, fondo) : 0;
+  ok(`text-3 sobre ${s} pasa 4,5:1`, r >= 4.5, `${t3Hex} sobre ${fondo}: ${r.toFixed(2)}`);
+}
+/* text-4 es para lo deshabilitado y los placeholders. Estos llevan datos. */
+const cssAll = ['pages.css', 'controls.css', 'overlays.css', 'prism.css', 'print.css']
+  .map((f) => fs.readFileSync(path.join(ROOT, 'renderer', 'css', f), 'utf8')).join('\n');
+for (const cls of ['.pr-row__time', '.pr-row__host', '.op-field__hint', '.op-tooltip__key', '.op-menuitem__key', '.op-menu__label', '.pr-notice__url', '.pr-notice__code', '.pr-pop__empty', '.pr-pass__empty']) {
+  const rule = cssAll.match(new RegExp(`${cls.replace('.', '\\.')}\\s*\\{[^}]*\\}`))?.[0] || '';
+  ok(`${cls} no usa text-4`, !!rule && !rule.includes('--op-text-4'), rule.slice(0, 80));
+}
+
 console.log(`\n═══ ${pass} ok · ${fail} fallas ═══`);
 process.exit(fail ? 1 : 0);

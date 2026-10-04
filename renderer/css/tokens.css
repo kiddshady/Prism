@@ -122,7 +122,12 @@
   /* ── Texto: escalera de énfasis ────────────────────────────────────────── */
   --op-text:   oklch(93.9% calc(.0046 * var(--op-tint)) var(--op-hue));  /* primario — nunca blanco puro */
   --op-text-2: oklch(73.3% calc(.0116 * var(--op-tint)) var(--op-hue));  /* secundario */
-  --op-text-3: oklch(55.4% calc(.0138 * var(--op-tint)) var(--op-hue));  /* muted: metadatos, labels */
+  /* text-3 es el gris más bajo que todavía se LEE: pasa 4,5:1 (WCAG, texto
+     chico) sobre el fondo y sobre las tres hojas. Con 55,4 % daba 3,8 sobre
+     una s2 y las ayudas de 11 px de Ajustes no llegaban. text-4 no se lee:
+     es solo para lo deshabilitado, los placeholders y los íconos de adorno,
+     nunca para un dato (la hora, el sitio, un atajo, un estado vacío). */
+  --op-text-3: oklch(63% calc(.0138 * var(--op-tint)) var(--op-hue));    /* muted: metadatos, labels, atajos */
   --op-text-4: oklch(42.3% calc(.0142 * var(--op-tint)) var(--op-hue));  /* faint: deshabilitado, placeholder */
 
   /* ── Acento ────────────────────────────────────────────────────────────────

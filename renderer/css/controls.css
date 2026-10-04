@@ -121,7 +121,7 @@
   color: var(--op-text-3);
   letter-spacing: .01em;
 }
-.op-field__hint { font-size: var(--op-fs-11); color: var(--op-text-4); }
+.op-field__hint { font-size: var(--op-fs-11); color: var(--op-text-3); }
 .op-field__hint--error { color: var(--op-danger); }
 
 .op-input,
