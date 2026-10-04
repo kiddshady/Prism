@@ -15,7 +15,8 @@ import { esc } from './ui.js';
 import { modal } from './layers.js';
 
 let queue = Promise.resolve();
-let openId = null;
+/** La que está preguntando ahora, con lo que retira SU diálogo. */
+let current = null;
 /** Las que el proceso principal canceló antes de que les tocara el turno. */
 const cancelled = new Set();
 
@@ -27,7 +28,7 @@ const ICON = {
 
 const pretty = (origin) => String(origin || '').replace(/^https:\/\//, '');
 
-async function askPermission(req) {
+async function askPermission(req, signal) {
   const body = document.createElement('div');
   const icon = req.keys?.length === 2 ? 'camera' : ICON[req.keys?.[0]] || 'passKey';
   body.innerHTML = `
@@ -43,6 +44,7 @@ async function askPermission(req) {
     title: 'Permiso',
     body,
     width: 440,
+    signal,
     actions: [
       { label: 'Bloquear', value: 'deny' },
       { label: 'Permitir', value: 'allow', variant: 'primary', autofocus: true },
@@ -52,7 +54,7 @@ async function askPermission(req) {
   return { allow: v === 'allow', remember: check.classList.contains('is-on') };
 }
 
-async function askDisplay(req) {
+async function askDisplay(req, signal) {
   const screens = req.sources.filter((s) => s.kind === 'screen');
   const windows = req.sources.filter((s) => s.kind === 'window');
   let pick = screens[0]?.id || windows[0]?.id || null;
@@ -93,6 +95,7 @@ async function askDisplay(req) {
     title: 'Compartir pantalla',
     body,
     width: 640,
+    signal,
     actions: [
       { label: 'Cancelar', value: null },
       { label: 'Compartir', value: 'share', variant: 'primary', autofocus: true },
@@ -107,21 +110,24 @@ export function init() {
     queue = queue.then(async () => {
       // La pestaña que preguntaba se cerró mientras esperaba en la fila: ni se muestra.
       if (cancelled.delete(req.id)) return;
-      openId = req.id;
+      current = { id: req.id, ctl: new AbortController() };
+      const { signal } = current.ctl;
       let answer = null;
       try {
-        answer = req.kind === 'permission' ? await askPermission(req) : await askDisplay(req);
+        answer = req.kind === 'permission' ? await askPermission(req, signal) : await askDisplay(req, signal);
       } catch (err) {
         console.error('[prompt]', err);
       }
-      openId = null;
+      current = null;
       api.prompts.answer(req.id, answer);
     });
   });
-  // El proceso principal lo dio por perdido (se cerró la pestaña): se cierra el
-  // diálogo, o si todavía no le tocaba, se saltea.
+  /* El proceso principal lo dio por perdido (se cerró la pestaña): se retira
+     SU diálogo —aunque todavía esté esperando detrás de otro modal—, o si no
+     le tocaba el turno, se saltea. Un Modal.close() a ciegas cerraba el que
+     estuviera a la vista, que podía ser otro (Imprimir, Borrar datos). */
   api.prompts.onCancel((id) => {
-    if (openId === id) Modal.close(null);
+    if (current?.id === id) current.ctl.abort();
     else cancelled.add(id);
   });
 }

@@ -338,16 +338,24 @@ const Menu = (() => {
 
 const Modal = (() => {
   let open = null;
+  /* Los que pidieron turno con otro abierto. El nuevo pisaba al de abajo, que
+     quedaba con su velo tapando todo y sin forma de cerrarse (sus botones y
+     Escape llamaban a un close() que ya no lo conocía), y su promesa no se
+     resolvía nunca. Ahora espera: al cerrarse el actual, hereda su velo. */
+  const waiting = [];
 
   function close(result) {
     if (!open) return;
-    const { scrim, anim, resolve, restore } = open;
+    const { scrim, anim, req, restore } = open;
     open = null;
     document.removeEventListener('keydown', onKey, true);
+    const next = waiting.shift();
+    // Con alguien esperando, la salida va pareja: el que entra asoma mientras se va.
+    if (next) anim.classList.add('is-relayed');
     exit(anim, { fallback: 300 });
-    exit(scrim, { fallback: 300 });
-    restore?.focus?.();
-    resolve(result);
+    if (next) mount(next, { scrim, restore });
+    else { exit(scrim, { fallback: 300 }); restore?.focus?.(); }
+    req.resolve(result);
   }
 
   function onKey(e) {
@@ -373,66 +381,93 @@ const Modal = (() => {
   }
 
   /**
-   * Modal.show({ title, sub, body, actions, width, dismissible })
+   * Modal.show({ title, sub, body, actions, width, dismissible, signal })
    * actions: [{ label, value, variant, autofocus }]  → resuelve con `value`.
    * body puede ser string HTML o un Node.
+   * Con otro abierto, espera su turno. `signal` (de un AbortController) lo
+   * retira: si todavía espera, sale de la fila sin verse; si ya se ve, se
+   * cierra con null. Cierra ESE modal, no el que esté a la vista.
    */
-  function show({ title, sub = '', body = '', actions = [], width, dismissible = true } = {}) {
+  function show(opts = {}) {
     return new Promise((resolve) => {
-      const scrim = document.createElement('div');
-      scrim.className = 'op-scrim';
-
-      const anim = document.createElement('div');
-      anim.className = 'op-modal__anim';
-
-      const modal = document.createElement('div');
-      modal.className = 'op-modal';
-      if (width) modal.style.width = `min(${width}px, calc(100vw - 96px))`;
-      modal.setAttribute('role', 'dialog');
-      modal.setAttribute('aria-modal', 'true');
-
-      modal.innerHTML = `
-        <div class="op-modal__head">
-          <div class="op-grow">
-            <div class="op-modal__title"></div>
-            ${sub ? '<div class="op-modal__sub"></div>' : ''}
-          </div>
-          ${dismissible ? `<button class="op-iconbtn" data-dismiss data-tip="Cerrar" data-tip-key="Esc">${Icons.svg('close')}</button>` : ''}
-        </div>
-        <div class="op-modal__body op-scroll"></div>
-        ${actions.length ? '<div class="op-modal__foot"></div>' : ''}`;
-
-      modal.querySelector('.op-modal__title').textContent = title;
-      if (sub) modal.querySelector('.op-modal__sub').textContent = sub;
-
-      const bodyEl = modal.querySelector('.op-modal__body');
-      if (body instanceof Node) bodyEl.appendChild(body);
-      else bodyEl.innerHTML = body;
-
-      const foot = modal.querySelector('.op-modal__foot');
-      actions.forEach((a) => {
-        const b = document.createElement('button');
-        b.className = `op-btn op-flashable op-btn--${a.variant || 'ghost'}`;
-        b.textContent = a.label;
-        b.addEventListener('click', () => close(a.value));
-        foot.appendChild(b);
-        if (a.autofocus) setTimeout(() => b.focus(), 60);
-      });
-
-      modal.querySelector('[data-dismiss]')?.addEventListener('click', () => close(null));
-      if (dismissible) scrim.addEventListener('click', () => close(null));
-
-      anim.appendChild(modal);
-      layer().append(scrim, anim);
-      Icons.mount(modal);
-      scrollFade(bodyEl);
-
-      open = { scrim, anim, resolve, restore: document.activeElement };
-      document.addEventListener('keydown', onKey, true);
-      if (!actions.some((a) => a.autofocus)) {
-        setTimeout(() => anim.querySelector('button,input,textarea')?.focus(), 60);
-      }
+      const req = { opts, resolve };
+      const { signal } = opts;
+      if (signal?.aborted) { resolve(null); return; }
+      signal?.addEventListener('abort', () => {
+        const i = waiting.indexOf(req);
+        if (i >= 0) { waiting.splice(i, 1); resolve(null); }
+        else if (open?.req === req) close(null);
+      }, { once: true });
+      if (open) waiting.push(req);
+      else mount(req);
     });
+  }
+
+  /** Lo arma y lo muestra. `inherited`: el velo y el foco del que se acaba de ir. */
+  function mount(req, inherited = null) {
+    const { title, sub = '', body = '', actions = [], width, dismissible = true } = req.opts;
+    let scrim = inherited?.scrim;
+    if (!scrim) {
+      scrim = document.createElement('div');
+      scrim.className = 'op-scrim';
+      // Un solo oyente por velo, aunque pase de un modal al siguiente.
+      scrim.addEventListener('click', () => { if (open?.dismissible) close(null); });
+    }
+
+    const anim = document.createElement('div');
+    anim.className = `op-modal__anim${inherited ? ' is-after' : ''}`;
+    // Lo de un modal que ya se está yendo no cierra al que vino después.
+    const mine = (fn) => () => { if (open?.anim === anim) fn(); };
+
+    const modal = document.createElement('div');
+    modal.className = 'op-modal';
+    if (width) modal.style.width = `min(${width}px, calc(100vw - 96px))`;
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+
+    modal.innerHTML = `
+      <div class="op-modal__head">
+        <div class="op-grow">
+          <div class="op-modal__title"></div>
+          ${sub ? '<div class="op-modal__sub"></div>' : ''}
+        </div>
+        ${dismissible ? `<button class="op-iconbtn" data-dismiss data-tip="Cerrar" data-tip-key="Esc">${Icons.svg('close')}</button>` : ''}
+      </div>
+      <div class="op-modal__body op-scroll"></div>
+      ${actions.length ? '<div class="op-modal__foot"></div>' : ''}`;
+
+    modal.querySelector('.op-modal__title').textContent = title;
+    if (sub) modal.querySelector('.op-modal__sub').textContent = sub;
+
+    const bodyEl = modal.querySelector('.op-modal__body');
+    if (body instanceof Node) bodyEl.appendChild(body);
+    else bodyEl.innerHTML = body;
+
+    const foot = modal.querySelector('.op-modal__foot');
+    actions.forEach((a) => {
+      const b = document.createElement('button');
+      b.className = `op-btn op-flashable op-btn--${a.variant || 'ghost'}`;
+      b.textContent = a.label;
+      b.addEventListener('click', mine(() => close(a.value)));
+      foot.appendChild(b);
+      if (a.autofocus) setTimeout(() => b.focus(), 60);
+    });
+
+    modal.querySelector('[data-dismiss]')?.addEventListener('click', mine(() => close(null)));
+
+    anim.appendChild(modal);
+    if (inherited) layer().append(anim);
+    else layer().append(scrim, anim);
+    Icons.mount(modal);
+    scrollFade(bodyEl);
+
+    // El foco vuelve a donde estaba antes del PRIMERO de la fila.
+    const restore = inherited ? inherited.restore : document.activeElement;
+    open = { scrim, anim, req, dismissible, restore };
+    document.addEventListener('keydown', onKey, true);
+    if (!actions.some((a) => a.autofocus)) {
+      setTimeout(() => anim.querySelector('button,input,textarea')?.focus(), 60);
+    }
   }
 
   /** Confirmación destructiva: el rojo aparece acá porque algo se va a romper. */

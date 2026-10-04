@@ -168,6 +168,10 @@
   place-items: center;
   animation: op-lift-in var(--op-t-3) var(--op-ease) both;
 }
+/* El que esperaba su turno entra sobre el mismo velo cuando el anterior ya va
+   por la mitad de su salida: relevo, no dos modales encimados. Va antes que
+   la regla de salida, que le gana con su propio delay en 0. */
+.op-modal__anim.is-after { animation-delay: 90ms; }
 /* El wrapper cubre toda la ventana, así que tiene que dejar pasar el click al
    scrim de abajo; solo el modal en sí lo intercepta. */
 #op-layer > .op-modal__anim { pointer-events: none; }
@@ -187,6 +191,8 @@
   overflow: hidden;
 }
 .op-modal__anim[data-state='closing'] { animation: op-lift-out var(--op-t-2) var(--op-ease-in) both; }
+/* Con otro esperando, la salida baja pareja: en ease-in caía de golpe al final, encima del que entra. */
+.op-modal__anim.is-relayed[data-state='closing'] { animation-timing-function: var(--op-ease-both); }
 .op-modal__head { padding: var(--op-5) var(--op-5) var(--op-3); display: flex; align-items: flex-start; gap: var(--op-3); }
 .op-modal__title { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); }
 .op-modal__sub { font-size: var(--op-fs-12); color: var(--op-text-3); margin-top: 4px; line-height: var(--op-lh-loose); }

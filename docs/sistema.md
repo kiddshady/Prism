@@ -349,7 +349,7 @@ Tooltip.init();                         // una vez, al arrancar
 Toast.show({ title, text, icon, tone, duration });
 Toast.error(title, text);
 Menu.show(anchorEl, items, { align: 'end' });
-await Modal.show({ title, sub, body, actions, width, dismissible });
+await Modal.show({ title, sub, body, actions, width, dismissible, signal });
 await Modal.confirm({ title, sub, confirmLabel, danger });
 ```
 
@@ -362,6 +362,14 @@ más `{ sep: true }` y `{ groupLabel }`.
 **Modal**: devuelve una promesa con el `value` del botón que se apretó (`null`
 si se cerró). El `body` puede ser HTML o un `Node` — si es un nodo, podés leer
 sus campos después de que cierre. Atrapa el foco y cierra con Escape.
+
+Hay uno solo a la vista: el que llega con otro abierto **espera su turno** y,
+cuando el actual se cierra, entra sobre el mismo velo (relevo, no dos modales
+encimados). Antes el nuevo pisaba al de abajo, que quedaba trabado con su velo
+tapando todo y una promesa que no se resolvía nunca. Para retirar UN modal
+—todavía en la fila o ya a la vista— se le pasa el `signal` de un
+`AbortController` y se aborta; `Modal.close()` cierra el que se ve, que puede
+ser otro.
 
 ---
 
