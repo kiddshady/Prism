@@ -77,10 +77,12 @@
 /* El modal corta al aire arriba (la cabecera no lleva línea) y contra el pie abajo. */
 .op-modal__body:has(~ .op-modal__foot)     { --op-fade-bottom: 0px; }
 
+/* El alto lo pone Menu.show: el lugar que hay desde el ancla. Esto es solo
+   el tope de la ventana entera, para medirlo. */
 .op-menu {
   position: absolute;
   min-width: 180px;
-  max-height: 60vh;
+  max-height: calc(100vh - 20px);
   padding: var(--op-1);
   border-radius: var(--op-r-lg);
   background: var(--op-s3);
@@ -91,6 +93,11 @@
   transform-origin: var(--origin, top left);
 }
 .op-menu[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+/* Un menú que no entra entero: la barrita se ve mientras quede algo
+   escondido arriba o abajo (el fade no va acá: se come el hairline). */
+.op-menu.op-scroll:not(.is-bottom)::-webkit-scrollbar-thumb,
+.op-menu.op-scroll:not(.is-top)::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, .14); }
+.op-menu.op-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, .22); }
 .op-menuitem {
   display: flex;
   align-items: center;

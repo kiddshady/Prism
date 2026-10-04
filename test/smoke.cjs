@@ -1495,6 +1495,26 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('btn-menu').click()`);
   ok('y ofrece descargarla arriba de todo', await until(() => js(`!!document.querySelector('.op-menu .op-menuitem')?.textContent.includes('9.9.9')`)));
   ok('con "Salir de Prism" al final', await js(`[...document.querySelectorAll('.op-menu .op-menuitem')].pop().textContent.includes('Salir de Prism')`));
+  /* Con un 60 % de la ventana como tope, "Salir de Prism" quedaba abajo del
+     borde en la ventana de fábrica, y nada avisaba que había más. */
+  const menuPpal = `document.querySelector('.op-menu:not([data-state="closing"])')`;
+  const tamano = win.getContentSize();
+  ok('con la ventana de fábrica entra entero, sin desplazarse', await js(`(() => { const m = ${menuPpal}; return m.scrollHeight <= m.clientHeight + 1 && m.getBoundingClientRect().bottom <= innerHeight; })()`), JSON.stringify(tamano));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!${menuPpal}`));
+  win.setContentSize(1100, 500);
+  await sleep(400);
+  await js(`document.getElementById('btn-menu').click()`);
+  ok('con una ventana baja, el menú se corta en el borde de la ventana', await until(() => js(`(() => { const m = ${menuPpal}; return !!m && m.getBoundingClientRect().bottom <= innerHeight - 9; })()`)));
+  ok('y deja ver que hay más: se desplaza, con la barrita a la vista', await js(`(() => { const m = ${menuPpal}; return m.scrollHeight > m.clientHeight + 1 && !m.classList.contains('is-bottom'); })()`));
+  await js(`(() => { const m = ${menuPpal}; m.scrollTop = m.scrollHeight; return true; })()`);
+  ok('y desplazándolo se llega a "Salir de Prism"', await until(() => js(`(() => { const m = ${menuPpal}; const s = [...m.querySelectorAll('.op-menuitem')].pop().getBoundingClientRect(); return m.classList.contains('is-bottom') && s.bottom <= m.getBoundingClientRect().bottom; })()`)));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!${menuPpal}`));
+  win.setContentSize(...tamano);
+  await sleep(300);
+  await js(`document.getElementById('btn-menu').click()`);
+  await until(() => js(`!!${menuPpal}`));
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   ok('la statusbar lo avisa', await until(() => js(`document.getElementById('status-left').textContent.includes('9.9.9')`)));
 

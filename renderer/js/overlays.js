@@ -298,18 +298,32 @@ const Menu = (() => {
     anchorEl.classList.add('is-open');
 
     const a = anchorEl.getBoundingClientRect();
-    const m = el.getBoundingClientRect();
-    let x = align === 'end' ? a.right - m.width : a.left;
-    let y = a.bottom + 6;
-    // Si abajo no entra, abre hacia arriba y cambia el origen de la animación.
-    const flipUp = y + m.height > window.innerHeight - EDGE;
-    if (flipUp) y = a.top - m.height - 6;
+    /* El tamaño de layout, no el del rectángulo: la entrada ya arrancó y la
+       escala lo achica, y el menú se ubicaba como si fuera más chico (quedaba
+       pegado al borde de la ventana). */
+    const m = { width: el.offsetWidth, height: el.offsetHeight };
+    /* Abre abajo del ancla; si abajo no entra y arriba hay más lugar, arriba
+       (y la animación nace de ese lado). El alto es el lugar que hay de ese
+       lado, no un tope fijo: con un 60 % de la ventana, el menú principal
+       escondía "Salir de Prism" en la ventana de fábrica, y nada avisaba que
+       había más. Si igual no entra, se desplaza, con la barrita a la vista
+       mientras quede algo escondido (overlays.css). */
+    const below = window.innerHeight - (a.bottom + 6) - EDGE;
+    const above = a.top - 6 - EDGE;
+    const flipUp = m.height > below && above > below;
+    const room = Math.max(80, flipUp ? above : below);
+    const h = Math.min(m.height, room);
+    if (m.height > room) el.style.maxHeight = `${Math.floor(room)}px`;
+    // Desplazándose aparece la barrita, que lo ensancha: el ancho se mide después.
+    const w = m.height > room ? el.offsetWidth : m.width;
+    let x = align === 'end' ? a.right - w : a.left;
+    let y = flipUp ? a.top - h - 6 : a.bottom + 6;
     el.style.setProperty('--origin', `${flipUp ? 'bottom' : 'top'} ${align === 'end' ? 'right' : 'left'}`);
 
-    [x, y] = clamp(x, y, m.width, m.height);
+    [x, y] = clamp(x, y, w, h);
     el.style.left = `${Math.round(x)}px`;
     el.style.top = `${Math.round(y)}px`;
-    el.style.minWidth = `${Math.max(m.width, a.width)}px`;
+    el.style.minWidth = `${Math.max(w, a.width)}px`;
 
     open = { el, anchor: anchorEl, onClose };
     document.addEventListener('keydown', onKey, true);
