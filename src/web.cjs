@@ -172,6 +172,11 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
 
   web.setPermissionRequestHandler((wc, permission, callback, details) => {
     if (ALLOW.has(permission)) return callback(true);
+    /* Compartir pantalla (getDisplayMedia) llega como 'media' sin tipos
+       (desde Electron 45, como 'display-capture'). La que pregunta es el
+       selector propio, más abajo (setDisplayMediaRequestHandler): acá solo se
+       le abre la puerta. Negado acá, ni aparecía, y Meet no podía presentar. */
+    if (permission === 'display-capture' || (permission === 'media' && !(details?.mediaTypes || []).length)) return callback(true);
     const origin = omni.originOf(details?.requestingUrl || wc?.getURL?.());
     if (!origin) return callback(false);
 

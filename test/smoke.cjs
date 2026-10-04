@@ -96,6 +96,10 @@ const PAGES = {
   '/abre': `<title>Abre</title><body style="margin:0"><button id="b" style="width:200px;height:60px"
     onclick="window.open('/dos', 'p', 'width=420,height=320')">abrir</button>
     <script>setTimeout(() => { window.open('/tres-x', 'q', 'width=300,height=300'); window.open('/dos'); }, 300);</script></body>`,
+  /* Presentar, como en Meet: compartir la pantalla con un clic. */
+  '/presentar': `<title>Presentar</title><body style="margin:0"><button id="b" style="width:200px;height:60px">presentar</button><script>
+    b.onclick = () => navigator.mediaDevices.getDisplayMedia({ video: true }).then((s) => { window.__r = 'stream ' + s.getTracks().map((t) => t.kind).join(); s.getTracks().forEach((t) => t.stop()); }, (e) => { window.__r = 'error ' + e.name; });
+  </script></body>`,
   /* Links a aplicaciones de la compu: uno de los que se niegan siempre y uno común. */
   '/externo': `<title>Externo</title><body style="margin:0;font:16px sans-serif">
     <a id="ms" href="search-ms:query=prism" style="display:block;height:40px">buscar en el Explorador</a>
@@ -942,6 +946,20 @@ app.whenReady().then(async () => {
   const emergente = BrowserWindow.getAllWindows().find((w) => w !== win && !w.isDestroyed() && w.webContents.getURL().includes('/dos'));
   ok('y su título dice primero de qué sitio es', await until(() => emergente?.getTitle().startsWith('127.0.0.1 · ')), emergente?.getTitle());
   emergente?.destroy();
+
+  console.log('\n10e. Compartir la pantalla');
+  /* getDisplayMedia llega al manejador de permisos como "media" sin tipos: antes
+     se negaba ahí y el selector propio ni aparecía (Meet no podía presentar). */
+  await ctx.tabs.navigate(ctx.tabs.active.id, `${BASE}/presentar`);
+  await until(() => ctx.tabs.active.title === 'Presentar' && !ctx.tabs.active.loading);
+  await sleep(300);
+  await clicPagina('#b');
+  ok('presentar abre el selector de Prism', await until(() => js(`!!document.querySelector('.op-modal .pr-source')`), 8000));
+  await sleep(700);
+  await js(`[...document.querySelectorAll('.op-modal__foot .op-btn')].find((b) => b.textContent.includes('Compartir')).click()`);
+  const presenta = () => ctx.tabs.active.view.webContents.executeJavaScript('window.__r || null');
+  ok('y compartir le da el video a la página', await until(async () => String(await presenta()).startsWith('stream video'), 6000), String(await presenta()));
+  await until(() => js(`!document.querySelector('.op-scrim')`));
 
   console.log('\n11. Páginas propias');
   for (const p of ['historial', 'favoritos', 'descargas', 'ajustes']) {
