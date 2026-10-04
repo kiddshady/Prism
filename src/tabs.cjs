@@ -55,6 +55,9 @@ const SLEEP_CHECK = 60 * 1000;
 const PRISM_WORLD = 1001;
 /** Aire entre las dos mitades de una vista dividida (ahí vive el divisor). */
 const GAP = 8;
+/** Cuánto dura un gesto de la persona para abrir ventanas: lo mismo que la activación de Chromium. */
+const ACTIVATION_MS = 5000;
+const OPENS_ON_INPUT = new Set(['mouseDown', 'mouseUp', 'rawKeyDown', 'keyDown', 'gestureTap', 'touchEnd']);
 const clampRatio = (r) => Math.max(0.2, Math.min(0.8, Number(r) || 0.5));
 
 function createTabs(ctx) {
@@ -494,7 +497,9 @@ function createTabs(ctx) {
       ctx.command(cmd, { from: 'page' });
     });
 
+    watchGestures(wc);
     wc.setWindowOpenHandler(({ url, disposition }) => {
+      if (!activated(wc)) { blockedPopup(t, url); return { action: 'deny' }; }
       /* window.open con tamaño es un popup de verdad (el login de Google, un
          pago): necesita su `opener`, así que se abre como ventana. Todo lo
          demás —target=_blank, click del medio— es una pestaña. */
@@ -506,6 +511,8 @@ function createTabs(ctx) {
             autoHideMenuBar: true,
             width: 520,
             height: 680,
+            // En modo verificación (el humo) no aparece en la pantalla de quien está usando la compu.
+            show: !process.env.PRISM_SHOTS,
             webPreferences: { session: ctx.web, sandbox: true, contextIsolation: true },
           },
         };
@@ -516,11 +523,62 @@ function createTabs(ctx) {
     });
 
     wc.on('did-create-window', (child) => {
+      watchGestures(child.webContents);
       child.webContents.setWindowOpenHandler(({ url }) => {
-        create({ url, active: true });
+        if (activated(child.webContents)) create({ url, active: true });
+        else blockedPopup(t, url);
         return { action: 'deny' };
       });
       child.webContents.on('dom-ready', () => growIfPdf(child));
+      /* La ventanita no tiene barra de direcciones: el título dice de qué
+         sitio es, primero, para que un login falso no pueda pasar por el de
+         Google con solo ponerse ese título. */
+      const titled = () => {
+        if (child.isDestroyed()) return;
+        const host = omni.bareHost(child.webContents.getURL());
+        const title = child.webContents.getTitle();
+        child.setTitle(host ? `${host} · ${title}` : title);
+      };
+      child.on('page-title-updated', (e) => { e.preventDefault(); titled(); });
+      child.webContents.on('did-navigate', titled);
+    });
+  }
+
+  /* ── Ventanas emergentes ───────────────────────────────────────────────────
+     Electron no trae el bloqueador de Chrome: cualquier página abría ventanas
+     y pestañas sin que la tocaras, en cantidad, y cada ventana podía imitar
+     el login de un banco. Como en Chromium, una página abre otra solo dentro
+     de los 5 s después de un click o una tecla en ella. Si no, se bloquea, y
+     la tarjeta de la esquina avisa y ofrece abrirla. */
+  const gestures = new Map();   // wcId → ms del último gesto
+  function watchGestures(wc) {
+    const id = wc.id;
+    wc.on('input-event', (_e, ev) => { if (OPENS_ON_INPUT.has(ev.type)) gestures.set(id, Date.now()); });
+    // Como en Chromium, el gesto es del documento: la página nueva no hereda el click de la anterior.
+    wc.on('did-start-navigation', (e) => { if (e.isMainFrame && !e.isSameDocument) gestures.delete(id); });
+    wc.once('destroyed', () => gestures.delete(id));
+  }
+  /** Si hubo un gesto reciente, y lo gasta: un click abre una sola cosa, como en Chromium. */
+  function activated(wc) {
+    const ok = Date.now() - (gestures.get(wc.id) || 0) < ACTIVATION_MS;
+    if (ok) gestures.delete(wc.id);
+    return ok;
+  }
+
+  function blockedPopup(t, url) {
+    const from = omni.bareHost(t.url) || 'Este sitio';
+    const to = omni.bareHost(url);
+    const web = /^https?:\/\//i.test(url || '');
+    ctx.card?.show({
+      kind: 'done',
+      icon: 'window',
+      title: 'Ventana emergente bloqueada',
+      text: `${from} quiso abrir ${to && to !== from ? to : 'otra ventana'} sin que hicieras click.`,
+      buttons: web ? [{ id: 'open', label: 'Abrirla', icon: 'external' }] : [],
+      life: 8000,
+    }, {
+      // A su derecha, como cualquier link que abre; si ya se cerró, al final.
+      open: () => create({ url, active: true, ...(get(t.id) ? { index: indexOf(t.id) + 1 + countOpenedBy(t.id), openerId: t.id } : {}) }),
     });
   }
 
