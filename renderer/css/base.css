@@ -91,14 +91,19 @@ p, code, pre,
 ::-webkit-scrollbar-thumb:active { background-color: rgba(255, 255, 255, .28); }
 
 /* ── Focus ring propio ───────────────────────────────────────────────────────
-   Solo con teclado (:focus-visible), nunca el outline azul del sistema.
-   Doble anillo: uno del color del fondo que despega, otro de luz. */
+   Solo con teclado (:focus-visible), nunca el outline azul del sistema. Es un
+   outline y no una sombra: los controles con superficie (botones primario y
+   secundario, switches, checks, selects) declaran su propio box-shadow en
+   una hoja que carga después, con la misma especificidad, y le ganaban al
+   anillo: quedaban sin ninguna marca de foco. El outline no compite con
+   nadie, sigue el border-radius, y el offset deja el aire del fondo entre el
+   control y la luz. Lo que marca el foco a su manera (un campo que se hunde)
+   lo apaga con outline: none. */
 :focus { outline: none; }
 :focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--op-bg), 0 0 0 3.5px var(--op-ring);
+  outline: 1.5px solid var(--op-ring);
+  outline-offset: 2px;
   border-radius: var(--op-r-sm);
-  transition: box-shadow var(--op-t-1) var(--op-ease-soft);
 }
 
 /* ── Tipografía utilitaria ─────────────────────────────────────────────────── */

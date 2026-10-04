@@ -139,7 +139,7 @@
 .op-wincontrol:active::before { background: var(--op-wash-2); }
 .op-wincontrol--close:hover { color: #fff; }
 .op-wincontrol--close:hover::before { background: var(--op-danger-dim); }
-.op-wincontrol:focus-visible { box-shadow: none; }
+.op-wincontrol:focus-visible { outline: none; }
 .op-wincontrol:focus-visible::before { box-shadow: 0 0 0 2px var(--op-bg), 0 0 0 3.5px var(--op-ring); }
 .op-wincontrol .op-icon { width: 11px; height: 11px; stroke-width: 1.2; }
 /* Maximizar ↔ restaurar: los dos encimados, se cruzan. */

@@ -204,7 +204,7 @@
    ve nada distinto), y el foco está en el diálogo mismo, que no lleva el
    anillo genérico: le cambiaría el radio y la sombra. */
 .op-modal__anim.is-arming .op-modal__foot .op-btn { pointer-events: none; }
-.op-modal:focus-visible { box-shadow: var(--op-sheet), var(--op-e4); border-radius: var(--op-r-xl); }
+.op-modal:focus-visible { outline: none; border-radius: var(--op-r-xl); }
 .op-modal__head { padding: var(--op-5) var(--op-5) var(--op-3); display: flex; align-items: flex-start; gap: var(--op-3); }
 .op-modal__title { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); }
 .op-modal__sub { font-size: var(--op-fs-12); color: var(--op-text-3); margin-top: 4px; line-height: var(--op-lh-loose); }

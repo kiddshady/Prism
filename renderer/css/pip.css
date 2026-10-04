@@ -103,7 +103,7 @@ html, body { background: transparent; }
 }
 .pip-btn:hover { background: rgb(255 255 255 / .14); }
 .pip-btn:active { background: rgb(255 255 255 / .2); transform: scale(.94); }
-.pip-btn:focus-visible { box-shadow: 0 0 0 2px rgb(0 0 0 / .6), 0 0 0 3.5px var(--op-ring); }
+.pip-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px rgb(0 0 0 / .6), 0 0 0 3.5px var(--op-ring); }
 .pip-btn .op-icon { width: 16px; height: 16px; stroke-width: 1.6; }
 .pip-btn--sm { width: 28px; height: 28px; margin-left: auto; }
 

@@ -111,7 +111,7 @@
   caret-color: var(--op-accent);
 }
 .pr-fakebox__input::placeholder { color: var(--op-text-4); }
-.pr-fakebox__input:focus-visible { box-shadow: none; }
+.pr-fakebox__input:focus-visible { outline: none; }
 .pr-fakebox__input::selection { background: rgb(var(--op-accent-rgb) / .24); }
 
 .pr-ntp__tiles { display: flex; flex-direction: column; align-items: center; width: 100%; }

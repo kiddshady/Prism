@@ -1353,7 +1353,7 @@
 /* Los campos del cromo marcan el foco con su propio pozo: el anillo genérico
    de :focus-visible (base.css) encima se leería como un doble borde. */
 .pr-omni__input:focus-visible,
-.pr-find__input:focus-visible { box-shadow: none; }
+.pr-find__input:focus-visible { outline: none; }
 .pr-sugg.is-active .pr-sugg__sub { color: var(--op-text-3); }
 
 /* El velo del modal, más oscuro que el de Opal: detrás casi siempre hay una

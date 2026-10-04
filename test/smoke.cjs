@@ -1531,6 +1531,56 @@ app.whenReady().then(async () => {
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   ok('la statusbar lo avisa', await until(() => js(`document.getElementById('status-left').textContent.includes('9.9.9')`)));
 
+  console.log('\n13b. El anillo de foco');
+  /* Con el teclado, todo control enfocable muestra el anillo. Era un
+     box-shadow, y los controles con sombra propia (primario, secundario,
+     switch, check, select) le ganaban: quedaban sin ninguna marca. Se mide
+     en píxeles: con foco y sin foco, el borde de alrededor tiene que cambiar. */
+  win.webContents.focus();
+  await js(`(() => {
+    const box = document.createElement('div');
+    box.id = 'anillos-de-prueba';
+    box.style.cssText = 'position:fixed;left:40px;top:200px;z-index:2147483646;display:flex;gap:24px;padding:16px;background:var(--op-bg)';
+    box.innerHTML = '<button class="op-btn op-btn--primary">Primario</button><button class="op-btn op-btn--secondary">Secundario</button>'
+      + '<button class="op-btn op-btn--danger-solid">Borrar</button><button class="op-btn op-btn--ghost">Fantasma</button>'
+      + '<button class="op-switch is-on"></button><button class="op-check is-on"></button><button class="op-select"><span class="op-select__value">Elegir</span></button>'
+      + '<button class="op-iconbtn">x</button>';
+    document.body.append(box);
+    return true;
+  })()`);
+  await sleep(300);
+  const controles = await js(`[...document.querySelectorAll('#anillos-de-prueba > *')].map((e) => e.className)`);
+  const foto = async (i) => {
+    const r = await js(`(() => { const r = document.querySelectorAll('#anillos-de-prueba > *')[${i}].getBoundingClientRect(); return { x: Math.floor(r.left) - 6, y: Math.floor(r.top) - 6, width: Math.ceil(r.width) + 12, height: Math.ceil(r.height) + 12 }; })()`);
+    return (await win.webContents.capturePage(r)).toBitmap();
+  };
+  for (let i = 0; i < controles.length; i++) {
+    const sin = await foto(i);
+    // La ventana de prueba compite por el foco con el escritorio: se insiste hasta que tome.
+    const visible = await until(async () => {
+      win.webContents.focus();
+      return js(`(() => { const e = document.querySelectorAll('#anillos-de-prueba > *')[${i}]; e.focus({ focusVisible: true }); return e.matches(':focus-visible'); })()`);
+    }, 3000);
+    /* La captura puede traer el cuadro de antes si el compositor todavía no
+       pintó el nuevo, o la ventana de prueba pudo perder el foco (la persona
+       sigue usando la compu): se vuelve a sacar un rato. Un anillo que no
+       está no aparece nunca, así que esto no esconde la falla. */
+    let distintos = 0;
+    await until(async () => {
+      // Sin la ventana enfocada, Chromium no pinta :focus: se le devuelve antes de cada foto.
+      win.webContents.focus();
+      await js(`document.querySelectorAll('#anillos-de-prueba > *')[${i}].focus({ focusVisible: true }); true`);
+      await sleep(60);
+      const con = await foto(i);
+      distintos = 0;
+      for (let p = 0; p < Math.min(sin.length, con.length); p += 4) if (Math.abs(sin[p] - con[p]) + Math.abs(sin[p + 1] - con[p + 1]) + Math.abs(sin[p + 2] - con[p + 2]) > 30) distintos++;
+      return distintos > 20;
+    }, 2000);
+    ok(`${controles[i].split(' ').find((c) => c.startsWith('op-') && (c.includes('--') || c !== 'op-btn')) || controles[i]}: con el teclado se ve el anillo`, visible && distintos > 20, `focus-visible ${visible} · píxeles que cambian ${distintos}`);
+    await js(`document.activeElement.blur(); true`);
+  }
+  await js(`document.getElementById('anillos-de-prueba').remove(); true`);
+
   console.log('\n14. Sin errores en la consola del cromo');
   ok('ninguno', errores.length === 0, errores.slice(0, 3).join(' | '));
 
