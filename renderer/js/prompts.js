@@ -28,6 +28,12 @@ const ICON = {
 
 const pretty = (origin) => String(origin || '').replace(/^https:\/\//, '');
 
+/* Estas preguntas las abre un sitio cuando quiere, no la persona: el sitio
+   puede elegir el instante en que estás por hacer un segundo click o por
+   apretar Enter en la barra. Los primeros 600 ms el diálogo no toma clicks en
+   sus botones, y ningún botón arranca con el foco (Chrome hace lo mismo). */
+const ARM = 600;
+
 async function askPermission(req, signal) {
   const body = document.createElement('div');
   const icon = req.keys?.length === 2 ? 'camera' : ICON[req.keys?.[0]] || 'passKey';
@@ -45,9 +51,10 @@ async function askPermission(req, signal) {
     body,
     width: 440,
     signal,
+    arm: ARM,
     actions: [
       { label: 'Bloquear', value: 'deny' },
-      { label: 'Permitir', value: 'allow', variant: 'primary', autofocus: true },
+      { label: 'Permitir', value: 'allow', variant: 'primary' },
     ],
   });
   if (!v) return { allow: false, remember: false };
@@ -85,10 +92,10 @@ async function askDisplay(req, signal) {
     body.querySelectorAll('.pr-source').forEach((x) => x.classList.toggle('is-selected', x === b));
     syncAudio();
   });
-  // Doble click comparte directo.
+  // Doble click comparte directo (pasado el armado: el doble click no puede venir de antes).
   body.addEventListener('dblclick', (e) => {
     const b = e.target.closest('.pr-source');
-    if (b) { pick = b.dataset.id; Modal.close('share'); }
+    if (b && !body.closest('.is-arming')) { pick = b.dataset.id; Modal.close('share'); }
   });
 
   const v = await modal({
@@ -96,9 +103,10 @@ async function askDisplay(req, signal) {
     body,
     width: 640,
     signal,
+    arm: ARM,
     actions: [
       { label: 'Cancelar', value: null },
-      { label: 'Compartir', value: 'share', variant: 'primary', autofocus: true },
+      { label: 'Compartir', value: 'share', variant: 'primary' },
     ],
   });
   if (v !== 'share' || !pick) return null;

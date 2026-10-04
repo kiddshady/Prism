@@ -381,12 +381,16 @@ const Modal = (() => {
   }
 
   /**
-   * Modal.show({ title, sub, body, actions, width, dismissible, signal })
+   * Modal.show({ title, sub, body, actions, width, dismissible, signal, arm })
    * actions: [{ label, value, variant, autofocus }]  → resuelve con `value`.
    * body puede ser string HTML o un Node.
    * Con otro abierto, espera su turno. `signal` (de un AbortController) lo
    * retira: si todavía espera, sale de la fila sin verse; si ya se ve, se
    * cierra con null. Cierra ESE modal, no el que esté a la vista.
+   * `arm` (ms): para lo que se abre solo, sin que la persona lo pida (un
+   * sitio que pide un permiso). Durante ese rato sus botones no toman
+   * clicks, y el foco arranca en el diálogo, no en un botón: un segundo
+   * click o un Enter que venía para otra cosa no contesta por la persona.
    */
   function show(opts = {}) {
     return new Promise((resolve) => {
@@ -405,7 +409,7 @@ const Modal = (() => {
 
   /** Lo arma y lo muestra. `inherited`: el velo y el foco del que se acaba de ir. */
   function mount(req, inherited = null) {
-    const { title, sub = '', body = '', actions = [], width, dismissible = true } = req.opts;
+    const { title, sub = '', body = '', actions = [], width, dismissible = true, arm = 0 } = req.opts;
     let scrim = inherited?.scrim;
     if (!scrim) {
       scrim = document.createElement('div');
@@ -450,7 +454,7 @@ const Modal = (() => {
       b.textContent = a.label;
       b.addEventListener('click', mine(() => close(a.value)));
       foot.appendChild(b);
-      if (a.autofocus) setTimeout(() => b.focus(), 60);
+      if (a.autofocus && !arm) setTimeout(() => b.focus(), 60);
     });
 
     modal.querySelector('[data-dismiss]')?.addEventListener('click', mine(() => close(null)));
@@ -465,7 +469,12 @@ const Modal = (() => {
     const restore = inherited ? inherited.restore : document.activeElement;
     open = { scrim, anim, req, dismissible, restore };
     document.addEventListener('keydown', onKey, true);
-    if (!actions.some((a) => a.autofocus)) {
+    if (arm) {
+      anim.classList.add('is-arming');
+      setTimeout(() => anim.classList.remove('is-arming'), arm);
+      modal.tabIndex = -1;
+      setTimeout(() => modal.focus(), 60);
+    } else if (!actions.some((a) => a.autofocus)) {
       setTimeout(() => anim.querySelector('button,input,textarea')?.focus(), 60);
     }
   }
