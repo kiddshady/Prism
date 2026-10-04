@@ -76,6 +76,10 @@ npm run release # publica en GitHub (ver abajo)
 - **Nueva pestaña** con tus favoritos y los sitios que más visitás.
 - **Permisos** propios: cámara, micrófono, ubicación, notificaciones… se
   preguntan y se recuerdan por sitio. Compartir pantalla con selector propio.
+  Abrir una aplicación (`mailto:`, `zoommtg:`) se pregunta por esquema, y
+  los de Windows que se prestan a abuso se niegan siempre. Una página abre
+  ventanas o pestañas solo después de un click tuyo: las demás se bloquean,
+  y la tarjeta de la esquina avisa y ofrece abrirlas.
 - **Sesión**: vuelve con las pestañas de antes, y cada una carga recién
   cuando la mirás.
 - **Oscuro**: los sitios ven `prefers-color-scheme: dark`, y hay un ajuste
@@ -155,11 +159,23 @@ resuelven en un solo lugar (`src/shortcuts.cjs`, con tests).
 
 ### Las páginas no ven nada de Prism
 
-Viven en su propia sesión (`persist:prism`), sandboxeadas, sin preload. El
-default de Electron es **conceder** todo permiso que se pida; acá todo lo
-sensible pasa por una pregunta y lo que no está en ninguna lista se niega
-(`src/web.cjs`). El user agent se presenta como el Chromium que es, sin
-"Electron/": el login de Google rechaza a los que se identifican así.
+Viven en su propia sesión (`persist:prism`), sandboxeadas, y no ven
+`window.prism`. Sí corren preloads de sesión en un mundo aislado
+(window.chrome, permisos, ventanita, imprimir, contraseñas, el bloqueador),
+y esos tienen `ipcRenderer`: **todo canal nuevo pasa por `handle()`/`on()`
+de `src/ipc.cjs` o mira a mano quién lo manda** (`senderFrame`). El default
+de Electron es **conceder** todo permiso que se pida; acá todo lo sensible
+pasa por una pregunta y lo que no está en ninguna lista se niega
+(`src/web.cjs`). Lo que un sitio abre solo (un permiso, compartir pantalla)
+no toma clicks los primeros 600 ms. El user agent se presenta como el
+Chromium que es, sin "Electron/": el login de Google rechaza a los que se
+identifican así.
+
+La lista para completar contraseñas y tarjetas no está en la página: la
+dibuja Prism en una vista propia, encima (`src/fill.cjs`), así la página
+no la puede leer, estilar ni tapar. Y la interfaz de Prism no se carga
+como `file://` sino por su esquema, `prism-ui://app` (`src/ui-protocol.cjs`):
+el instalador le saca a `file://` el privilegio de leer otros archivos.
 
 ### Trampas que ya se pisaron
 
@@ -191,6 +207,23 @@ sensible pasa por una pregunta y lo que no está en ninguna lista se niega
   el link lleva a la lista general. Reiniciar la compu lo rehace (confirmado
   con la 1.3.0); cerrar la sesión, no se probó. Por eso Prism se registra al
   arrancar, sin esperar al botón.
+- **En Electron, una página `file://` lee otros archivos.** En Chrome no. Un
+  `.html` de un mail abierto con doble click podía leer la compu entera. La
+  interfaz va por `prism-ui://app` y el fuse `grantFileProtocolExtraPrivileges`
+  está apagado en el instalador. Los fuses solo se aplican empaquetando: el
+  humo corre el Electron de `node_modules`, así que se prueba sobre
+  `dist/win-unpacked` (`electron-builder --win --dir`).
+- **Desde Electron 44, `appendSwitch('enable-features')` llega tarde.**
+  Chromium decide las scrollbars flotantes antes de que corra `main.cjs`: el
+  flag tiene que estar en la línea de comandos de verdad. Los scripts lo
+  pasan, y la app instalada que arranca sin él se relanza una vez con él
+  (adelante del `--`, o se lee como un link).
+- **Compartir pantalla llega como `media` sin tipos.** `getDisplayMedia` pasa
+  primero por el manejador de permisos; negado ahí, el selector propio ni
+  aparece. Desde Electron 45 va a llegar como `display-capture`.
+- **Probar la app empaquetada cerrando solo su PID.** `dist/win-unpacked/Prism.exe`
+  se llama igual que el instalado: cerrar por nombre mata el Prism de quien
+  lo está usando. Y al relanzarse, el PID cambia: se buscan los de esa ruta.
 
 ---
 
@@ -209,6 +242,8 @@ src/
   downloads.cjs       Descargas.
   capture.cjs         Capturas: lo visible y la página entera, por tramos cosidos.
   card.cjs            La tarjeta de la esquina: un aviso que flota sobre la página.
+  fill.cjs            La lista de contraseñas y tarjetas: una vista propia sobre el campo.
+  ui-protocol.cjs     prism-ui://app: la interfaz por su propio esquema, no como file://.
   print.cjs           Imprimir: la vista previa (un PDF), a la impresora o a un PDF.
   print-preload.cjs   En cada página: su window.print() abre la pantalla de Prism.
   pip.cjs             La ventanita: el video afuera, siempre arriba, con sus controles.
@@ -257,7 +292,7 @@ permite fotografiar Prism mientras la compu se sigue usando:
 
 ```
 $env:PRISM_SHOTS=1; $env:PRISM_DATA="$env:TEMP\prism-shots\data"
-npx electron --inspect=9334 . --dev --remote-debugging-port=9333
+npx electron --enable-features=OverlayScrollbar --inspect=9334 . --dev --remote-debugging-port=9333
 node tools/shot.mjs .shots/algo.png
 ```
 
