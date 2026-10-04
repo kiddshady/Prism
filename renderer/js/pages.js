@@ -751,6 +751,8 @@ const PERM_NAMES = {
   'window-management': 'Ventanas', openExternal: 'Abrir aplicaciones', 'storage-access': 'Cookies de terceros',
   'top-level-storage-access': 'Cookies de terceros',
 };
+// Abrir aplicaciones se recuerda por esquema (src/web.cjs): «openExternal:zoommtg».
+const permName = (k) => PERM_NAMES[k] || (k.startsWith('openExternal:') ? `Abrir «${k.slice(13)}:»` : k);
 
 let launchForceDark = null;
 /* Un cambio hecho DESDE esta página vuelve como aviso de "ajustes cambiaron".
@@ -775,7 +777,7 @@ const chipHTML = (h, attr, label) => `<span class="pr-chip-x">${esc(h)}<button c
 function permRowHTML(origin, map) {
   return `<div class="pr-opt pr-opt--item">
       <div class="pr-opt__text"><div class="pr-opt__path" style="color:var(--op-text-2)">${esc(origin.replace(/^https:\/\//, ''))}</div>
-        <div class="pr-opt__hint">${Object.entries(map).map(([k, v]) => `${esc(PERM_NAMES[k] || k)}: ${v === 'allow' ? 'permitido' : 'bloqueado'}`).join(' · ')}</div></div>
+        <div class="pr-opt__hint">${Object.entries(map).map(([k, v]) => `${esc(permName(k))}: ${v === 'allow' ? 'permitido' : 'bloqueado'}`).join(' · ')}</div></div>
       <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-forget="${esc(origin)}">Olvidar</button></div></div>`;
 }
 

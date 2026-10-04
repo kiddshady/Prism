@@ -36,7 +36,8 @@ const ARM = 600;
 
 async function askPermission(req, signal) {
   const body = document.createElement('div');
-  const icon = req.keys?.length === 2 ? 'camera' : ICON[req.keys?.[0]] || 'passKey';
+  // «openExternal:zoommtg» usa el ícono de openExternal.
+  const icon = req.keys?.length === 2 ? 'camera' : ICON[String(req.keys?.[0]).split(':')[0]] || 'passKey';
   body.innerHTML = `
     <div class="pr-ask">
       <div class="pr-ask__icon">${Icons.svg(icon)}</div>

@@ -221,7 +221,8 @@ function siteInfo() {
       <div class="pr-pop__body">
         <div class="op-eyebrow" style="padding:10px 8px 6px">Permisos</div>
         ${perms.length ? perms.map(([k, v]) => {
-          const [icon, label] = PERM_LABEL[k] || ['passKey', k];
+          // Abrir aplicaciones se recuerda por esquema: «openExternal:zoommtg».
+          const [icon, label] = PERM_LABEL[k] || (k.startsWith('openExternal:') ? ['external', `Abrir «${k.slice(13)}:»`] : ['passKey', k]);
           return `<div class="pr-dlrow" style="padding:6px 8px">
               <i data-icon="${icon}"></i>
               <div class="pr-dlrow__main"><div class="pr-dlrow__name">${esc(label)}</div>

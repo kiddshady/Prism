@@ -40,6 +40,23 @@ const ASK = {
   'top-level-storage-access': 'usar sus cookies en este sitio',
 };
 
+/* Abrir una aplicación (mailto:, zoommtg:, spotify:…) se pregunta y se
+   recuerda POR ESQUEMA: «sí» a un mailto: no habilita nada más. Antes era un
+   solo permiso para todo, y la pregunta ni decía cuál. Estos se niegan
+   siempre, sin preguntar: abren cosas de Windows con parámetros que elige la
+   página (búsquedas del Explorador que muestran archivos remotos, el
+   diagnóstico de Office de Follina, instaladores, ayudas compiladas). */
+const NEVER_OPEN = new Set([
+  'file', 'shell', 'javascript', 'vbscript', 'data', 'about', 'blob', 'view-source', 'prism',
+  'search', 'search-ms', 'ms-msdt', 'ms-officecmd', 'ms-appinstaller', 'ms-cxh', 'ms-cxh-full',
+  'ms-word', 'ms-excel', 'ms-powerpoint', 'ms-visio', 'ms-access', 'ms-project', 'ms-publisher',
+  'ms-spd', 'ms-infopath', 'hcp', 'its', 'ms-its', 'mk', 'res', 'jar',
+]);
+const schemeOf = (url) => {
+  const m = /^([a-z][a-z0-9+.-]*):/i.exec(String(url || ''));
+  return m ? m[1].toLowerCase() : null;
+};
+
 /** El pedido de media se desarma en cámara / micrófono, que se recuerdan por separado. */
 function mediaKeys(details) {
   const types = new Set(details?.mediaTypes || []);
@@ -158,15 +175,21 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
     const origin = omni.originOf(details?.requestingUrl || wc?.getURL?.());
     if (!origin) return callback(false);
 
-    const keys = permission === 'media' ? mediaKeys(details) : [permission];
-    if (!keys.length || keys.some((k) => !ASK[k])) return callback(false);
+    let keys = permission === 'media' ? mediaKeys(details) : [permission];
+    let label = null;
+    if (permission === 'openExternal') {
+      const scheme = schemeOf(details?.externalURL);
+      if (!scheme || NEVER_OPEN.has(scheme)) return callback(false);
+      keys = [`openExternal:${scheme}`];
+      label = `abrir un link «${scheme}:» con una aplicación de tu compu`;
+    } else if (!keys.length || keys.some((k) => !ASK[k])) return callback(false);
 
     // Si ya hay respuesta para todo lo pedido, no se vuelve a preguntar.
     const prev = keys.map((k) => stateOf(wc, origin, k));
     if (prev.every((v) => v === 'granted')) return callback(true);
     if (prev.some((v) => v === 'denied')) return callback(false);
 
-    const label = keys.length === 2 ? ASK['camera+microphone'] : ASK[keys[0]];
+    label ??= keys.length === 2 ? ASK['camera+microphone'] : ASK[keys[0]];
     ctx.prompts.permission({ origin, what: label, keys, wcId: wc?.id })
       .then(async ({ allow, remember: keep }) => {
         if (keep) await remember(origin, keys, allow ? 'allow' : 'deny');
@@ -252,4 +275,4 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
   return { session: web, userAgent: ua, dispose };
 }
 
-module.exports = { createWeb, ASK, ALLOW };
+module.exports = { createWeb, ASK, ALLOW, NEVER_OPEN, schemeOf };
