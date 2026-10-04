@@ -662,9 +662,14 @@
   pointer-events: auto;
   transition: opacity var(--op-t-3) var(--op-ease), visibility 0s, box-shadow var(--op-t-2) var(--op-ease-soft);
 }
-/* La mitad activa lleva un canto de luz afuera de su borde: la vista tapa
-   todo lo de adentro, así que el anillo vive en el aire que la rodea. */
-.pr-page.is-split .pr-pane.is-active { box-shadow: var(--op-sheet), var(--op-e3), 0 0 0 1.5px rgb(255 255 255 / .26); }
+/* La mitad activa (adonde va lo que escribís en la barra) lleva un canto de
+   luz afuera de su borde: la vista tapa todo lo de adentro, así que el anillo
+   vive en el aire que la rodea. Despegado por 2 px del color del fondo: pegado
+   al borde, contra una página blanca no se distinguía (las dos mitades se veían
+   iguales). Es la luz del anillo de foco, más firme y de 2 px enteros (1,5 px
+   suavizados se leían como una sombra): marca lo mismo, adónde va el teclado.
+   Cabe en los 8 px entre las dos. */
+.pr-page.is-split .pr-pane.is-active { box-shadow: var(--op-sheet), var(--op-e3), 0 0 0 2px var(--op-bg), 0 0 0 4px rgb(var(--op-accent-rgb) / .62); }
 .pr-app.is-fullscreen .pr-pane { border-radius: 0; box-shadow: none; }
 
 /* El divisor ocupa el aire entre las dos. La manija aparece al pasar. */

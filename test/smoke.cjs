@@ -596,6 +596,18 @@ app.whenReady().then(async () => {
   ok('y la nueva pasa a ser la activa', T.active.id === sn);
   ok('la hoja se parte en dos', await until(() => js(`document.getElementById('page').classList.contains('is-split')`)));
   ok('la derecha dibuja la nueva pestaña', await until(() => js(`!!document.querySelector('#internal-2 .pr-view[data-page="nueva"]')`)));
+  /* El canto de la mitad activa, pegado a una página blanca, no se veía. Ahora
+     va despegado: un hueco del color del fondo y después la luz. Se mide en
+     los píxeles de afuera del borde (la vista nativa tapa lo de adentro). */
+  const canto = async (slot, lado) => {
+    const rect = await js(`(() => { const r = document.querySelector('.pr-pane[data-slot="${slot}"]').getBoundingClientRect(); return { x: Math.round(${lado === 'izq' ? 'r.left - 5' : 'r.right'}), y: Math.round(r.top + r.height / 2), width: 5, height: 1 }; })()`);
+    const b = (await win.webContents.capturePage(rect)).toBitmap();
+    const out = [];
+    for (let i = 0; i < b.length; i += 4) out.push(Math.round((b[i] + b[i + 1] + b[i + 2]) / 3));
+    return lado === 'izq' ? out.reverse() : out;   // del borde hacia afuera
+  };
+  ok('la mitad activa tiene su canto: un hueco oscuro y después la luz', await until(async () => { const c = await canto(1, 'izq'); return c[0] < 40 && Math.max(c[2], c[3]) > 70; }), JSON.stringify(await canto(1, 'izq')));
+  ok('y la otra no', (await canto(0, 'izq')).every((v) => v < 40), JSON.stringify(await canto(0, 'izq')));
   ok('la izquierda sigue viendo su página', win.contentView.children.includes(tx.view));
   ok('la vista izquierda cae EXACTAMENTE sobre su hoja', await until(async () => same(tx.view.getBounds(), await paneRect(0))), `${JSON.stringify(tx.view.getBounds())} vs ${JSON.stringify(await paneRect(0))}`);
   ok('y mide la mitad (menos el aire del medio)', tx.view.getBounds().width === Math.round((full.width - 8) / 2));
