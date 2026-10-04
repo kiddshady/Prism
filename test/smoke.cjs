@@ -713,6 +713,19 @@ app.whenReady().then(async () => {
   ctx.tabs.contextAction('link-save', { url: `${BASE}/lento` });
   const lento = () => ctx.downloads.list().find((d) => d.filename === 'lento.bin');
   ok('arranca a bajar', await until(() => lento()?.state === 'progressing' && lento().received > 0, 8000));
+  /* Con un link largo bajo el mouse, el lado izquierdo de la statusbar le
+     sacaba lugar al derecho: «1 descarga» se encogía y quedaba debajo del
+     porcentaje («1 des64arga»). Cede el link, que se trunca. */
+  ok('la statusbar cuenta la descarga', await until(() => js(`!!document.querySelector('#status-right .pr-status__pct.is-on')`), 8000));
+  ctx.send('page:hover', `${BASE}/rastreo?${'utm_source=ejemplo&id=1234567890&'.repeat(12)}`);
+  const cuenta = () => js(`(() => { const r = document.getElementById('status-right'); const c = r.querySelector('.pr-status__count'); const p = r.querySelector('.pr-status__pct'); const a = c.getBoundingClientRect(), b = p.getBoundingClientRect(); return { ancho: Math.round(a.width), justo: c.scrollWidth <= Math.ceil(a.width) + 1, separados: a.right <= b.left + 0.5, entra: r.scrollWidth <= r.clientWidth + 1 }; })()`);
+  // Se mide con el link ya dibujado: antes de que llegue, la cuenta tiene todo el lugar.
+  await until(() => js(`[...document.querySelectorAll('#status-left .pr-status__url')].pop()?.textContent.includes('rastreo')`));
+  await sleep(450);
+  const medida = await cuenta();
+  ok('con un link larguísimo bajo el mouse, lo de la derecha no se encoge: «1 descarga» y el porcentaje no se pisan', medida.entra && medida.justo && medida.separados && medida.ancho > 40, JSON.stringify(medida));
+  ok('y el link se trunca', await js(`(() => { const u = [...document.querySelectorAll('#status-left .pr-status__url')].pop(); return !!u && u.scrollWidth > u.clientWidth; })()`));
+  ctx.send('page:hover', '');
   const titulo = () => js(`document.querySelector('.op-modal__anim:not([data-state="closing"]) .op-modal__title')?.textContent || ''`);
   const boton = (t) => js(`[...document.querySelectorAll('.op-modal__anim:not([data-state="closing"]) .op-modal__foot .op-btn')].find((b) => b.textContent.includes(${JSON.stringify(t)})).click()`);
   const salir = ctx.quit();

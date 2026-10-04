@@ -887,6 +887,11 @@
   min-width: 0;
   height: 100%;
 }
+/* Lo de la derecha (las descargas, sin conexión) no cede: cede el link de la
+   izquierda, que ya se trunca con puntos suspensivos. Con un link largo bajo
+   el mouse, el contador se encogía a 6 px y su texto se dibujaba debajo del
+   porcentaje («1 des64arga»). */
+.pr-status__right { flex: 0 0 auto; min-width: auto; }
 /* Una sola celda: el aviso que se va y el que llega ocupan el mismo lugar.
    En fila, el nuevo entraba AL LADO del viejo mientras este se desvanecía
    (la barra se veía larguísima) y después saltaba a la izquierda. */
