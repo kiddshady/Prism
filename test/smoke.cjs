@@ -157,6 +157,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="archivo.bin"' });
     return res.end(Buffer.alloc(64 * 1024, 7));
   }
+  /* El título entero de un apunte como nombre: más largo que lo que entra. */
+  if (req.url === '/apunte-largo') {
+    res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${'Guia de trabajos practicos de Farmacologia - Unidad 4 - '.repeat(4)}(catedra).pdf"` });
+    return res.end('%PDF-1.4\n%%EOF\n');
+  }
   /* Un favicon que no carga y tarda en fallar (como el de un aparato de la
      red). Contesta algo que no es una imagen: falla igual, sin dejar un 404
      en la consola del cromo, que el humo vigila al final. */
@@ -643,6 +648,9 @@ app.whenReady().then(async () => {
   ctx.tabs.contextAction('link-save', { url: `${BASE}/archivo.bin` });
   ok('baja el archivo a la carpeta elegida', await until(() => fs.existsSync(path.join(DL, 'archivo.bin')) && ctx.downloads.list()[0]?.state === 'completed', 8000));
   ok('el panel lo lista', await until(() => js(`__prism.S.downloads.some(d => d.filename === 'archivo.bin')`)));
+  ctx.tabs.contextAction('link-save', { url: `${BASE}/apunte-largo` });
+  const largo = () => ctx.downloads.list().find((d) => d.url.endsWith('/apunte-largo'));
+  ok('un nombre larguísimo se recorta sin perder el .pdf', await until(() => largo()?.state === 'completed' && largo().filename.endsWith('.pdf') && largo().filename.length <= 180 && fs.existsSync(largo().path), 8000), largo()?.filename);
 
   console.log('\n9b. Contraseñas');
   const V = ctx.passwords.vault;

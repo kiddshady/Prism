@@ -13,16 +13,27 @@ const path = require('path');
 const { app, shell } = require('electron');
 
 const KEEP = 200;
+/** Lo más largo que puede ser un nombre (con la extensión). */
+const NAME_MAX = 180;
+
+/* Los nombres que tomaron las descargas en curso, de TODAS las ventanas: una
+   en la normal y otra en incógnito del mismo archivo también se pisarían. */
+const reservedAll = new Set();
 
 /* "archivo.pdf" ya existe → "archivo (1).pdf". Los nombres reservados por
    descargas en curso cuentan como ocupados: dos descargas simultáneas del mismo
-   archivo se pisarían, porque ninguna llegó todavía al disco. */
+   archivo se pisarían, porque ninguna llegó todavía al disco.
+   Un nombre largo se recorta en la base, nunca en la extensión: el título
+   entero de un apunte como nombre perdía el ".pdf" y Windows no sabía con qué
+   abrirlo. Y el recorte no termina en espacio ni en punto, que Windows saca
+   callado (el archivo quedaría con otro nombre que el anotado). */
 function uniquePath(dir, filename, reserved = new Set()) {
-  const clean = String(filename || 'descarga').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 180) || 'descarga';
-  const ext = path.extname(clean);
-  const base = clean.slice(0, clean.length - ext.length);
+  const clean = String(filename || 'descarga').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'descarga';
+  let ext = path.extname(clean);
+  if (ext.length > 16 || ext === '.') ext = '';
+  const base = clean.slice(0, clean.length - ext.length).slice(0, NAME_MAX - ext.length).replace(/[ .]+$/, '') || 'descarga';
   for (let i = 0; i < 10000; i++) {
-    const name = i ? `${base} (${i})${ext}` : clean;
+    const name = `${base}${i ? ` (${i})` : ''}${ext}`;
     const p = path.join(dir, name);
     if (!reserved.has(p.toLowerCase()) && !fs.existsSync(p)) return p;
   }
@@ -32,7 +43,7 @@ function uniquePath(dir, filename, reserved = new Set()) {
 function createDownloads(ctx, { doc }) {
   let list = [];                 // más nueva primero
   const live = new Map();        // id → DownloadItem
-  const reserved = new Set();
+  const reserved = reservedAll;
   let seq = 0;
 
   const pub = (d) => ({ ...d });
