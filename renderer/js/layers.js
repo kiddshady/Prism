@@ -141,17 +141,6 @@ export async function popover(anchor, build, { width = 340, align = 'end', onClo
     settle();
     return Promise.resolve();
   };
-  render();
-
-  // Posición: debajo del botón, alineado a su borde derecho (o izquierdo).
-  const a = anchor.getBoundingClientRect();
-  const m = el.getBoundingClientRect();
-  let x = align === 'end' ? a.right - m.width : a.left;
-  x = Math.min(Math.max(EDGE, x), window.innerWidth - m.width - EDGE);
-  el.style.left = `${Math.round(x)}px`;
-  el.style.top = `${Math.round(a.bottom + 6)}px`;
-  el.style.transformOrigin = align === 'end' ? 'top right' : 'top left';
-  anchor.classList.add('is-open');
 
   const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closePopover(); } };
   // Click afuera cierra. En captura, y dejando pasar al ancla: su propio
@@ -162,9 +151,32 @@ export async function popover(anchor, build, { width = 340, align = 'end', onClo
     if (e.target.closest?.('.op-menu, .op-modal__anim, .op-scrim')) return;
     closePopover();
   };
+  /* El panel se anota ANTES de armarlo. Si el armado fallaba, quedaba en la
+     capa sin que nadie lo conociera (no lo cerraban Escape, el click afuera
+     ni su botón) y la página, congelada debajo para siempre. Así, un error
+     cierra el panel como cualquier otro cierre. */
   pop = { el, anchor, release, onKey, onDown, onClose, ctl };
   document.addEventListener('keydown', onKey, true);
-  setTimeout(() => document.addEventListener('pointerdown', onDown, true), 0);
+  setTimeout(() => { if (pop?.el === el) document.addEventListener('pointerdown', onDown, true); }, 0);
+  try {
+    render();
+  } catch (err) {
+    console.error('[popover]', err);
+    // Todavía no se pintó (todo pasó en esta misma tarea): se va sin salida, que se vería en la esquina.
+    el.remove();
+    closePopover(true);
+    return null;
+  }
+
+  // Posición: debajo del botón, alineado a su borde derecho (o izquierdo).
+  const a = anchor.getBoundingClientRect();
+  const m = el.getBoundingClientRect();
+  let x = align === 'end' ? a.right - m.width : a.left;
+  x = Math.min(Math.max(EDGE, x), window.innerWidth - m.width - EDGE);
+  el.style.left = `${Math.round(x)}px`;
+  el.style.top = `${Math.round(a.bottom + 6)}px`;
+  el.style.transformOrigin = align === 'end' ? 'top right' : 'top left';
+  anchor.classList.add('is-open');
   return ctl;
 }
 

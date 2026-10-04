@@ -699,8 +699,9 @@ function seedRoll(text, d) {
   if (text) text.__roll = { cur: { received: d.received || 0, speed: d.speed || 0 }, to: null, raf: 0 };
 }
 
-/** Una fila recién creada nace en el modo de su dato. */
+/** Una fila recién creada nace en el modo de su dato. La del vacío no tiene dato. */
 export const dlCreated = (el, it) => {
+  if (!it.d) return;
   el.dataset.mode = dlMode(it.d);
   seedRoll(el.querySelector('.pr-dlrow__metatext'), it.d);
 };
