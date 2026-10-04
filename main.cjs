@@ -38,6 +38,7 @@ const { createCapture } = require('./src/capture.cjs');
 const { createPrint } = require('./src/print.cjs');
 const { createCard } = require('./src/card.cjs');
 const { createFill } = require('./src/fill.cjs');
+const ui = require('./src/ui-protocol.cjs');
 const { createPip } = require('./src/pip.cjs');
 const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
@@ -81,6 +82,9 @@ if (SHOTS) {
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
   app.setPath('userData', process.env.PRISM_PROFILE || path.join(require('os').tmpdir(), 'prism-shots'));
 }
+
+// La interfaz se sirve por su propio esquema, no como file:// (ver src/ui-protocol.cjs).
+ui.registerScheme();
 
 /* Las páginas ven prefers-color-scheme: dark. Los sitios con modo oscuro
    (GitHub, YouTube, Google…) arrancan en oscuro sin hacer nada. */
@@ -283,7 +287,7 @@ function createWindow(w, state) {
   w.win = win;
   const offList = windows.add(w);
 
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.loadURL(ui.uiUrl('index.html'));
 
   win.once('ready-to-show', () => {
     if (SHOTS) { win.showInactive(); return; }
@@ -554,6 +558,7 @@ chromeOn('win:set-bg', (w, hex) => {
 
 /* ── Arranque ────────────────────────────────────────────────────────────── */
 app.whenReady().then(async () => {
+  ui.serve();
   ctx.settings = await store.loadSettings();
 
   const { session, userAgent } = createWeb(Object.assign(ctx, { prompts: createPrompts(ctx) }));

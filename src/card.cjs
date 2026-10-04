@@ -21,6 +21,7 @@
 
 const path = require('path');
 const { WebContentsView, ipcMain } = require('electron');
+const { uiUrl } = require('./ui-protocol.cjs');
 
 /** Ancho de la tarjeta y el aire transparente alrededor, donde cae su sombra. */
 const WIDTH = 340;
@@ -52,7 +53,7 @@ function createCard(ctx) {
     const wc = view.webContents;
     wc.on('will-navigate', (e) => e.preventDefault());
     wc.setWindowOpenHandler(() => ({ action: 'deny' }));
-    ready = wc.loadFile(path.join(__dirname, '..', 'renderer', 'card.html')).then(() => view);
+    ready = wc.loadURL(uiUrl('card.html')).then(() => view);
     return ready;
   }
 

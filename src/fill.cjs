@@ -32,6 +32,7 @@
 const path = require('path');
 const { WebContentsView, ipcMain } = require('electron');
 const windows = require('./windows.cjs');
+const { uiUrl } = require('./ui-protocol.cjs');
 
 /** Aire transparente alrededor de la lista, donde cae su sombra. */
 const MARGIN = 24;
@@ -122,7 +123,7 @@ function createFill(ctx) {
     wc.setWindowOpenHandler(() => ({ action: 'deny' }));
     views.set(wc.id, api);
     wc.once('destroyed', () => views.delete(wc.id));
-    ready = wc.loadFile(path.join(__dirname, '..', 'renderer', 'fill.html')).then(() => view);
+    ready = wc.loadURL(uiUrl('fill.html')).then(() => view);
     return ready;
   }
 

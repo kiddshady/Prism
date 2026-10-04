@@ -17,7 +17,7 @@ if (cmd === 'targets') {
   for (const t of targets) console.log(`${t.type}\t${t.url}`);
   process.exit(0);
 }
-const target = targets.find((t) => t.type === 'page' && t.url.includes('renderer/index.html'));
+const target = targets.find((t) => t.type === 'page' && t.url.startsWith('prism-ui://app/index.html'));
 if (!target) { console.error('No encontré el cromo de Prism'); process.exit(1); }
 
 const ws = new WebSocket(target.webSocketDebuggerUrl);

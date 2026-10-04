@@ -32,6 +32,7 @@
 
 const path = require('path');
 const { BaseWindow, WebContentsView, ipcMain, screen } = require('electron');
+const { uiUrl } = require('./ui-protocol.cjs');
 const windows = require('./windows.cjs');
 const shortcuts = require('./shortcuts.cjs');
 
@@ -321,7 +322,7 @@ function createPip({ store, icon = null }) {
       if (cur?.ui === ui) close('back');
     });
     ui.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    const uiReady = ui.webContents.loadFile(path.join(__dirname, '..', 'renderer', 'pip.html')).catch(() => {});
+    const uiReady = ui.webContents.loadURL(uiUrl('pip.html')).catch(() => {});
 
     cur = { w, t, frame, win, ui, aspect: 16 / 9, state: null, closing: false, ready: false };
     const c = cur;
