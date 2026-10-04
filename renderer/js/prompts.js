@@ -1,8 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   PRISM — preguntas de los sitios
+   PRISM — preguntas de los sitios (y alguna de Prism)
    Un sitio pide la cámara, la ubicación, compartir la pantalla… y el proceso
    principal espera la respuesta. Acá se pregunta, de a una por vez (dos
-   modales encimados no se entienden), y se contesta.
+   modales encimados no se entienden), y se contesta. Prism usa la misma fila
+   para lo que pregunta desde el proceso principal ("hay descargas en curso,
+   ¿salir igual?").
 
    Cerrar el diálogo sin elegir (Escape, click afuera) es NO, y no se recuerda:
    la próxima vez el sitio vuelve a preguntar.
@@ -114,6 +116,24 @@ async function askDisplay(req, signal) {
   return { id: pick, audio: pick.startsWith('screen') && body.querySelector('#d-audio').classList.contains('is-on') };
 }
 
+/* La pide la persona (salir, reiniciar): sin armado, y el foco en la salida
+   segura, porque un Enter de más no puede cortar una descarga. */
+async function askConfirm(req, signal) {
+  const v = await modal({
+    title: req.title,
+    sub: req.sub,
+    width: 420,
+    signal,
+    actions: [
+      { label: req.cancelLabel || 'Cancelar', value: false, autofocus: true },
+      { label: req.confirmLabel || 'Confirmar', value: true, variant: 'danger-solid' },
+    ],
+  });
+  return v === true;
+}
+
+const ASK = { permission: askPermission, display: askDisplay, confirm: askConfirm };
+
 export function init() {
   api.prompts.onAsk((req) => {
     queue = queue.then(async () => {
@@ -123,7 +143,7 @@ export function init() {
       const { signal } = current.ctl;
       let answer = null;
       try {
-        answer = req.kind === 'permission' ? await askPermission(req, signal) : await askDisplay(req, signal);
+        answer = await ASK[req.kind](req, signal);
       } catch (err) {
         console.error('[prompt]', err);
       }

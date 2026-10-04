@@ -4,8 +4,9 @@
    PRISM — descargas
    Cada descarga es un registro que el renderer dibuja (panel y página) y un
    DownloadItem de Chromium mientras está viva. Las terminadas se guardan en
-   disco para que la lista sobreviva a un reinicio; las vivas no — si la app
-   se cierra a mitad, Chromium las corta igual.
+   disco para que la lista sobreviva a un reinicio. Las vivas, mientras bajan,
+   no; si la app se cierra a mitad, Chromium las corta, y se guardan como
+   cortadas (`atQuit`): la fila queda para reintentar.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const fs = require('fs');
@@ -45,6 +46,8 @@ function createDownloads(ctx, { doc }) {
   const live = new Map();        // id → DownloadItem
   const reserved = reservedAll;
   let seq = 0;
+  /** Prism se está cerrando: lo que baja se corta, y se anota así. */
+  let closing = false;
 
   const pub = (d) => ({ ...d });
   let emitTimer = null;
@@ -54,13 +57,35 @@ function createDownloads(ctx, { doc }) {
     if (!emitTimer) emitTimer = setTimeout(go, 150);
   }
 
+  /* Lo que va al disco. Las que bajan no (su estado cambia a cada rato),
+     salvo al cerrar: ahí quedan como cortadas, con su dirección para
+     reintentar. Sin eso, la descarga desaparecía como si nunca hubiera
+     existido. */
+  const cut = (d) => ({ ...d, state: 'interrupted', speed: 0, paused: false, endedAt: Date.now(), atQuit: true });
+  const persisted = () => ({
+    list: list.filter((d) => closing || d.state !== 'progressing').map((d) => (d.state === 'progressing' ? cut(d) : d)).slice(0, KEEP),
+    seq,
+  });
+
   let saveTimer = null;
   function save() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      const keep = list.filter((d) => d.state !== 'progressing').slice(0, KEEP);
-      doc.write({ list: keep, seq }).catch((err) => console.error('[downloads]', err.message));
+      doc.write(persisted()).catch((err) => console.error('[downloads]', err.message));
     }, 600);
+  }
+
+  /** Prism se cierra: lo que bajaba se guarda como cortado, ya. */
+  function flush() {
+    closing = true;
+    clearTimeout(saveTimer);
+    return doc.write(persisted()).catch((err) => console.error('[downloads]', err.message));
+  }
+  /** Igual, sin soltar el hilo: Windows se está apagando (ver store.cjs). */
+  function flushSync() {
+    closing = true;
+    clearTimeout(saveTimer);
+    try { doc.writeSync?.(persisted()); } catch (err) { console.error('[downloads]', err.message); }
   }
 
   async function load() {
@@ -134,10 +159,13 @@ function createDownloads(ctx, { doc }) {
         d.filename = path.basename(d.path) || d.filename;
         d.received = item.getReceivedBytes();
         d.state = state;               // completed · cancelled · interrupted
+        // La cortó la salida de Prism, no la persona: queda para reintentar.
+        if (closing && state !== 'completed') Object.assign(d, { state: 'interrupted', atQuit: true });
         d.speed = 0;
         d.endedAt = Date.now();
         emit(true);
         save();
+        if (closing) return;
         if (state === 'completed') ctx.send('status:msg', { text: `Descarga completa · ${d.filename}`, icon: 'download' });
         else if (state === 'interrupted') ctx.send('status:msg', { text: `Se cortó la descarga · ${d.filename}`, icon: 'alert', tone: 'error' });
       });
@@ -202,8 +230,12 @@ function createDownloads(ctx, { doc }) {
   return {
     load,
     attach,
+    flush,
+    flushSync,
     list: () => list.map(pub),
     get activeCount() { return list.filter((d) => d.state === 'progressing').length; },
+    /** Las que bajan, para preguntar antes de salir: { filename, pct }. */
+    active: () => list.filter((d) => d.state === 'progressing').map((d) => ({ filename: d.filename, pct: d.total ? Math.round((d.received / d.total) * 100) : null })),
     dir,
     ...actions,
   };

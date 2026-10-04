@@ -430,11 +430,41 @@ function toggleMain() {
   ctx.tabs?.writeSession();
 }
 
-function quit() {
+/* Salir corta lo que se está bajando, y Chromium no lo retoma: antes se
+   pregunta, como Chrome. Vale para salir, reiniciar y actualizar. */
+let leaving = null;
+function confirmLeave(kind = 'quit') {
+  const active = [...new Set(windows.all().map((w) => w.downloads).filter(Boolean))].flatMap((d) => d.active());
+  if (!active.length) return Promise.resolve(true);
+  if (leaving) return leaving;
+  // En las pruebas ya está a la vista (sin foco): traerla le robaría el foco a la persona.
+  if (!SHOTS) showMain();
+  const one = active.length === 1 ? active[0] : null;
+  const verb = kind === 'quit' ? ['Salir', 'salís'] : ['Reiniciar', 'reiniciás'];
+  leaving = ctx.prompts.confirm({
+    title: one ? 'Hay una descarga en curso' : `Hay ${active.length} descargas en curso`,
+    sub: one
+      ? `«${one.filename}» todavía está bajando${one.pct != null ? ` (va por el ${one.pct} %)` : ''}. Si ${verb[1]} ahora, se corta y queda en la lista para bajarla de nuevo.`
+      : `Si ${verb[1]} ahora, se cortan y quedan en la lista para bajarlas de nuevo.`,
+    confirmLabel: `${verb[0]} igual`,
+    cancelLabel: 'Seguir bajando',
+  }).finally(() => { leaving = null; });
+  return leaving;
+}
+
+async function quit() {
+  if (!(await confirmLeave('quit'))) return;
   quitting = true;
   app.quit();
 }
+
+async function installUpdate() {
+  if (updater.get().phase !== 'ready' || !(await confirmLeave('update'))) return false;
+  return updater.install(() => { quitting = true; });
+}
+
 ctx.quit = quit;
+ctx.confirmLeave = confirmLeave;
 ctx.showMain = showMain;
 ctx.toggleMain = toggleMain;
 
@@ -512,7 +542,7 @@ ctx.openIncognito = openIncognito;
    ese menú puede ser lo único que se ve de él. */
 function updateMenuItem() {
   const u = updater.get();
-  if (u.phase === 'ready') return { label: `Reiniciar para actualizar a la ${u.version}`, click: () => updater.install(() => { quitting = true; }) };
+  if (u.phase === 'ready') return { label: `Reiniciar para actualizar a la ${u.version}`, click: installUpdate };
   if (u.phase === 'available') return { label: `Descargar la ${u.version}`, click: () => { showMain(); updater.download(); } };
   if (u.phase === 'downloading') return { label: `Descargando la ${u.version}… ${Math.round(u.pct * 100)} %`, enabled: false };
   if (u.phase === 'unsupported') return null;
@@ -569,7 +599,7 @@ chromeOn('app:quit', () => quit());
 chromeHandle('update:state', () => updater.get());
 chromeHandle('update:check', () => updater.check({ manual: true }));
 chromeHandle('update:download', () => updater.download());
-chromeHandle('update:install', () => updater.install(() => { quitting = true; }));
+chromeHandle('update:install', () => installUpdate());
 chromeHandle('win:is-maximized', (w) => !!w.win?.isMaximized());
 chromeOn('win:set-bg', (w, hex) => {
   if (w.win && !w.win.isDestroyed() && /^#[0-9a-f]{6}$/i.test(String(hex))) w.win.setBackgroundColor(hex);
@@ -662,7 +692,7 @@ app.on('before-quit', (e) => {
   if (flushed) return;
   e.preventDefault();
   flushed = true;
-  const pend = [ctx.library.flushAll(), ctx.tabs?.writeSession()].filter(Boolean);
+  const pend = [ctx.library.flushAll(), ctx.tabs?.writeSession(), ctx.downloads?.flush()].filter(Boolean);
   Promise.race([Promise.all(pend), new Promise((r) => setTimeout(r, 1500))]).finally(() => app.quit());
 });
 

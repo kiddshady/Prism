@@ -2,8 +2,8 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PRISM — preguntas a la persona
-   Un permiso o un "¿qué pantalla compartís?" nace en el proceso principal pero
-   se contesta en la ventana. Cada pregunta viaja con un id y queda esperando
+   Un permiso, un "¿qué pantalla compartís?" o un "¿salir igual?" nace en el
+   proceso principal pero se contesta en la ventana. Cada pregunta viaja con un id y queda esperando
    su respuesta; si la ventana se recarga o la pestaña se cierra mientras
    tanto, la respuesta es NO — un pedido colgado nunca termina concediendo.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -47,6 +47,19 @@ function createPrompts(ctx) {
     permission: ({ origin, what, keys, wcId }) =>
       ask('permission', { origin, what, keys }, { allow: false, remember: false }, wcId),
     pickSource: ({ origin, sources }) => ask('display', { origin, sources }, null),
+    /** Una pregunta de Prism (no de un sitio): sí o no. Sin respuesta, no.
+        La pidió la persona (Ctrl+Mayús+Q desde una página, la bandeja), así
+        que el diálogo toma el teclado: sin eso, Escape y Enter seguían yendo
+        a donde estaba el foco y el diálogo no los oía. Al contestar, el
+        teclado vuelve a la página si lo tenía. */
+    async confirm({ title, sub, confirmLabel, cancelLabel }) {
+      const page = ctx.tabs?.active?.view?.webContents;
+      const hadPage = !!page && !page.isDestroyed() && page.isFocused();
+      ctx.focusChrome?.();
+      const yes = await ask('confirm', { title, sub, confirmLabel, cancelLabel }, false);
+      if (!yes && hadPage) ctx.tabs?.focusPage();
+      return yes;
+    },
     cancelAll,
   };
 }

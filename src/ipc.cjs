@@ -329,7 +329,12 @@ function register() {
   handle('autostart:state', (ctx) => ctx.autostart.state());
   handle('autostart:set', (ctx, on) => ctx.autostart.set(on === true));
 
-  handle('app:relaunch', (ctx) => { app.relaunch(); app.quit(); return true; });
+  handle('app:relaunch', async (ctx) => {
+    if (!(await ctx.confirmLeave('relaunch'))) return false;
+    app.relaunch();
+    app.quit();
+    return true;
+  });
   handle('app:open-data', (ctx) => shell.openPath(store.ROOT));
 
   handle('net:online', (ctx) => net.isOnline());

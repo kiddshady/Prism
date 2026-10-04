@@ -624,7 +624,7 @@ export function dlMeta(d) {
     return `${got}${d.total ? ` de ${fmtBytes(d.total)}` : ''}${d.speed ? ` · ${fmtBytes(d.speed)}/s` : ''}${left}`;
   }
   if (d.state === 'cancelled') return `Cancelada · ${from}`;
-  if (d.state === 'interrupted') return `Se cortó · ${from}`;
+  if (d.state === 'interrupted') return `${d.atQuit ? 'Se cortó al cerrar Prism' : 'Se cortó'} · ${from}`;
   if (d.missing) return 'Ya no está en la carpeta';
   return `${fmtBytes(d.total || d.received)} · ${from} · ${relTime(d.endedAt)}`;
 }

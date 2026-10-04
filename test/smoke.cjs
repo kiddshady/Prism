@@ -171,6 +171,13 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${'Guia de trabajos practicos de Farmacologia - Unidad 4 - '.repeat(4)}(catedra).pdf"` });
     return res.end('%PDF-1.4\n%%EOF\n');
   }
+  /* Una descarga que no termina nunca: gotea mientras la conexión siga. */
+  if (req.url === '/lento') {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="lento.bin"', 'Content-Length': String(50 * 1024 * 1024) });
+    const drip = setInterval(() => res.write(Buffer.alloc(8 * 1024, 1)), 100);
+    req.on('close', () => clearInterval(drip));
+    return undefined;
+  }
   /* Un favicon que no carga y tarda en fallar (como el de un aparato de la
      red). Contesta algo que no es una imagen: falla igual, sin dejar un 404
      en la consola del cromo, que el humo vigila al final. */
@@ -660,6 +667,31 @@ app.whenReady().then(async () => {
   ctx.tabs.contextAction('link-save', { url: `${BASE}/apunte-largo` });
   const largo = () => ctx.downloads.list().find((d) => d.url.endsWith('/apunte-largo'));
   ok('un nombre larguísimo se recorta sin perder el .pdf', await until(() => largo()?.state === 'completed' && largo().filename.endsWith('.pdf') && largo().filename.length <= 180 && fs.existsSync(largo().path), 8000), largo()?.filename);
+
+  console.log('\n9a. Salir con una descarga en curso');
+  ctx.tabs.contextAction('link-save', { url: `${BASE}/lento` });
+  const lento = () => ctx.downloads.list().find((d) => d.filename === 'lento.bin');
+  ok('arranca a bajar', await until(() => lento()?.state === 'progressing' && lento().received > 0, 8000));
+  const titulo = () => js(`document.querySelector('.op-modal__anim:not([data-state="closing"]) .op-modal__title')?.textContent || ''`);
+  const boton = (t) => js(`[...document.querySelectorAll('.op-modal__anim:not([data-state="closing"]) .op-modal__foot .op-btn')].find((b) => b.textContent.includes(${JSON.stringify(t)})).click()`);
+  const salir = ctx.quit();
+  ok('Salir de Prism pregunta antes de cortarla', await until(async () => (await titulo()) === 'Hay una descarga en curso'));
+  ok('nombra el archivo y cuánto va', await js(`(() => { const t = document.querySelector('.op-modal__sub').textContent; return t.includes('lento.bin') && /va por el \\d+ %/.test(t); })()`));
+  ok('y el foco está en "Seguir bajando": un Enter de más no corta nada', await until(() => js(`document.activeElement?.textContent.trim() === 'Seguir bajando'`)));
+  await boton('Seguir bajando');
+  await salir;
+  ok('"Seguir bajando" no sale y la descarga sigue', !ctx.win.isDestroyed() && lento()?.state === 'progressing');
+  ok('el diálogo se va', await until(async () => !(await titulo())));
+  const reinicio = js(`window.prism.relaunch()`);
+  ok('reiniciar (Ajustes) también pregunta', await until(async () => (await titulo()) === 'Hay una descarga en curso') && await js(`document.querySelector('.op-modal__anim:not([data-state="closing"]) .op-modal__foot').textContent.includes('Reiniciar igual')`));
+  await boton('Seguir bajando');
+  ok('y no reinicia', (await reinicio) === false && !ctx.win.isDestroyed());
+  ok('el diálogo se va', await until(async () => !(await titulo())));
+  ctx.downloads.cancel(lento().id);
+  ok('cancelada, ya no hay nada que preguntar', await until(() => lento()?.state === 'cancelled' && ctx.downloads.activeCount === 0));
+  // El diálogo congela la página de atrás y la suelta cuando terminó de irse.
+  ok('la página de atrás vuelve a estar a la vista', await until(() => ctx.tabs.active.view.webContents.executeJavaScript(`document.visibilityState === 'visible'`)));
+  ok('con el teclado, como antes de preguntar', await until(() => ctx.tabs.active.view.webContents.isFocused()));
 
   console.log('\n9b. Contraseñas');
   const V = ctx.passwords.vault;
