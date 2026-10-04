@@ -1151,6 +1151,31 @@ app.whenReady().then(async () => {
     if (p === 'favoritos') ok('los favoritos listan el guardado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="favoritos"] .pr-row').length === 1`)));
   }
 
+  /* Cambiar de pestaña desarmaba la página propia: al volver entraba de cero,
+     arriba de todo y sin la búsqueda. Queda guardada, como la dejaste. */
+  const vista = (p) => `document.querySelector('.pr-view[data-page="${p}"]:not(.is-parked):not([data-state="closing"])')`;
+  const ajustesId = ctx.tabs.active.id;
+  await js(`(() => { const v = ${vista('ajustes')}; v.__marca = 'la misma'; v.querySelector('.pr-view__scroll').scrollTop = 600; return true; })()`);
+  await sleep(200);
+  const scrollAntes = await js(`${vista('ajustes')}.querySelector('.pr-view__scroll').scrollTop`);
+  ctx.tabs.openInternal('historial');
+  await until(() => ctx.tabs.active.internal === 'historial');
+  const histId = ctx.tabs.active.id;
+  await until(() => js(`!!${vista('historial')}`));
+  await js(`(() => { const v = ${vista('historial')}; v.__marca = 'la misma'; const q = v.querySelector('#h-q'); q.value = 'dos'; q.dispatchEvent(new Event('input')); return true; })()`);
+  await sleep(500);
+  ctx.tabs.activate(ajustesId);
+  ok('volver a Ajustes muestra la misma página, no una armada de nuevo', await until(() => js(`${vista('ajustes')}?.__marca === 'la misma'`)));
+  ok('con el scroll donde estaba', scrollAntes > 0 && (await js(`${vista('ajustes')}.querySelector('.pr-view__scroll').scrollTop`)) === scrollAntes, `${scrollAntes}`);
+  ok('y sin volver a entrar', await until(() => js(`${vista('ajustes')}.getAnimations().filter((a) => a instanceof CSSAnimation).length === 0`)));
+  ctx.tabs.activate(histId);
+  ok('el Historial vuelve con su búsqueda', await until(() => js(`${vista('historial')}?.__marca === 'la misma' && ${vista('historial')}.querySelector('#h-q').value === 'dos'`)));
+  ctx.tabs.close(histId);
+  ok('al cerrar su pestaña, la página guardada se va', await until(() => js(`!document.querySelector('.pr-view[data-page="historial"]')`)));
+  ctx.tabs.activate(ajustesId);
+  await until(() => js(`!!${vista('ajustes')}`));
+  await js(`${vista('ajustes')}.querySelector('.pr-view__scroll').scrollTop = 0`);
+
   // Ajustes quedó abierta: doble clic en un switch. Tiene que volver a como estaba,
   // guardado Y a la vista (antes quedaba prendido pero mostrándose apagado).
   const sw = `document.querySelector('.pr-view[data-page="ajustes"] [data-toggle="askDownload"]')`;

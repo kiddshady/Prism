@@ -18,6 +18,17 @@
 .pr-view.is-settled { animation: none; }
 /* Después de is-settled, con la misma especificidad: salir siempre gana. */
 .pr-view[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
+/* La de una pestaña que dejó de verse queda armada y escondida (pages.js,
+   park): se apaga como una salida, y la visibilidad se va cuando terminó. Al
+   volver aparece asentada, sin su entrada, en el relevo de siempre. */
+.pr-view.is-parked {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 160ms var(--op-ease-both), visibility 0s linear 160ms;
+}
+.pr-view.is-unparked { transition: opacity var(--op-t-2) var(--op-ease-soft); }
+.pr-view.is-unparked.is-after { transition-delay: 90ms; }
 
 /* Una página de lectura: columna centrada, con el scroll de la hoja entera. */
 .pr-view__scroll {

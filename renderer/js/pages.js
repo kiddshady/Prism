@@ -9,7 +9,9 @@
    Cada página se monta una vez por pestaña y se re-dibuja solo cuando cambian
    SUS datos — no con cada foto de estado que llega mientras otra pestaña
    carga. Si se re-montara con cada una, el campo de búsqueda perdería el foco
-   a mitad de palabra.
+   a mitad de palabra. Y cuando su pestaña deja de verse, queda armada y
+   escondida (park): al volver está como la dejaste, con su scroll, su
+   búsqueda y lo elegido, sin entrar de nuevo.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { api, S, on, activeTab } from './state.js';
@@ -29,6 +31,48 @@ import { openPanel as openPasswords } from './passwords.js';
 const surface = (hostId) => ({ hostId, key: null, current: null, cleanups: [] });   // current: { name, el, refresh? }
 const surfaces = [surface('internal'), surface('internal-2')];
 let surf = surfaces[0];
+
+/* Las páginas propias de las pestañas que no se ven. Antes se desarmaban al
+   cambiar de pestaña y al volver entraban de cero: arriba de todo, sin la
+   búsqueda, con la lista recargando. Quedan en su hoja, escondidas e inertes
+   (.is-parked en pages.css), hasta que la pestaña se cierra o se va a otra
+   página. Si mientras tanto cambiaron sus datos, se ponen al día al volver
+   (su refresh, que no las rehace). */
+const parked = new Map();   // tabId → { key, hostId, current, cleanups, stale }
+const tabOfKey = (k) => Number(String(k).split(':')[2]);
+
+function park(sf) {
+  const el = sf.current?.el;
+  if (!el) return false;
+  parked.set(tabOfKey(sf.key), { key: sf.key, hostId: sf.hostId, current: sf.current, cleanups: sf.cleanups, stale: false });
+  el.inert = true;
+  el.classList.remove('is-unparked');
+  el.classList.add('is-parked');
+  return true;
+}
+
+function dropParked(id) {
+  const p = parked.get(id);
+  if (!p) return;
+  parked.delete(id);
+  p.cleanups.forEach((fn) => { try { fn(); } catch { /* nada */ } });
+  p.current.el.remove();
+}
+
+/** Vuelve a mostrar la guardada: lo que estaba a la vista se va, y ella aparece asentada. */
+function unpark(p) {
+  parked.delete(tabOfKey(p.key));
+  const old = host().querySelectorAll('.pr-view:not([data-state="closing"]):not(.is-parked)');
+  old.forEach((o) => exit(o, { fallback: 240 }));
+  const el = p.current.el;
+  el.inert = false;
+  el.classList.toggle('is-after', old.length > 0 || !!surf.leaving);
+  el.classList.add('is-settled', 'is-unparked');
+  el.classList.remove('is-parked');
+  surf.current = p.current;
+  surf.cleanups = p.cleanups;
+  if (p.stale) p.current.refresh?.();
+}
 
 const host = () => document.getElementById(surf.hostId);
 const hostOf = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
@@ -70,11 +114,12 @@ function mount(html, name) {
   el.innerHTML = html;
   Icons.mount(el);
   wireFallbacks(el);
-  const old = host().querySelectorAll('.pr-view:not([data-state="closing"])');
+  const old = host().querySelectorAll('.pr-view:not([data-state="closing"]):not(.is-parked)');
   old.forEach((o) => exit(o, { fallback: 240 }));
-  /* Si hay una que se va, la nueva espera a que casi no se vea: sale y
-     después entra. Entrando las dos a la vez quedaban encimadas. */
-  if (old.length) el.classList.add('is-after');
+  /* Si hay una que se va (o una que se está guardando), la nueva espera a que
+     casi no se vea: sale y después entra. Entrando las dos a la vez quedaban
+     encimadas. */
+  if (old.length || surf.leaving) el.classList.add('is-after');
   host().appendChild(el);
   el.querySelectorAll('.op-scroll').forEach(scrollFade);
   /* La animación de entrada se saca al terminar (lección de Opal): una
@@ -102,6 +147,11 @@ export function render() {
   // Sin par, la segunda mitad se desvanece con lo que tenía: no se redibuja.
   list.forEach((t, i) => { surf = surfaces[i]; renderSurface(t); });
   surf = surfaces[0];
+  // Las guardadas de pestañas que se cerraron o se fueron a otra página, afuera.
+  for (const [id, p] of parked) {
+    const t = byId(id);
+    if (!t || pageKey(t) !== p.key) dropParked(id);
+  }
 }
 
 function renderSurface(t) {
@@ -110,11 +160,26 @@ function renderSurface(t) {
     if (k.startsWith('web:')) syncWaiting(t);
     return;
   }
+  /* Se pasó a OTRA pestaña: la página propia de la que sigue abierta se
+     guarda. La misma pestaña yendo a otra página la deja ir (se desvanece). */
+  const prev = surf.key;
+  surf.leaving = !!prev?.startsWith('internal:') && tabOfKey(prev) !== t?.id
+    && S.tabs.some((x) => x.id === tabOfKey(prev)) && park(surf);
+  if (!surf.leaving) surf.cleanups.forEach((fn) => { try { fn(); } catch { /* nada */ } });
   surf.key = k;
-  surf.cleanups.forEach((fn) => { try { fn(); } catch { /* nada */ } });
   surf.cleanups = [];
-  if (!t) { mount('', 'none'); surf.current = null; return; }
-  if (t.internal) { surf.current = PAGES[t.internal]?.(t) || null; return; }
+  try {
+    if (!t) { mount('', 'none'); surf.current = null; return; }
+    if (t.internal) {
+      const p = parked.get(t.id);
+      if (p && p.key === k && p.hostId === surf.hostId) { unpark(p); return; }
+      if (p) dropParked(t.id);
+      surf.current = PAGES[t.internal]?.(t) || null;
+      return;
+    }
+  } finally {
+    surf.leaving = false;
+  }
   if (t.pip) { surf.current = pipPage(t); return; }
   if (t.crashed) { surf.current = crashedPage(t); return; }
   if (t.error) { surf.current = errorPage(t); return; }
@@ -129,6 +194,8 @@ function refresh(names, when = () => true) {
     sf.current.refresh?.();
   }
   surf = surfaces[0];
+  // Las guardadas no se tocan ahora: se ponen al día cuando vuelvan a verse.
+  for (const p of parked.values()) if (names.includes(p.current.name)) p.stale = true;
 }
 
 /* ══ Espera ══════════════════════════════════════════════════════════════════ */
@@ -1319,6 +1386,7 @@ export function init() {
   on('settings', () => {
     refresh(['ajustes'], () => Date.now() > quietUntil);
     for (const sf of surfaces) sf.current?.onSettings?.();
+    for (const p of parked.values()) p.stale = true;
   });
   on('update', relayAllUpdate);
   render();
