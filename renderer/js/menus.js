@@ -8,6 +8,7 @@
 
 import { api, S, activeTab, on } from './state.js';
 import { roll, swapText } from './motion.js';
+import { Menu } from './overlays.js';
 import { menu, pointAnchor } from './layers.js';
 import { newTab } from './tabstrip.js';
 import { addressField } from './suggest.js';
@@ -16,14 +17,16 @@ const ellipsis = (s, n = 28) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}�
 
 /* ── Pestaña ─────────────────────────────────────────────────────────────── */
 
-export function tabMenu(anchor, id) {
+export async function tabMenu(anchor, id) {
   const t = S.tabs.find((x) => x.id === id);
   if (!t) return;
   const i = S.tabs.indexOf(t);
   // Las fijadas no cuentan: "cerrar las otras" y "las de la derecha" las respetan.
   const right = S.tabs.slice(i + 1).filter((x) => !x.pinned).length;
   const others = S.tabs.filter((x) => x.id !== id && !x.pinned).length;
-  menu(anchor, [
+  let closed = false;
+  let off = null;
+  const shown = await menu(anchor, [
     { label: 'Nueva pestaña a la derecha', icon: 'plus', onSelect: () => { S.focusOmniOnNext = true; api.tabs.create('', { index: i + 1 }); } },
     { label: 'Recargar', icon: 'reload', key: 'F5', disabled: !!t.internal, onSelect: () => { api.tabs.activate(id); api.nav.reload(); } },
     { label: 'Duplicar', icon: 'duplicate', onSelect: () => api.tabs.duplicate(id) },
@@ -37,7 +40,14 @@ export function tabMenu(anchor, id) {
     { label: right === 1 ? 'Cerrar la de la derecha' : 'Cerrar las de la derecha', disabled: !right, onSelect: () => api.tabs.closeRight(id) },
     { sep: true },
     { label: 'Reabrir la última cerrada', icon: 'reopen', key: 'Ctrl+Mayús+T', disabled: !S.canReopen, onSelect: () => api.tabs.reopen() },
-  ], { align: 'start' });
+  ], { align: 'start', onClose: () => { closed = true; off?.(); } });
+  /* Si la pestaña se cierra con el menú abierto (window.close(), un popup que
+     termina), el menú se va con ella: sus acciones apuntaban a una que ya no
+     está. Se mira solo mientras ESTE menú está abierto. */
+  if (!shown || closed) return;
+  const gone = () => !S.tabs.some((x) => x.id === id);
+  if (gone()) { Menu.close(); return; }
+  off = on('tabs', () => { if (gone()) Menu.close(); });
 }
 
 /** Vista dividida desde el menú de una pestaña: armar el par, o manejarlo. */

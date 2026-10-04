@@ -703,12 +703,16 @@ function createTabs(ctx) {
   }
 
   // Como en Chrome, "cerrar las otras" y "las de la derecha" respetan las fijadas.
+  // Con una pestaña que ya no existe no hacen nada: sin la guarda, un menú que
+  // quedó abierto de una pestaña cerrada se llevaba TODAS (ninguna era "esa").
   function closeOthers(id) {
+    if (!get(id)) return;
     for (const t of [...tabs]) if (t.id !== Number(id) && !t.pinned) close(t.id);
   }
 
   function closeRight(id) {
     const i = indexOf(id);
+    if (i < 0) return;
     for (const t of tabs.slice(i + 1)) if (!t.pinned) close(t.id);
   }
 

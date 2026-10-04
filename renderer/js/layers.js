@@ -20,11 +20,11 @@ let menuAnchor = null;
 /**
  * Menu.show de Opal, con la página congelada mientras está abierto.
  * `opts.from`: dónde nació el menú cuando no es el ancla (el campo de un
- * click derecho, que se ancla en un punto).
+ * click derecho, que se ancla en un punto). Devuelve si se llegó a mostrar.
  */
 export async function menu(anchor, items, { from, ...opts } = {}) {
   // Pedir el menú del mismo ancla es cerrarlo (el toggle de Opal).
-  if (Menu.isOpen && menuAnchor === anchor) { Menu.close(); return; }
+  if (Menu.isOpen && menuAnchor === anchor) { Menu.close(); return false; }
   /* Un menú que nace ADENTRO de un panel (el click derecho en un campo de la
      bóveda) no lo cierra. Lo cerraba, con lo tipeado adentro, y su onClose
      contestaba por la persona: la oferta de guardar una contraseña se daba
@@ -42,6 +42,7 @@ export async function menu(anchor, items, { from, ...opts } = {}) {
     },
   });
   if (!shown) release();
+  return !!shown;
 }
 
 /** Un ancla invisible en un punto de la ventana (para el click derecho). */
