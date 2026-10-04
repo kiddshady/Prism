@@ -367,10 +367,16 @@ function createPasswords(ctx) {
   });
 
   /* La exportación tiene todo en texto plano. Borrarla es un botón a
-     propósito de la persona, y es borrar de verdad: la papelera la guardaría. */
+     propósito de la persona, y es borrar de verdad: la papelera la guardaría.
+     Si no se pudo (abierta en Excel, tomada por OneDrive), el error sube: el
+     aviso no puede decir que se borró un archivo que sigue ahí. */
   chrome('pass:forget-import', async () => {
     if (!lastImport) return false;
-    await fs.unlink(lastImport).catch(() => {});
+    try {
+      await fs.unlink(lastImport);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw new Error('No se pudo borrar: ¿está abierto en otro programa?');
+    }
     lastImport = null;
     return true;
   });

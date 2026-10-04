@@ -152,6 +152,15 @@ const PAGES = {
     #page{height:calc(100vh - 50px);margin-top:50px;overflow-y:auto}</style>
     <div id="page"><div style="height:3000px;background:linear-gradient(#c00,#00c)"></div></div>`,
 };
+/* Otro programa abre un archivo sin compartir nada (Excel con un CSV, un
+   backup). Devuelve con qué soltarlo. */
+function lockFile(file) {
+  return new Promise((resolve) => {
+    const ps = require('child_process').spawn('powershell', ['-NoProfile', '-Command', `$f = [IO.File]::Open('${file}', 'Open', 'ReadWrite', 'None'); 'listo'; Start-Sleep -Seconds 60`]);
+    ps.stdout.once('data', () => resolve(() => new Promise((r) => { ps.once('exit', r); ps.kill(); })));
+  });
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === '/archivo.bin') {
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="archivo.bin"' });
@@ -703,6 +712,26 @@ app.whenReady().then(async () => {
   ok('la contraseña no está en el cromo hasta que se pide', await js(`!document.querySelector('.pr-pass').innerText.includes('nueva')`));
   await js(`document.querySelector('[data-a=reveal]').click()`);
   ok('mostrarla la trae', await until(() => js(`document.getElementById('pp-secret-password').textContent === 'nueva'`)));
+
+  /* Importar de Proton y borrar la exportación, con el CSV abierto en otro
+     programa: el aviso no puede decir que lo borró. */
+  const csv = path.join(TMP, 'proton.csv');
+  fs.writeFileSync(csv, 'type,name,url,email,username,password,note,totp,createTime,modifyTime,vault\nlogin,Exportada,https://exportada.com/,,yo,clave1,,,,,Personal\n');
+  const realOpen = dialog.showOpenDialog;
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [csv] });
+  await js(`document.getElementById('pp-import').click()`);
+  ok('importar muestra el aviso de borrar la exportación', await until(() => js(`!!document.querySelector('.pr-pass__banner [data-a=forget-import]')`)));
+  dialog.showOpenDialog = realOpen;
+  const soltarCsv = await lockFile(csv);
+  await js(`document.querySelector('[data-a=forget-import]').click()`);
+  ok('con el CSV tomado, dice que no se pudo', await until(() => js(`document.getElementById('status-left').textContent.includes('No se pudo borrar')`)));
+  ok('el aviso se queda y el archivo sigue ahí', fs.existsSync(csv) && await js(`!!document.querySelector('.pr-pass__banner [data-a=forget-import]')`));
+  await soltarCsv();
+  await js(`document.querySelector('[data-a=forget-import]').click()`);
+  ok('suelto, lo borra de verdad', await until(() => !fs.existsSync(csv)));
+  ok('y recién ahí el aviso se va y lo confirma', await until(() => js(`!document.querySelector('.pr-pass__banner') && document.getElementById('status-left').textContent.includes('Archivo exportado borrado')`)));
+  await V.remove(V.list().find((it) => it.title === 'Exportada').id);
+
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   ok('Escape cierra el panel', await until(() => js(`!document.querySelector('.pr-pass')`)));
   ctx.tabs.close(ctx.tabs.active.id);

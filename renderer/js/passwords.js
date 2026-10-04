@@ -576,9 +576,16 @@ function wire(el) {
     if (a === 'cancel') { P.mode = 'view'; return paintMain(); }
     if (a === 'banner-close') { P.banner = null; return paintMain(); }
     if (a === 'forget-import') {
-      await api.pass.forgetImport().catch(() => false);
+      // Si no se pudo (abierto en Excel), el aviso se queda: el archivo sigue ahí.
+      let gone;
+      try {
+        gone = await api.pass.forgetImport();
+      } catch (err) {
+        say(err.message, { icon: 'alert', tone: 'error' });
+        return null;
+      }
       P.banner = null;
-      say('Archivo exportado borrado', { icon: 'trash' });
+      if (gone) say('Archivo exportado borrado', { icon: 'trash' });
       return paintMain();
     }
     if (a === 'form-eye') {
