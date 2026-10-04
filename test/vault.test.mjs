@@ -62,6 +62,28 @@ let escribio = false;
 try { await roto.save({ title: 'x' }); escribio = true; } catch { /* esperado */ }
 ok('si no se pudo descifrar, NUNCA escribe encima', !escribio && !!roto.broken && v2.size === 4);
 
+// El archivo está pero no se puede leer (un antivirus o un backup lo tiene tomado).
+let tomado = true;
+const lockedDoc = {
+  read: async () => { if (tomado) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' }); return mem.data; },
+  write: async (d) => { mem.data = structuredClone(d); },
+};
+const enDisco = JSON.stringify(mem.data);
+const vt = V.createVault({ doc: lockedDoc, ...plain });
+await vt.load();
+let pisó = false;
+try { await vt.save({ title: 'nueva', password: 'x', urls: ['https://a.com'] }); pisó = true; } catch { /* esperado */ }
+ok('si no se pudo LEER, tampoco escribe encima', !pisó && /EBUSY/.test(vt.broken || '') && JSON.stringify(mem.data) === enDisco, vt.broken);
+tomado = false;
+await vt.retryRead();
+ok('y cuando se suelta, el reintento la abre entera', !vt.broken && vt.size === 4, `${vt.broken} · ${vt.size}`);
+ok('con la bóveda abierta, guardar anda', !!(await vt.save({ title: 'nueva', password: 'x', urls: ['https://a.com'] })) && vt.size === 5);
+await vt.remove(vt.list().find((it) => it.title === 'nueva').id);
+const sana = V.createVault({ doc, ...plain });
+await sana.load();
+await sana.retryRead();
+ok('reintentar una que se leyó bien no hace nada', sana.size === 4 && !sana.broken);
+
 console.log('\n4. El CSV de Proton Pass');
 const csv = [
   'type,name,url,email,username,password,note,totp,createTime,modifyTime,vault',

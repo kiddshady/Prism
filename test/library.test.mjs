@@ -131,5 +131,64 @@ ok('conserva la fecha de origen', after.at(-2).createdAt === Date.UTC(2020, 0, 1
 ok('los ids no chocan', new Set(after.map((b) => b.id)).size === after.length);
 ok('importar lo mismo otra vez no suma nada', lib2.importBookmarks([{ url: 'https://umaza.edu.ar/' }]).added === 0);
 
+console.log('\n9. Un título que no para no frena el guardado');
+{
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let writes = 0;
+  const d = memDoc();
+  const counted = { read: d.read, write: async (x) => { writes++; await d.write(x); } };
+  const l = createLibrary({ historyDoc: counted, bookmarksDoc: memDoc(), saveDelay: 60, maxWait: 250 });
+  await l.load();
+  l.visit('https://reloj.app/', '25:00');
+  // Un pomodoro: el título cambia cada 20 ms, más rápido que la espera.
+  let n = 0;
+  const tick = setInterval(() => l.setTitle('https://reloj.app/', `24:${String(59 - (n++ % 60)).padStart(2, '0')}`), 20);
+  await sleep(400);
+  ok('la visita llega al disco igual, por el tope', writes >= 1 && d.data?.visits?.some((v) => v.url === 'https://reloj.app/'), `escrituras: ${writes}`);
+  const w0 = writes;
+  await sleep(500);
+  ok('y el título solo no la vuelve a apurar', writes === w0, `escrituras de más: ${writes - w0}`);
+  l.visit('https://otra.com/', 'Otra');
+  await sleep(400);
+  clearInterval(tick);
+  ok('una visita nueva sí, aunque el título siga cambiando', d.data.visits.some((v) => v.url === 'https://otra.com/'));
+  l.setTitle('https://reloj.app/', 'último');
+  await l.flushAll();
+  ok('al cerrar se escribe lo que quedaba (el último título)', d.data.visits.find((v) => v.url === 'https://reloj.app/').title === 'último');
+}
+
+console.log('\n10. Un archivo que no se pudo leer no se pisa');
+{
+  let written = null;
+  const locked = {
+    read: async () => { throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' }); },
+    write: async (x) => { written = x; },
+    writeSync: (x) => { written = x; },
+  };
+  const l = createLibrary({ historyDoc: locked, bookmarksDoc: locked, saveDelay: 10, maxWait: 20 });
+  await l.load();
+  l.visit('https://a.com/', 'A');
+  l.addBookmark({ url: 'https://a.com/', title: 'A' });
+  await new Promise((r) => setTimeout(r, 80));
+  await l.flushAll();
+  l.visit('https://b.com/', 'B');
+  l.flushAllSync();
+  ok('ni el historial ni los favoritos se escriben encima', written === null, JSON.stringify(written)?.slice(0, 80));
+  ok('pero en memoria andan', l.listVisits().length === 2 && l.listBookmarks().length === 1);
+}
+
+console.log('\n11. El apagado de Windows: sincrónico');
+{
+  const d = memDoc();
+  let sync = 0;
+  const l = createLibrary({ historyDoc: { read: d.read, write: d.write, writeSync: (x) => { sync++; d.write(x); } }, bookmarksDoc: memDoc() });
+  await l.load();
+  l.visit('https://apagado.com/', 'Apagado');
+  l.flushAllSync();
+  ok('lo pendiente se escribe en el acto', sync === 1 && d.data?.visits?.length === 1);
+  l.flushAllSync();
+  ok('y sin nada pendiente no escribe', sync === 1);
+}
+
 console.log(`\n═══ ${pass} ok · ${fail} fallas ═══`);
 process.exit(fail ? 1 : 0);

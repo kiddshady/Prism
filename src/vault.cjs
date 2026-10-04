@@ -181,14 +181,30 @@ function publicItem(it) {
 
 function createVault({ doc, seal, unseal, now = () => Date.now() }) {
   let items = [];
-  /* Si el archivo existe pero no se pudo descifrar (otra cuenta de Windows,
-     un archivo roto), NO se escribe nunca: guardar encima de una bóveda que
-     no se pudo leer la borraría. */
+  /* Si el archivo existe pero no se pudo leer (tomado por otro programa, sin
+     permiso) o descifrar (otra cuenta de Windows, un archivo roto), NO se
+     escribe nunca: guardar encima de una bóveda que no se pudo leer la
+     borraría. */
   let broken = null;
+  /** No se pudo leer el archivo (no es que no se pudo descifrar): otro intento puede andar. */
+  let unread = false;
+  /** Si estaba ilegible y se apartó (store.cjs), adónde: la bóveda arrancó vacía. */
+  let aside = null;
   let chain = Promise.resolve();
 
   async function load() {
-    const data = await doc.read();
+    let data;
+    try {
+      data = await doc.read();
+      unread = false;
+      broken = null;
+    } catch (err) {
+      items = [];
+      unread = true;
+      broken = `no se pudo leer el archivo${err?.code ? ` (${err.code})` : ''}`;
+      return;
+    }
+    aside = doc.aside || null;
     if (!data) { items = []; return; }
     try {
       const parsed = JSON.parse(unseal(Buffer.from(String(data.blob || ''), 'base64')));
@@ -293,6 +309,9 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
   return {
     load,
     get broken() { return broken; },
+    get aside() { return aside; },
+    /** Si al arrancar no se pudo leer, lo intenta de nuevo (no pisa nada: no había nada cargado). */
+    retryRead: () => (unread ? load() : Promise.resolve()),
     get size() { return items.length; },
     list: () => items.map(publicItem).sort((a, b) => a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })),
     get,

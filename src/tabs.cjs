@@ -184,10 +184,18 @@ function createTabs(ctx) {
   }
 
   /* ── Sesión: las pestañas sobreviven a un reinicio ─────────────────────── */
+  /* Debounce con tope: cada cambio de una pestaña lo corre, y una que cambia
+     el título cada segundo (un reloj, un pomodoro) lo corría para siempre.
+     Lo pendiente llega al disco a los 5 s como mucho. */
+  const PERSIST_MAX_WAIT = 5000;
   let persistTimer = null;
+  let persistDue = 0;
+  /** Lo último que se mandó a escribir: lo mismo otra vez no se escribe. */
+  let lastSession = null;
   function persist() {
     clearTimeout(persistTimer);
-    persistTimer = setTimeout(() => writeSession(), 800);
+    if (!persistDue) persistDue = Date.now() + PERSIST_MAX_WAIT;
+    persistTimer = setTimeout(() => writeSession(), Math.max(0, Math.min(800, persistDue - Date.now())));
   }
   function sessionData() {
     return {
@@ -196,11 +204,29 @@ function createTabs(ctx) {
       splits: splits.map((x) => ({ a: indexOf(x.a), b: indexOf(x.b), ratio: x.ratio })),
     };
   }
-  function writeSession() {
+  /** Lo que hay que escribir, o null si es lo mismo que ya se mandó. */
+  function takeSession() {
     clearTimeout(persistTimer);
+    persistTimer = null;
+    persistDue = 0;
     // Incógnito no vuelve al reiniciar: sus pestañas no se escriben nunca.
-    if (ctx.private) return Promise.resolve();
-    return ctx.sessionDoc.write(sessionData()).catch((err) => console.error('[session]', err.message));
+    if (ctx.private) return null;
+    const data = sessionData();
+    const text = JSON.stringify(data);
+    if (text === lastSession) return null;
+    lastSession = text;
+    return data;
+  }
+  function writeSession() {
+    const data = takeSession();
+    if (!data) return Promise.resolve();
+    return ctx.sessionDoc.write(data).catch((err) => { lastSession = null; console.error('[session]', err.message); });
+  }
+  /** Igual, sin soltar el hilo: Windows se está apagando (ver store.cjs). */
+  function writeSessionSync() {
+    const data = takeSession();
+    if (!data) return;
+    try { ctx.sessionDoc.writeSync(data); } catch (err) { lastSession = null; console.error('[session]', err.message); }
   }
 
   /* ── Geometría ─────────────────────────────────────────────────────────── */
@@ -1185,7 +1211,7 @@ function createTabs(ctx) {
     whenThawed, create, close, reopen, closeOthers, closeRight, move, duplicate, mute, pin, sleep, sweep, navigate,
     split, unsplit, swapSplit, setSplitRatio,
     activate: activateTab, back, forward, reload, stop, zoom, find, stopFind, devtools,
-    contextAction, snapshotPage, hold, focusPage, setInsets, layout, pageBounds, restore, writeSession,
+    contextAction, snapshotPage, hold, focusPage, setInsets, layout, pageBounds, restore, writeSession, writeSessionSync,
     setAway, rectFor: (t) => rectOf(t), showPhoto, hidePhoto,
     photoReady: (n) => photoWaiters.get(Number(n))?.(true),
     closeIfDownloadOnly, countBlocked,

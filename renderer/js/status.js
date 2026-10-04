@@ -87,7 +87,7 @@ export function init() {
   right = document.getElementById('status-right');
 
   api.page.onHover((url) => { hoverUrl = url || ''; paintLeft(); });
-  api.onStatus((m) => say(m.text, { icon: m.icon, tone: m.tone }));
+  api.onStatus((m) => say(m.text, { icon: m.icon, tone: m.tone, ...(m.ms ? { ms: m.ms } : {}) }));
   on('downloads', paintRight);
   window.addEventListener('online', paintRight);
   window.addEventListener('offline', paintRight);

@@ -25,9 +25,16 @@
 
      3. Windows: el rename falla con EPERM/EBUSY si el destino está tomado en
         ese instante (antivirus, otro proceso leyendo, otra instancia). Son
-        bloqueos de milisegundos: se reintenta con backoff.
+        bloqueos de milisegundos: se reintenta con backoff. La lectura
+        también: un archivo tomado al arrancar no es un archivo vacío.
+
+     4. Apagar Windows no espera a nadie: después de avisar que la sesión
+        termina, puede matar el proceso en cualquier momento, y una escritura
+        asíncrona a mitad no llega. Para ese instante está writeJSONSync, que
+        vuelve con el archivo ya en el disco.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 
@@ -107,20 +114,29 @@ async function ensureDirs(...extra) {
   for (const d of extra) await fsp.mkdir(path.join(ROOT, d), { recursive: true });
 }
 
+/** Los archivos que se apartaron por ilegibles en esta corrida: { file, dead }. */
+const asides = [];
+
 async function readJSON(file, fallback = null) {
-  try {
-    return JSON.parse(await fsp.readFile(file, 'utf8'));
-  } catch (err) {
-    if (err.code === 'ENOENT') return fallback;
-    // Un JSON corrupto no puede hacer desaparecer los datos en silencio: se
-    // aparta con marca de tiempo (queda para recuperar a mano) y se sigue.
-    if (err instanceof SyntaxError) {
-      const dead = `${file}.corrupto-${Date.now()}`;
-      await fsp.rename(file, dead).catch(() => {});
-      console.error(`[store] ${path.basename(file)} ilegible → ${path.basename(dead)}`);
-      return fallback;
+  for (let i = 0; ; i++) {
+    try {
+      return JSON.parse(await fsp.readFile(file, 'utf8'));
+    } catch (err) {
+      if (err.code === 'ENOENT') return fallback;
+      // Un JSON corrupto no puede hacer desaparecer los datos en silencio: se
+      // aparta con marca de tiempo (queda para recuperar a mano), se anota
+      // para avisar, y se sigue.
+      if (err instanceof SyntaxError) {
+        const dead = `${file}.corrupto-${Date.now()}`;
+        if (await fsp.rename(file, dead).then(() => true, () => false)) asides.push({ file, dead });
+        console.error(`[store] ${path.basename(file)} ilegible → ${path.basename(dead)}`);
+        return fallback;
+      }
+      // Tomado por un instante (trampa 3): se reintenta. Si no se suelta, el
+      // error sube: quien lee no puede confundirlo con "no hay nada".
+      if (TRANSIENT.has(err.code) && i < 4) { await sleep(30 * 2 ** i); continue; }
+      throw err;
     }
-    throw err;
   }
 }
 
@@ -129,10 +145,15 @@ async function readJSON(file, fallback = null) {
    determinista quién queda último, que es lo que uno asume sin pensarlo. */
 const writeQueues = new Map();
 let tmpCounter = 0;
+/* Cuántas escrituras sincrónicas tuvo cada archivo. Una asíncrona que
+   arrancó antes de una sincrónica traía datos más viejos: si ve que el
+   número cambió mientras escribía, tira su temporal en vez de renombrarlo. */
+const syncGen = new Map();
 
 function writeJSON(file, data) {
   const prev = writeQueues.get(file) || Promise.resolve();
-  const next = prev.catch(() => {}).then(() => writeJSONNow(file, data));
+  const gen = syncGen.get(file);
+  const next = prev.catch(() => {}).then(() => writeJSONNow(file, data, gen));
   writeQueues.set(file, next);
   // Limpiar la cola cuando se vacía, para no acumular una entrada por archivo.
   next.catch(() => {}).finally(() => {
@@ -141,7 +162,7 @@ function writeJSON(file, data) {
   return next;
 }
 
-async function writeJSONNow(file, data) {
+async function writeJSONNow(file, data, gen) {
   await fsp.mkdir(path.dirname(file), { recursive: true });
   // Temporal único: aunque algo se cuele en paralelo, nadie pisa el .tmp ajeno.
   const tmp = `${file}.${process.pid}.${++tmpCounter}.tmp`;
@@ -156,10 +177,39 @@ async function writeJSONNow(file, data) {
   } finally {
     await fh.close();
   }
+  // Se encoló antes de una sincrónica: lo que traía es más viejo que el disco.
+  if (syncGen.get(file) !== gen) { await fsp.unlink(tmp).catch(() => {}); return; }
   await renameWithRetry(tmp, file);
 }
 
+/** Lo mismo, sin soltar el hilo hasta que el archivo está en el disco (trampa 4). */
+function writeJSONSync(file, data) {
+  syncGen.set(file, (syncGen.get(file) || 0) + 1);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.${++tmpCounter}.tmp`;
+  const fd = fs.openSync(tmp, 'w');
+  try {
+    fs.writeFileSync(fd, JSON.stringify(data, null, 2), 'utf8');
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  for (let i = 0; ; i++) {
+    try {
+      fs.renameSync(tmp, file);
+      return;
+    } catch (err) {
+      if (i >= 4 || !TRANSIENT.has(err.code)) {
+        try { fs.unlinkSync(tmp); } catch { /* ya no estaba */ }
+        throw err;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30 * 2 ** i);
+    }
+  }
+}
+
 const TRANSIENT = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function renameWithRetry(tmp, file, intentos = 5) {
   for (let i = 0; ; i++) {
@@ -171,7 +221,7 @@ async function renameWithRetry(tmp, file, intentos = 5) {
         await fsp.unlink(tmp).catch(() => {});   // no dejar basura si no hay vuelta
         throw err;
       }
-      await new Promise((r) => setTimeout(r, 30 * 2 ** i));   // 30, 60, 120, 240 ms
+      await sleep(30 * 2 ** i);   // 30, 60, 120, 240 ms
     }
   }
 }
@@ -230,7 +280,10 @@ function doc(name, fallback = null) {
     file,
     read: () => readJSON(file, fallback),
     write: (data) => writeJSON(file, data),
+    writeSync: (data) => writeJSONSync(file, data),
     remove: () => fsp.unlink(file).catch(() => {}),
+    /** Adónde se apartó si en esta corrida se lo encontró ilegible, o null. */
+    get aside() { return asides.findLast((a) => a.file === file)?.dead || null; },
   };
 }
 
@@ -281,7 +334,9 @@ function collection(name) {
 
 module.exports = {
   ROOT, SETTINGS_FILE, SCHEMA, DEFAULT_SETTINGS,
-  ensureDirs, readJSON, writeJSON, assertId,
+  ensureDirs, readJSON, writeJSON, writeJSONSync, assertId,
+  /** Lo que se apartó por ilegible en esta corrida, para avisarlo. */
+  asides: () => asides.slice(),
   loadSettings, saveSettings,
   doc, collection,
 };

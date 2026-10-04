@@ -4,7 +4,9 @@
    PRISM — biblioteca: historial y favoritos
    Todo en memoria, espejado a dos JSON legibles. Se escribe con debounce
    porque navegar genera una ráfaga de eventos (commit, título, favicon…) y
-   cada uno es una escritura si no se agrupan.
+   cada uno es una escritura si no se agrupan. Con tope: una pestaña con un
+   reloj en el título cambia cada segundo, y un debounce sin tope no
+   escribía nunca mientras estuviera abierta.
 
    El historial guarda VISITAS (lo que muestra la página de historial, en
    orden) y de ahí se deriva al vuelo el agregado por URL (lo que usa la
@@ -17,6 +19,8 @@ const { bareHost } = require('./omni.cjs');
 
 const MAX_VISITS = 12000;
 const SAVE_DELAY = 1500;
+/** Lo más que espera una visita nueva para llegar al disco. */
+const SAVE_MAX_WAIT = 5000;
 
 /* Qué NO entra al historial: las páginas propias, lo efímero y lo que no es
    una dirección que alguien quiera volver a abrir. */
@@ -24,7 +28,7 @@ function recordable(url) {
   return /^https?:\/\//i.test(String(url || '')) || /^file:\/\//i.test(String(url || ''));
 }
 
-function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}) {
+function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveDelay = SAVE_DELAY, maxWait = SAVE_MAX_WAIT } = {}) {
   let visits = [];          // [{ id, url, title, t }] — más nueva al final
   let favicons = {};        // host → url del favicon
   let bookmarks = [];       // [{ id, url, title, favicon, createdAt }]
@@ -50,17 +54,34 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
 
   /* ── Persistencia ──────────────────────────────────────────────────────── */
   const timers = {};
-  function schedule(which) {
+  const due = {};           // para cuándo se prometió escribir lo pendiente
+  /* Un archivo que existe pero no se pudo leer (tomado, sin permiso) no se
+     escribe en toda la corrida: arrancó vacío, y guardar lo pisaría. */
+  const unread = new Set();
+  const docOf = (which) => (which === 'history' ? historyDoc : bookmarksDoc);
+  const dataOf = (which) => (which === 'history' ? { visits, favicons, seq } : { bookmarks });
+
+  /** `lazy`: un cambio que puede esperar (el título de una visita que ya está)
+      corre la escritura pero no la apura. Si no, un reloj en el título
+      reescribiría el historial entero cada pocos segundos todo el día. */
+  function schedule(which, { lazy = false } = {}) {
     clearTimeout(timers[which]);
-    timers[which] = setTimeout(() => flush(which), SAVE_DELAY);
+    if (!lazy && !due[which]) due[which] = Date.now() + maxWait;
+    const wait = due[which] ? Math.max(0, Math.min(saveDelay, due[which] - Date.now())) : saveDelay;
+    timers[which] = setTimeout(() => flush(which), wait);
+  }
+
+  function take(which) {
+    clearTimeout(timers[which]);
+    timers[which] = null;
+    due[which] = null;
+    return docOf(which) && !unread.has(which);
   }
 
   async function flush(which) {
-    clearTimeout(timers[which]);
-    timers[which] = null;
+    if (!take(which)) return;
     try {
-      if (which === 'history' && historyDoc) await historyDoc.write({ visits, favicons, seq });
-      if (which === 'bookmarks' && bookmarksDoc) await bookmarksDoc.write({ bookmarks });
+      await docOf(which).write(dataOf(which));
     } catch (err) {
       console.error(`[library] no se pudo guardar ${which}:`, err.message);
     }
@@ -72,14 +93,32 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
     await Promise.all(pend.map(flush));
   }
 
+  /** Igual, sin soltar el hilo: Windows se está apagando (ver store.cjs). */
+  function flushAllSync() {
+    for (const which of Object.keys(timers).filter((k) => timers[k])) {
+      if (!take(which)) continue;
+      try { docOf(which).writeSync(dataOf(which)); } catch (err) { console.error(`[library] no se pudo guardar ${which}:`, err.message); }
+    }
+  }
+
+  async function read(which) {
+    try {
+      return (docOf(which) && await docOf(which).read()) || {};
+    } catch (err) {
+      unread.add(which);
+      console.error(`[library] no se pudo leer ${which}, no se va a escribir:`, err.message);
+      return {};
+    }
+  }
+
   async function load() {
-    const h = (historyDoc && await historyDoc.read().catch(() => null)) || {};
+    const h = await read('history');
     visits = Array.isArray(h.visits) ? h.visits.filter((v) => v && recordable(v.url)) : [];
     favicons = h.favicons && typeof h.favicons === 'object' ? h.favicons : {};
     seq = Number(h.seq) || visits.reduce((m, v) => Math.max(m, Number(v.id) || 0), 0);
     rebuildIndex();
 
-    const b = (bookmarksDoc && await bookmarksDoc.read().catch(() => null)) || {};
+    const b = await read('bookmarks');
     bookmarks = Array.isArray(b.bookmarks) ? b.bookmarks.filter((x) => x && x.url) : [];
   }
 
@@ -132,8 +171,10 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
     }
     const e = index.get(url);
     if (e) e.title = title;
-    for (const b of bookmarks) if (b.url === url && !b.title) b.title = title;
-    schedule('history');
+    let named = false;
+    for (const b of bookmarks) if (b.url === url && !b.title) { b.title = title; named = true; }
+    if (named) schedule('bookmarks');
+    schedule('history', { lazy: true });
   }
 
   function setFavicon(url, icon) {
@@ -342,7 +383,7 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now() } = {}
   }
 
   return {
-    load, flushAll,
+    load, flushAll, flushAllSync,
     visit, setTitle, setFavicon, faviconFor, listVisits, removeVisits, clearHistory, topSites, suggest,
     isBookmarked, listBookmarks, addBookmark, removeBookmark, updateBookmark, moveBookmark, toggleBookmark, importBookmarks,
     get visitCount() { return visits.length; },

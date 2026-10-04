@@ -37,7 +37,7 @@
    flechas, el Enter y el "me fui" (pay:key, pay:blur).
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { ipcMain, safeStorage, clipboard, dialog } = require('electron');
+const { ipcMain, safeStorage, clipboard, dialog, shell } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
 const store = require('./store.cjs');
@@ -301,7 +301,12 @@ function createPasswords(ctx) {
   const SECRET = { login: ['password'], card: ['number', 'cvv', 'pin'] };
   const kindOf = (it) => (V.isCard(it) ? 'card' : 'login');
 
-  chrome('pass:list', () => ({ items: vault.list().map(withIcon), broken: vault.broken }));
+  chrome('pass:list', async () => {
+    // Si al arrancar estaba tomada, abrir Contraseñas es el momento de volver a probar.
+    await vault.retryRead();
+    return { items: vault.list().map(withIcon), broken: vault.broken, aside: vault.aside && path.basename(vault.aside) };
+  });
+  chrome('pass:show-aside', () => { if (vault.aside) shell.showItemInFolder(vault.aside); return !!vault.aside; });
   chrome('pass:reveal', (id, field = 'password') => {
     const it = vault.get(String(id));
     return it && SECRET[kindOf(it)].includes(field) ? it[field] ?? '' : '';

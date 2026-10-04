@@ -390,6 +390,17 @@ function createWindow(w, state) {
     w.tabs?.writeSession();
   });
 
+  /* Apagar o reiniciar Windows (o cerrar la sesión) no pasa por before-quit:
+     Windows le avisa a cada ventana —también a la escondida en la bandeja— y
+     después puede matar el proceso en cualquier momento. Lo pendiente se
+     escribe en el aviso mismo, sin soltar el hilo (store.cjs, trampa 4). El
+     primero puede no terminar en apagado (otra app lo frena): las descargas
+     se cortan recién con el segundo. */
+  if (main) {
+    win.on('query-session-end', () => flushSync());
+    win.on('session-end', () => { quitting = true; flushSync({ downloads: true }); });
+  }
+
   win.on('closed', () => {
     offList();
     w.win = null;
@@ -461,6 +472,30 @@ async function quit() {
 async function installUpdate() {
   if (updater.get().phase !== 'ready' || !(await confirmLeave('update'))) return false;
   return updater.install(() => { quitting = true; });
+}
+
+/** Lo pendiente al disco YA, sin soltar el hilo: Windows se está apagando. */
+function flushSync({ downloads = false } = {}) {
+  ctx.library.flushAllSync();
+  ctx.tabs?.writeSessionSync();
+  if (downloads) ctx.downloads?.flushSync();
+}
+
+/* Un archivo de datos ilegible se aparta (store.cjs) y Prism arranca sin
+   él: que no pase callado. Se avisa cuando la ventana está a la vista (puede
+   haber arrancado escondida en la bandeja). La bóveda, además, lo dice en
+   Contraseñas. */
+function tellAsides() {
+  const files = [...new Set(store.asides().map((a) => path.basename(a.file)))];
+  const win = ctx.win;
+  if (!files.length || !win || win.isDestroyed()) return;
+  const text = files.length === 1
+    ? `${files[0]} estaba dañado: quedó aparte en la carpeta de datos y Prism arrancó sin él`
+    : `${files.join(', ')} estaban dañados: quedaron aparte en la carpeta de datos y Prism arrancó sin ellos`;
+  const say = () => setTimeout(() => ctx.send('status:msg', { text, icon: 'alert', tone: 'error', ms: 15000 }), 900);
+  const whenShown = () => (win.isVisible() ? say() : win.once('show', say));
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', whenShown);
+  else whenShown();
 }
 
 ctx.quit = quit;
@@ -639,6 +674,7 @@ app.whenReady().then(async () => {
   /* Lanzado por el arranque con Windows (autostart.cjs): carga escondido. */
   const hidden = !SHOTS && process.argv.includes(HIDDEN);
   createWindow(ctx, { ...(await loadWindowState()), hidden });
+  tellAsides();
   // La bandeja no se crea en modo verificación: no tiene por qué aparecer un
   // ícono en la barra de la persona mientras corren las pruebas.
   if (!SHOTS || process.env.PRISM_TRAY) createTray();

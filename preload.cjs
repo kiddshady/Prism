@@ -206,6 +206,7 @@ contextBridge.exposeInMainWorld('prism', {
     copy: (id, field) => call('pass:copy', id, field),
     import: () => call('pass:import'),
     forgetImport: () => call('pass:forget-import'),
+    showAside: () => call('pass:show-aside'),
     answer: (id, action, patch) => call('pass:answer', id, action, patch),
     onOffer: listen('pass:offer'),
     onChanged: listen('pass:changed'),

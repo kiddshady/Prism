@@ -29,6 +29,8 @@ let btn;
 const P = {
   items: [],
   broken: null,
+  aside: null,           // la copia apartada de una bóveda dañada (nombre del archivo)
+  asideSeen: false,
   kind: 'login',         // login · card: qué lado de la hoja se mira
   selBy: {},             // lo elegido en cada lado, para volver a encontrarlo
   q: '',
@@ -90,6 +92,7 @@ async function load() {
   const r = await api.pass.list().catch(() => ({ items: [], broken: null }));
   P.items = r.items || [];
   P.broken = r.broken || null;
+  P.aside = r.aside || null;
   if (P.sel && !P.items.some((it) => it.id === P.sel)) P.sel = null;
 }
 
@@ -192,6 +195,7 @@ function paintMain() {
   const it = selected();
   let html = '';
   if (P.banner) html += bannerHTML();
+  if (P.aside && !P.asideSeen) html += asideHTML();
   if (P.broken) html += `<div class="pr-pass__warn">${Icons.svg('alert')}<div>No se pudo abrir la bóveda guardada (${esc(P.broken)}). Para no pisarla, Prism no guarda cambios hasta que se resuelva.</div></div>`;
 
   const card = P.kind === 'card';
@@ -243,6 +247,20 @@ function bannerHTML() {
       <div class="pr-pass__banneractions">
         <button class="op-btn op-btn--ghost op-btn--sm" data-a="banner-close">Lo borro yo</button>
         <button class="op-btn op-btn--secondary op-btn--sm" data-a="forget-import"><i data-icon="trash"></i> Borrar el archivo</button>
+      </div>
+    </div>`;
+}
+
+/* La bóveda en disco estaba rota y quedó aparte (store.cjs): la de ahora
+   arrancó vacía. Sin este aviso, las contraseñas simplemente no estaban. */
+function asideHTML() {
+  return `
+    <div class="pr-pass__banner">
+      <div class="pr-pass__bannerhead">${Icons.svg('alert')}<span>La bóveda guardada estaba dañada</span></div>
+      <div class="pr-pass__bannertext">Prism no la pudo leer y arrancó con una vacía. No la borró: quedó aparte como <b>${esc(P.aside)}</b>, en la carpeta de datos.</div>
+      <div class="pr-pass__banneractions">
+        <button class="op-btn op-btn--ghost op-btn--sm" data-a="aside-close">Entendido</button>
+        <button class="op-btn op-btn--secondary op-btn--sm" data-a="show-aside"><i data-icon="folder"></i> Mostrar el archivo</button>
       </div>
     </div>`;
 }
@@ -575,6 +593,8 @@ function wire(el) {
     if (a === 'edit') { P.mode = 'edit'; P.confirmDel = false; return paintMain(); }
     if (a === 'cancel') { P.mode = 'view'; return paintMain(); }
     if (a === 'banner-close') { P.banner = null; return paintMain(); }
+    if (a === 'aside-close') { P.asideSeen = true; return paintMain(); }
+    if (a === 'show-aside') return api.pass.showAside().catch(() => false);
     if (a === 'forget-import') {
       // Si no se pudo (abierto en Excel), el aviso se queda: el archivo sigue ahí.
       let gone;
