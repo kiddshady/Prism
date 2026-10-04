@@ -78,8 +78,17 @@ const OVERLAY = '--enable-features=OverlayScrollbar';
 const overlayFromLaunch = process.argv.some((a) => a.startsWith('--enable-features=') && a.slice(18).split(',').includes('OverlayScrollbar'));
 const FEATURES = new Set(app.commandLine.getSwitchValue('enable-features').split(',').filter(Boolean));
 FEATURES.add('OverlayScrollbar');
-if (early.forceDark) FEATURES.add('WebContentsForceDark');
 app.commandLine.appendSwitch('enable-features', [...FEATURES].join(','));
+
+/* "Oscurecer todo": el modo oscuro forzado de Blink, para los sitios que no
+   tienen uno propio. La feature WebContentsForceDark (la de Chrome) la lee
+   la capa de Chrome, que Electron no trae: no hacía nada. Este switch es un
+   ajuste de Blink y sí anda, puesto desde acá (Electron 44: una página blanca
+   da 18,18,18). Vale para todos los renderers, también el cromo: lo que
+   declara `color-scheme: dark` queda afuera (base.css), igual que los sitios
+   que ya son oscuros. Los canvas y las imágenes no se tocan, así que las
+   hojas de la vista previa de impresión siguen blancas. */
+if (early.forceDark) app.commandLine.appendSwitch('blink-settings', 'forceDarkModeEnabled=true');
 
 /* Modo de verificación (tools/shot.ps1 y el humo): la ventana vive FUERA de
    pantalla, sin robar el foco, con su propio perfil. Así se la puede manejar y

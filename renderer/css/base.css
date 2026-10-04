@@ -6,6 +6,13 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* La interfaz es oscura, y lo dice. Con "Oscurecer todo" prendido, Chromium
+   oscurece a la fuerza cualquier página que no declare un esquema oscuro: el
+   cromo, la tarjeta y la lista quedan afuera por esto. De paso, los bordes
+   suavizados de las esquinas redondeadas se mezclan con un fondo base oscuro
+   y no con el blanco de Chromium. */
+:root { color-scheme: dark; }
+
 html, body {
   margin: 0;
   height: 100%;
