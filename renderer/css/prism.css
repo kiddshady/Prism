@@ -151,7 +151,10 @@
   transform: translateY(-1px);
 }
 .pr-tab__body.is-settled { animation: none; }
-.pr-tab[data-state='closing'] .pr-tab__body { animation: pr-tab-out 150ms var(--op-ease-in) both; }
+/* La que se cierra se pliega (tabstrip.js le lleva --w a 0) y se esfuma. Lo
+   de adentro se recorta con ella: si no, el ícono y la cruz se salían por la
+   derecha sobre la vecina. La salida es in-out: hay alguien esperando. */
+.pr-tab[data-state='closing'] .pr-tab__body { overflow: hidden; animation: pr-tab-out 150ms var(--op-ease-both) both; }
 
 @keyframes pr-tab-in  { from { opacity: 0; transform: translateY(7px) scale(.97) } to { opacity: 1; transform: none } }
 @keyframes pr-tab-out { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(4px) scale(.96) } }

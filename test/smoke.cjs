@@ -657,6 +657,35 @@ app.whenReady().then(async () => {
   T.close(lk);
   T.close(sx);
 
+  console.log('\n7g. La tira: cerrar');
+  /* Cerrar una del medio: la que se va se pliega con la vecina. Quieta en su
+     ancho, la vecina se le metía encima mientras todavía se veía. Se mide
+     cuadro a cuadro, en el cromo. */
+  const extra = [];
+  for (let i = 0; i < 3; i++) extra.push(T.create({ url: `${BASE}/dos` }));
+  await sleep(1200);
+  const cerrar = extra[1];
+  const vecina = extra[2];
+  await js(`(() => {
+    window.__cuadros = [];
+    const a = document.querySelector('.pr-tab[data-id="${cerrar}"] .pr-tab__body');
+    const b = document.querySelector('.pr-tab[data-id="${vecina}"] .pr-tab__body');
+    const t0 = performance.now();
+    const tick = () => {
+      const ra = a.isConnected ? a.getBoundingClientRect() : null;
+      __cuadros.push({ encima: ra ? ra.right - b.getBoundingClientRect().left : 0, opacidad: ra ? +getComputedStyle(a).opacity : 0 });
+      if (performance.now() - t0 < 360) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    return true;
+  })()`);
+  T.close(cerrar);
+  await sleep(600);
+  const cuadros = await js('window.__cuadros');
+  const encimadas = Math.max(0, ...cuadros.filter((c) => c.opacidad > 0.05).map((c) => c.encima));
+  ok('cerrar una del medio: la vecina no se le mete encima mientras se ve', cuadros.length > 10 && encimadas <= 0.5, `${cuadros.length} cuadros · ${encimadas.toFixed(1)} px`);
+  for (const id of extra) if (T.list.some((t) => t.id === id)) T.close(id);
+
   console.log('\n8. Errores');
   ctx.tabs.create({ url: 'http://127.0.0.1:1/' });
   ok('una conexión rechazada muestra el aviso', await until(() => js(`!!document.querySelector('.pr-view[data-page="error"]')`), 8000));

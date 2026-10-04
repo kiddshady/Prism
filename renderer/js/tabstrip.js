@@ -176,6 +176,10 @@ export function render() {
     if (!ids.includes(id)) {
       els.delete(id);
       el.style.pointerEvents = 'none';
+      /* Se pliega a lo ancho con la misma curva con que las de la derecha se
+         corren: su borde sigue al de la vecina y nunca se enciman (quieta en
+         su ancho, la vecina se le metía encima mientras todavía se veía). */
+      el.style.setProperty('--w', '0px');
       exit(el, { fallback: 170 });
     }
   }
