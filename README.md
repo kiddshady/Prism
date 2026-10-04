@@ -47,7 +47,9 @@ npm run release # publica en GitHub (ver abajo)
   bloquea en cada página y se apaga por sitio desde el escudo.
 - **Historial** agrupado por día, con búsqueda. **Favoritos** con la estrella
   o Ctrl+D, e importados de Chrome, Edge o Brave (o de un HTML exportado).
-  **Descargas** con progreso, pausa y reintento.
+  **Descargas** con progreso, pausa y reintento. Salir (o reiniciar para
+  actualizar) con una bajando pregunta antes, y si se corta igual queda en la
+  lista para reintentar.
 - **Barra de favoritos** debajo de la de direcciones, como en Chrome
   (Ctrl+Mayús+B la muestra u oculta). Lo que no entra queda en la flecha de la
   punta; se arrastran para cambiarlos de lugar, y el botón del medio abre en
@@ -221,6 +223,22 @@ el instalador le saca a `file://` el privilegio de leer otros archivos.
 - **Compartir pantalla llega como `media` sin tipos.** `getDisplayMedia` pasa
   primero por el manejador de permisos; negado ahí, el selector propio ni
   aparece. Desde Electron 45 va a llegar como `display-capture`.
+- **Apagar Windows no pasa por `before-quit`.** Electron no lo emite cuando
+  la sesión de Windows termina, y Prism vive en la bandeja: lo normal es
+  apagar con él abierto. Windows le avisa a cada ventana (también a la
+  escondida) y después puede matar el proceso en cualquier momento, así que
+  `query-session-end` y `session-end` escriben en el acto y sin soltar el
+  hilo (`writeJSONSync`). Medido: cuando `SendMessage` vuelve, la sesión y el
+  historial ya están en el disco; con `WM_ENDSESSION` Electron cierra ahí
+  mismo.
+- **Un debounce sin tope no escribe nunca.** Una pestaña con un reloj en el
+  título (un pomodoro) lo corría cada segundo: el historial no se guardaba
+  mientras estuviera abierta. Lo pendiente llega al disco a los 5 s como
+  mucho, y un título que cambia solo no apura la escritura.
+- **Un archivo tomado no es un archivo vacío.** Si la lectura falla (un
+  antivirus o un backup lo tiene abierto), se reintenta, y si no se suelta,
+  ese archivo no se escribe en toda la corrida: arrancar vacío y guardar
+  encima lo borraba. Un JSON roto se aparta como `.corrupto-…` y se avisa.
 - **Probar la app empaquetada cerrando solo su PID.** `dist/win-unpacked/Prism.exe`
   se llama igual que el instalado: cerrar por nombre mata el Prism de quien
   lo está usando. Y al relanzarse, el PID cambia: se buscan los de esa ruta.
@@ -321,6 +339,7 @@ la 0.0.1 contra los releases reales.
 
 En desarrollo, `data/` del proyecto; empaquetada, el `userData` de la app;
 `PRISM_DATA` los mueve. Historial, favoritos, descargas y sesión son JSON
-legibles con escritura atómica (la de Opal, con sus tres trampas cubiertas).
+legibles con escritura atómica (la de Opal, con sus trampas cubiertas, más una
+cuarta: la escritura sincrónica para cuando Windows se apaga).
 
 Kidd Shady · Umbrovex Systems
