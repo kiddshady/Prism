@@ -1,0 +1,60 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PRISM — la lista de contraseñas y tarjetas (renderer/fill.html, src/fill.cjs)
+   Vive en su propia vista, transparente, apoyada sobre la página. El aire
+   alrededor (el padding del host) es donde cae la sombra: la vista es más
+   grande que la lista por MARGIN de cada lado (fill.cjs).
+   Como todo lo que flota en Prism, es una hoja OPACA: sobre una página blanca
+   el vidrio se leía mal.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+html, body { background: transparent; }
+body { overflow: hidden; }
+.pr-fillhost { padding: 24px; }
+
+.pr-fill {
+  box-sizing: border-box;
+  padding: var(--op-1);
+  border-radius: var(--op-r-lg);
+  background: linear-gradient(var(--op-s3), var(--op-s3)), rgb(12 12 14);
+  box-shadow: var(--op-sheet), 0 0 0 1px rgb(0 0 0 / .35), 0 4px 12px rgb(0 0 0 / .32), 0 14px 32px rgb(0 0 0 / .26);
+  opacity: 0;
+  transform: translateY(-4px) scale(.985);
+  transform-origin: top left;
+  /* La salida, sin nadie esperando: corta y en ease-in (motion-timing). */
+  transition: opacity 140ms var(--op-ease-in), transform 140ms var(--op-ease-in);
+}
+.pr-fill.is-up { transform-origin: bottom left; transform: translateY(4px) scale(.985); }
+.pr-fill.is-on {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--op-t-2) var(--op-ease), transform var(--op-t-2) var(--op-ease);
+}
+
+.pr-fill__rows { max-height: 352px; overflow-y: auto; }
+.pr-fill__row {
+  display: flex;
+  align-items: center;
+  gap: var(--op-3);
+  height: 44px;
+  padding: 0 var(--op-2);
+  border-radius: var(--op-r-md);
+  cursor: default;
+  transition: background-color var(--op-t-1) var(--op-ease-soft);
+}
+.pr-fill__row.is-active { background: var(--op-wash-2); }
+.pr-fill__tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--op-r-md);
+  background: var(--op-s2);
+  color: var(--op-text-2);
+}
+.pr-fill__tile .op-icon { width: 14px; height: 14px; }
+.pr-fill__text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pr-fill__title, .pr-fill__sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-fill__title { font-size: var(--op-fs-13); font-weight: var(--op-w-medium); color: var(--op-text); }
+.pr-fill__sub { font-size: var(--op-fs-12); color: var(--op-text-3); }
+.pr-fill__foot { padding: 6px var(--op-2) var(--op-1); font-size: var(--op-fs-11); color: var(--op-text-3); }

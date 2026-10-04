@@ -7,18 +7,18 @@
    tres cosas:
 
    · Completar contraseñas (solo el documento principal). Al enfocar un campo
-     de login, si Prism tiene contraseñas para ESTE sitio, cuelga una lista
+     de login, si Prism tiene contraseñas para ESTE sitio, pide la lista
      debajo del campo. Elegir una completa usuario y contraseña. La contraseña
      recién viaja cuando se elige (y el proceso principal vuelve a chequear el
      sitio: acá no se decide nada).
-     La lista vive en un shadow root cerrado, así los estilos de la página no
-     la deforman y sus scripts no la leen.
+     La lista no está en la página: la dibuja Prism en una vista propia,
+     encima (src/fill.cjs), donde la página no la ve, no la estila ni la tapa.
 
    · Completar tarjetas (en cualquier frame). Un checkout suele poner el
-     número en un iframe chiquito del procesador de pago, donde la lista no
-     entra: el iframe avisa hacia arriba dónde está su campo (postMessage, de
-     frame en frame, cada uno sumando dónde está su iframe) y la lista se
-     cuelga en el documento principal. Las flechas y el Enter llegan desde el
+     número en un iframe chiquito del procesador de pago: el iframe avisa
+     hacia arriba dónde está su campo (postMessage, de frame en frame, cada
+     uno sumando dónde está su iframe) y la lista la pide el documento
+     principal. Las flechas y el Enter llegan desde el
      iframe por el proceso principal. Elegir hace que el proceso principal
      mande la tarjeta a los frames que corresponden, y cada uno completa los
      campos de tarjeta que tiene (src/passwords.cjs decide cuáles).
@@ -278,115 +278,44 @@ if (IS_TOP) {
 
   /* ── La lista ────────────────────────────────────────────────────────── */
 
-  const SVG = (body) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
-  const KEY = SVG('<g transform="rotate(-45 8 8)"><path d="M8.31 6.6H1.9V9.4H3.2V11H5.8V9.4H8.31A3.3 3.3 0 1 0 8.31 6.6Z"/><circle cx="12.3" cy="8" r="1" fill="currentColor" stroke="none"/></g>');
-  const CARD = SVG('<rect x="1.8" y="3.4" width="12.4" height="9.2" rx="1.8"/><path d="M1.8 6.6h12.4M4.4 10.1h2.8"/>');
-  const CSS = `
-    :host { all: initial; }
-    .box {
-      position: fixed; z-index: 2147483647; box-sizing: border-box;
-      min-width: 240px; max-width: 380px; padding: 4px;
-      border-radius: 10px; background: rgb(22 22 24);
-      box-shadow: inset 0 0 0 1px rgb(255 255 255 / .08), 0 14px 36px rgb(0 0 0 / .5), 0 2px 6px rgb(0 0 0 / .3);
-      font: 13px/1.3 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #ececec;
-      opacity: 0; transform: translateY(-4px) scale(.985); transform-origin: top left;
-      transition: opacity .14s cubic-bezier(.2,.7,.2,1), transform .16s cubic-bezier(.2,.7,.2,1);
-      user-select: none; -webkit-user-select: none;
-    }
-    .box.is-up { transform-origin: bottom left; transform: translateY(4px) scale(.985); }
-    .box.is-on { opacity: 1; transform: none; }
-    .row {
-      display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px;
-      border-radius: 7px; cursor: default;
-      transition: background-color .12s ease;
-    }
-    .row.is-active { background: rgb(255 255 255 / .075); }
-    .tile {
-      display: grid; place-items: center; width: 26px; height: 26px; flex: none;
-      border-radius: 7px; background: rgb(255 255 255 / .06); color: #b8b8b8;
-    }
-    .tile svg { width: 14px; height: 14px; }
-    .text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-    .title, .login { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .title { font-weight: 500; }
-    .login { font-size: 12px; color: #9a9a9a; }
-    .foot { padding: 6px 10px 4px; font-size: 11px; color: #707070; }
-  `;
+  /* La dibuja Prism en una vista propia, encima de la página (src/fill.cjs):
+     acá ya no se pinta nada. Vivía en el DOM de la página, en un shadow root
+     cerrado: la página no leía las filas, pero podía volver invisible la
+     lista o taparla y hacerte elegir una tarjeta con un click que creías dar
+     en otra cosa. Acá queda lo que solo la página sabe: dónde está el campo
+     y qué teclas se aprietan. */
 
-  let host = null; let root = null; let box = null;
   /* anchor: dónde se cuelga. { el, rect, remote } — remote es un campo de un
      iframe: no hay elemento acá, solo su rectángulo. */
-  let anchor = null; let kind = 'login'; let items = []; let active = -1; let openSeq = 0; let rafId = 0;
-  let pressing = false;
+  let anchor = null; let items = []; let active = -1; let openSeq = 0; let rafId = 0;
+  /** El número con que se pidió la lista que está a la vista: lo que vuelve de Prism tiene que traerlo. */
+  let shownSeq = 0;
 
-  function ensureBox() {
-    if (host) return;
-    host = document.createElement('div');
-    root = host.attachShadow({ mode: 'closed' });
-    root.innerHTML = `<style>${CSS}</style><div class="box" role="listbox"></div>`;
-    box = root.querySelector('.box');
-    // Que tocar la lista no le saque el foco al campo (tampoco al del iframe).
-    box.addEventListener('mousedown', (e) => e.preventDefault());
-    box.addEventListener('pointerdown', () => { pressing = true; });
-    addEventListener('pointerup', () => { setTimeout(() => { pressing = false; }, 0); }, true);
-    box.addEventListener('pointermove', (e) => {
-      const row = e.target.closest?.('.row');
-      if (row) setActive(Number(row.dataset.i));
-    });
-    box.addEventListener('click', (e) => {
-      if (!e.isTrusted) return;
-      const row = e.target.closest?.('.row');
-      if (row) choose(Number(row.dataset.i));
-    });
-  }
-
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  const rectOf = (a) => { const r = a.rect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
 
   function place() {
-    if (!anchor || !box) return;
+    if (!anchor) return;
     if (anchor.el && (!anchor.el.isConnected || !visible(anchor.el))) { close(); return; }
-    const r = anchor.rect();
-    // Una tarjeta dice más (marca, últimos cuatro, vencimiento), y su campo suele ser angosto.
-    const w = Math.min(380, Math.max(kind === 'card' ? 300 : 240, r.width));
-    const h = box.offsetHeight;
-    const up = r.bottom + 4 + h > innerHeight && r.top - 4 - h > 0;
-    box.classList.toggle('is-up', up);
-    box.style.width = `${Math.round(w)}px`;
-    box.style.left = `${Math.round(Math.min(Math.max(4, r.left), innerWidth - w - 4))}px`;
-    box.style.top = `${Math.round(up ? r.top - 4 - h : r.bottom + 4)}px`;
+    ipcRenderer.send('fill:move', { seq: shownSeq, rect: rectOf(anchor) });
   }
   const schedule = () => { cancelAnimationFrame(rafId); rafId = requestAnimationFrame(place); };
 
   /** Al iframe que tiene el foco: si la lista está abierta y si hay una fila elegida. */
   const tellRemote = () => { if (anchor?.remote) ipcRenderer.send('pay:open', active >= 0 ? 2 : 1); };
 
-  function setActive(i) {
+  /** `echo`: avisarle a la lista (no hace falta si el cambio vino de ella, del mouse). */
+  function setActive(i, { echo = true } = {}) {
     active = i;
-    box.querySelectorAll('.row').forEach((row, n) => row.classList.toggle('is-active', n === i));
+    if (echo) ipcRenderer.send('fill:active', { seq: shownSeq, i });
     tellRemote();
   }
 
-  function rowHTML(it, i) {
-    if (kind === 'card') {
-      const sub = [it.brand, it.last4 && `termina en ${it.last4}`, it.expiry && `vence ${it.expiry}`].filter(Boolean).join(' · ');
-      return `<div class="row" role="option" data-i="${i}"><div class="tile">${CARD}</div>
-        <div class="text"><div class="title">${esc(it.title)}</div><div class="login">${esc(sub.charAt(0).toUpperCase() + sub.slice(1))}</div></div></div>`;
-    }
-    return `<div class="row" role="option" data-i="${i}"><div class="tile">${KEY}</div>
-      <div class="text"><div class="title">${esc(it.title)}</div><div class="login">${esc(it.login || 'Sin usuario')}</div></div></div>`;
-  }
-
   function show(where, found, k) {
-    ensureBox();
     anchor = where;
-    kind = k;
     items = found;
     active = -1;
-    box.innerHTML = found.map(rowHTML).join('') + `<div class="foot">${k === 'card' ? 'Tarjetas de Prism' : 'Contraseñas de Prism'}</div>`;
-    if (!host.isConnected) (document.documentElement || document.body).appendChild(host);
-    box.classList.remove('is-on');
-    place();
-    requestAnimationFrame(() => box.classList.add('is-on'));
+    shownSeq = openSeq;
+    ipcRenderer.send('fill:show', { seq: shownSeq, kind: k, rect: rectOf(where), items: found });
     tellRemote();
   }
 
@@ -395,7 +324,7 @@ if (IS_TOP) {
     if (k === 'card') cardEl = el;
     const found = await ipcRenderer.invoke(k === 'card' ? 'pay:query' : 'pass:page-query').catch(() => []);
     if (seq !== openSeq || document.activeElement !== el || !found.length) return;
-    show({ el, rect: () => el.getBoundingClientRect(), remote: false }, found, k);
+    show({ el, rect: () => el.getBoundingClientRect(), remote: false, kind: k }, found, k);
   }
 
   /* Un campo de tarjeta de un iframe: la lista la pide este documento (el
@@ -405,30 +334,24 @@ if (IS_TOP) {
     const found = await ipcRenderer.invoke('pay:menu').catch(() => []);
     if (seq !== openSeq || !found.length) return;
     const r = new DOMRect(rect.x, rect.y, rect.w, rect.h);
-    show({ el: null, rect: () => r, remote: true }, found, 'card');
+    show({ el: null, rect: () => r, remote: true, kind: 'card' }, found, 'card');
   };
 
   function close() {
     openSeq++;
     if (anchor?.remote) ipcRenderer.send('pay:open', 0);
+    if (anchor) ipcRenderer.send('fill:hide', { seq: shownSeq });
     anchor = null;
-    if (!box?.classList.contains('is-on')) { host?.remove(); return; }
-    box.classList.remove('is-on');
-    const b = box;
-    setTimeout(() => { if (!b.classList.contains('is-on')) host?.remove(); }, 180);
   }
 
-  /* Abierta apenas está armada, no cuando termina de entrar: una flecha que
-     llega en el mismo frame en que aparece la lista no se tiene que perder. */
-  const isOpen = () => !!anchor && !!host?.isConnected;
+  const isOpen = () => !!anchor;
 
   async function choose(i) {
     const it = items[i];
     const a = anchor;
-    const k = kind;
     if (!it || !a) return;
     close();
-    if (k === 'card') {
+    if (a.kind === 'card') {
       await ipcRenderer.invoke('pay:fill', it.id).catch(() => false);
       a.el?.focus();
       return;
@@ -453,15 +376,35 @@ if (IS_TOP) {
     return false;
   }
 
+  /* Lo que vuelve de la lista de Prism. */
+  // La cerró Prism (otra pestaña, un menú del cromo, un click afuera): sin avisar de vuelta.
+  ipcRenderer.on('fill:gone', (_e, seq) => {
+    if (!anchor || seq !== shownSeq) return;
+    if (anchor.remote) ipcRenderer.send('pay:open', 0);
+    anchor = null;
+    openSeq++;
+  });
+  // El mouse sobre una fila: un Enter después elige esa.
+  ipcRenderer.on('fill:hover', (_e, d) => { if (anchor && d?.seq === shownSeq) setActive(Number(d.i), { echo: false }); });
+  // Un click en una fila.
+  ipcRenderer.on('fill:choose', (_e, d) => { if (anchor && d?.seq === shownSeq) choose(Number(d.i)); });
+
   /* ── Cuándo aparece ──────────────────────────────────────────────────── */
 
   document.addEventListener('focusin', (e) => {
+    // El mismo campo que vuelve a tener el foco (la página lo recuperó de la lista): la lista sigue.
+    if (anchor?.el && e.target === anchor.el) return;
     const k = kindFor(e.target);
     if (k) open(e.target, k);
     // Pasar a otro iframe no la cierra: si era de un iframe, la cierra su pay:blur.
     else if (anchor && !(anchor.remote && /^i?frame$/i.test(e.target?.tagName || ''))) close();
   }, true);
-  document.addEventListener('focusout', (e) => { if (anchor?.el && e.target === anchor.el) close(); }, true);
+  /* El campo perdió el foco. Puede ser un click en la lista de Prism, que es
+     otra vista y se lleva el foco: Prism espera un momento antes de cerrarla
+     (src/fill.cjs). */
+  document.addEventListener('focusout', (e) => {
+    if (anchor?.el && e.target === anchor.el) ipcRenderer.send('fill:blur', { seq: shownSeq });
+  }, true);
   // Un clic en el campo que ya tenía el foco (y cuya lista se cerró) la vuelve a abrir.
   document.addEventListener('pointerdown', (e) => {
     if (!e.isTrusted || e.target !== document.activeElement || isOpen()) return;
@@ -470,8 +413,8 @@ if (IS_TOP) {
   }, true);
   document.addEventListener('keydown', (e) => {
     if (!isOpen() || !anchor.el || e.target !== anchor.el) return;
-    // El Enter que elige tiene que ser de la persona: uno inventado por la página no.
-    if (e.key === 'Enter' && !e.isTrusted) return;
+    // Las teclas que mueven y eligen son de la persona: las que inventa la página no cuentan.
+    if (!e.isTrusted) return;
     if (e.key === 'Enter' && active < 0) { close(); return; }
     if (onKey(e.key) && e.key !== 'Escape' && e.key !== 'Tab') {
       e.preventDefault();
@@ -479,12 +422,8 @@ if (IS_TOP) {
     }
   }, true);
   ipcRenderer.on('pay:key', (_e, key) => { if (isOpen() && anchor.remote) onKey(key); });
-  ipcRenderer.on('pay:blur', () => {
-    const a = anchor;
-    if (!a?.remote) return;
-    // Un clic en la lista también le saca el foco al iframe: ese no la cierra.
-    setTimeout(() => { if (anchor === a && !pressing) close(); }, 120);
-  });
+  // El iframe perdió el foco: como el focusout de arriba, Prism decide si fue un click en la lista.
+  ipcRenderer.on('pay:blur', () => { if (anchor?.remote) ipcRenderer.send('fill:blur', { seq: shownSeq }); });
   addEventListener('scroll', () => { if (anchor?.remote) close(); else if (anchor) schedule(); }, true);
   addEventListener('resize', () => { if (anchor?.remote) close(); else if (anchor) schedule(); });
 

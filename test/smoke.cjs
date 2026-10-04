@@ -644,10 +644,25 @@ app.whenReady().then(async () => {
     lwc.focus();
     for (const type of ['mouseDown', 'mouseUp']) lwc.sendInputEvent({ type, x: Math.round(r.x), y: Math.round(r.y), button: 'left', clickCount: 1 });
   };
-  const listaAbierta = () => lwc.executeJavaScript(`[...document.documentElement.children].some((e) => e.tagName === 'DIV' && !e.shadowRoot)`);
+  /* La lista es una vista de Prism encima de la página (src/fill.cjs), no un
+     elemento de la página: se pregunta acá, no en su DOM. */
+  const listaAbierta = () => ctx.fill.shown;
+  const domDeLaPagina = (wc) => wc.executeJavaScript(`document.documentElement.children.length`);
+  const hijosAntes = await domDeLaPagina(lwc);
   await click('#u');
   ok('enfocar el usuario cuelga la lista de Prism', await until(listaAbierta));
-  ok('y la página no puede leerla (shadow root cerrado)', await lwc.executeJavaScript(`!document.body.innerText.includes('Prueba')`));
+  ok('y no está en la página: no la puede leer, estilar ni tapar', (await domDeLaPagina(lwc)) === hijosAntes && await lwc.executeJavaScript(`!document.documentElement.innerHTML.includes('Prueba')`));
+  ok('la lista cae debajo del campo', await (async () => {
+    const r = await lwc.executeJavaScript(`(() => { const r = document.getElementById('u').getBoundingClientRect(); return { x: r.left, y: r.bottom }; })()`);
+    const b = ctx.tabs.active.view.getBounds();
+    const f = ctx.fill.webContents && await ctx.fill.webContents.executeJavaScript(`(() => { const r = document.getElementById('box').getBoundingClientRect(); return { x: r.left, y: r.top }; })()`);
+    const v = ctx.win.contentView.children.find((c) => c.webContents === ctx.fill.webContents)?.getBounds();
+    return !!f && !!v && Math.abs(v.x + f.x - (b.x + r.x)) <= 2 && Math.abs(v.y + f.y - (b.y + r.y + 4)) <= 2;
+  })());
+  // Una flecha inventada por la página no elige nada (la de la persona sí, abajo).
+  await lwc.executeJavaScript(`document.getElementById('u').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); true`);
+  await sleep(150);
+  ok('una flecha de la página no mueve la lista', !(await ctx.fill.webContents.executeJavaScript(`!!document.querySelector('.pr-fill__row.is-active')`)));
   lwc.sendInputEvent({ type: 'keyDown', keyCode: 'Down' });
   lwc.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
   ok('elegir completa usuario y contraseña', await until(() => lwc.executeJavaScript(`document.getElementById('u').value === 'fran' && document.getElementById('p').value === 'secreta'`)));
@@ -685,7 +700,14 @@ app.whenReady().then(async () => {
     if (click) for (const type of ['mouseDown', 'mouseUp']) wc.sendInputEvent({ type, x: at.x, y: at.y, button: 'left', clickCount: 1 });
     return { ...at, bottom: Math.round(o.y + r.y + r.h) };
   };
-  const conLista = (wc) => wc.executeJavaScript(`[...document.documentElement.children].some((e) => e.tagName === 'DIV' && !e.shadowRoot)`);
+  const conLista = () => ctx.fill.shown;
+  /** Un clic de verdad en la primera fila de la lista de Prism (su propia vista). */
+  const clicEnLista = async () => {
+    const fwc = ctx.fill.webContents;
+    const r = await fwc.executeJavaScript(`(() => { const r = document.querySelector('.pr-fill__row').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+    fwc.sendInputEvent({ type: 'mouseMove', x: r.x, y: r.y });
+    for (const type of ['mouseDown', 'mouseUp']) fwc.sendInputEvent({ type, x: r.x, y: r.y, button: 'left', clickCount: 1 });
+  };
   const elegir = async (wc) => {
     wc.sendInputEvent({ type: 'keyDown', keyCode: 'Down' });
     await sleep(250);
@@ -720,13 +742,12 @@ app.whenReady().then(async () => {
      iframe) y el campo se enfoca por script. El clic en la lista y las
      teclas, que son los que tienen que ser de verdad, van por sendInputEvent. */
   const enfocar = () => pay.f.executeJavaScript(`document.getElementById('n').focus(); true`);
-  const campo = await clickIn(iwc, '#n', pay);
+  await clickIn(iwc, '#n', pay);
   await sleep(150);
   await enfocar();
   ok('el campo del iframe cuelga la lista en la página de arriba', await until(() => conLista(iwc)));
   await sleep(250);
-  // La primera fila: debajo del campo, 4 de margen + 4 de relleno + la mitad de 44.
-  for (const type of ['mouseDown', 'mouseUp']) iwc.sendInputEvent({ type, x: campo.x, y: campo.bottom + 30, button: 'left', clickCount: 1 });
+  await clicEnLista();
   const enIframe = () => pay.f.executeJavaScript(`['n', 'e', 'c'].map((id) => document.getElementById(id).value).join('|')`);
   ok('un clic en la lista completa número, vencimiento y código en el iframe', await until(async () => (await enIframe()) === '4242424242424242|08 / 29|123'), await enIframe());
   ok('y el titular en la página', await iwc.executeJavaScript(`document.getElementById('nom').value`) === 'Fran Pavez');

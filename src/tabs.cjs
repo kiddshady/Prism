@@ -236,8 +236,10 @@ function createTabs(ctx) {
      y cerrar un menú pestañeaba. Corrida, sigue viva y pintada, no cambia de
      tamaño (la página no se remaqueta) y vuelve en el acto. */
   function layout() {
-    // La tarjeta de la esquina (card.cjs) sigue a la página y se queda arriba de todo.
+    // La tarjeta de la esquina (card.cjs) y la lista de contraseñas (fill.cjs)
+    // siguen a la página y se quedan arriba de todo.
     ctx.card?.place();
+    ctx.fill?.place();
     if (!attached.size) return;
     const rects = slotRects();
     for (const [view, slot] of attached) {
@@ -1027,8 +1029,8 @@ function createTabs(ctx) {
 
   function hold(on) {
     frozen = !!on;
-    // Un menú o un modal que se abre no puede quedar debajo de la tarjeta.
-    if (frozen) ctx.card?.hide();
+    // Un menú o un modal que se abre no puede quedar debajo de la tarjeta ni de la lista.
+    if (frozen) { ctx.card?.hide(); ctx.fill?.hide(); }
     layout();
     if (!frozen) {
       for (const done of [...thawWaiters]) done();

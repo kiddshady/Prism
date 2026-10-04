@@ -396,6 +396,11 @@ function createPasswords(ctx) {
   });
 
   return {
+    /** Un click en la lista de Prism (fill.cjs) es un gesto de la persona en esa pestaña. */
+    markGesture(wc) {
+      watchInput(wc);
+      gestures.set(wc.id, Date.now());
+    },
     async load() {
       await vault.load();
       if (vault.broken) console.error('[pass] la bóveda no se pudo abrir:', vault.broken);

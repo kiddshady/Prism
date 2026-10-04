@@ -37,6 +37,7 @@ const { createCerts } = require('./src/certs.cjs');
 const { createCapture } = require('./src/capture.cjs');
 const { createPrint } = require('./src/print.cjs');
 const { createCard } = require('./src/card.cjs');
+const { createFill } = require('./src/fill.cjs');
 const { createPip } = require('./src/pip.cjs');
 const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
@@ -458,6 +459,7 @@ function openIncognito(url = '') {
   g.capture = createCapture(g);
   g.print = createPrint(g);
   g.card = createCard(g);
+  g.fill = createFill(g);
   g.tabs = createTabs(g);
 
   g.onClosed = () => {
@@ -566,6 +568,7 @@ app.whenReady().then(async () => {
   ctx.capture = createCapture(ctx);
   ctx.print = createPrint(ctx);
   ctx.card = createCard(ctx);
+  ctx.fill = createFill(ctx);
   // Una sola ventanita para todas las ventanas (la de incógnito la hereda).
   ctx.pip = createPip({ store, icon: path.join(__dirname, 'build', 'icon.png') });
   ctx.defaultBrowser = createDefaultBrowser({ app, shell });

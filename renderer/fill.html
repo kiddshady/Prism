@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- La lista de contraseñas y tarjetas (src/fill.cjs): una vista propia,
+     transparente, apoyada sobre la página, debajo del campo que se completa. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+<title>Prism</title>
+<link rel="stylesheet" href="./css/fonts.css">
+<link rel="stylesheet" href="./css/tokens.css">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/fill.css">
+<body class="pr-fillhost">
+  <div class="pr-fill" id="box" role="listbox"></div>
+  <script type="module" src="./js/fill.js"></script>
+</body>
