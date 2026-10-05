@@ -48,7 +48,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.op-tooltip[data-state='closing'] { animation: op-pop-out 100ms var(--op-ease-in) both; }
+.op-tooltip[data-state='closing'] { animation: op-pop-out var(--op-t-1) var(--op-ease-in) both; }
 .op-tooltip__key { margin-left: var(--op-2); color: var(--op-text-3); }
 
 /* ── Menú contextual / dropdown ──────────────────────────────────────────── */
@@ -92,7 +92,7 @@
   animation: op-pop-in var(--op-t-2) var(--op-ease) both;
   transform-origin: var(--origin, top left);
 }
-.op-menu[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+.op-menu[data-state='closing'] { animation: op-pop-out var(--op-t-1) var(--op-ease-in) both; }
 /* Un menú que no entra entero: la barrita se ve mientras quede algo
    escondido arriba o abajo (el fade no va acá: se come el hairline). */
 .op-menu.op-scroll:not(.is-bottom)::-webkit-scrollbar-thumb,
@@ -150,7 +150,7 @@
 .op-scrim {
   position: fixed;
   inset: 0;
-  background: rgb(3 3 4 / .48);
+  background: var(--op-scrim);
   backdrop-filter: blur(10px) saturate(120%);
   animation: op-fade-in var(--op-t-3) var(--op-ease) both;
 }
@@ -216,7 +216,7 @@
   justify-content: flex-end;
   gap: var(--op-2);
   padding: var(--op-3) var(--op-5);
-  background: rgb(0 0 0 / .16);
+  background: var(--op-foot);
   box-shadow: inset 0 1px 0 var(--op-line);
 }
 

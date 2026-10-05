@@ -83,7 +83,7 @@
   color: #fff;
   box-shadow: var(--op-e1);
 }
-.op-btn--danger-solid:hover { background: #a04a50; }
+.op-btn--danger-solid:hover { background: var(--op-danger-hover); }
 
 /* Tamaños */
 .op-btn--sm { height: 24px; padding: 0 var(--op-2); font-size: var(--op-fs-11); }
@@ -110,6 +110,8 @@
 .op-iconbtn:hover { background: var(--op-wash-1); color: var(--op-text); }
 .op-iconbtn:active { transform: scale(.92); background: var(--op-wash-2); }
 .op-iconbtn.is-active { background: var(--op-wash-2); color: var(--op-text); }
+/* Apagado se ve apagado: antes era igual a uno que anda, y el click no hacía nada. */
+.op-iconbtn:disabled { color: var(--op-text-4); opacity: .55; pointer-events: none; }
 .op-iconbtn--sm { width: 22px; height: 22px; }
 .op-iconbtn--sm .op-icon { width: 13px; height: 13px; }
 
@@ -140,6 +142,11 @@
   transition: box-shadow var(--op-t-2) var(--op-ease-soft),
               background-color var(--op-t-2) var(--op-ease-soft);
 }
+/* El campo mide lo mismo que un select y un botón: 30 px justos. Con
+   min-height y el renglón heredado (19,5 px) terminaba en 31,5: en una misma
+   fila convivían dos alturas, y el medio píxel dejaba borroso el canto de
+   abajo. Un input centra solo su renglón; el textarea conserva su padding. */
+.op-input { height: 30px; padding-block: 0; }
 .op-input::placeholder,
 .op-textarea::placeholder { color: var(--op-text-4); }
 .op-input:hover,
@@ -204,15 +211,19 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--op-text-4);
+  /* text-3 y no text-4: una flecha que anda se tiene que ver (con text-4
+     medía 1,7:1 contra el campo, y un control pide 3:1). */
+  color: var(--op-text-3);
   cursor: pointer;
   transition: var(--tr-color), opacity var(--op-t-1) var(--op-ease-soft);
 }
 
 .op-stepper__btn:hover:not(:disabled) { color: var(--op-text); background: var(--op-s3); }
 .op-stepper__btn:active:not(:disabled) { color: var(--op-accent); }
-/* Apagado en el tope: el botón sigue ahí para que el campo no cambie de forma. */
-.op-stepper__btn:disabled { opacity: .25; cursor: default; }
+/* Apagado en el tope: el botón sigue ahí para que el campo no cambie de forma,
+   en el gris de lo deshabilitado (con opacity .25 encima, la activa y la
+   apagada casi no se distinguían). */
+.op-stepper__btn:disabled { color: var(--op-text-4); cursor: default; }
 .op-stepper__btn .op-icon { width: 10px; height: 10px; }
 
 /* ── Select propio ────────────────────────────────────────────────────────────

@@ -259,7 +259,21 @@ export function tick(el) {
 /* ── Lo que se anima desde JS ───────────────────────────────────────────────
    Los mismos tokens que tokens.css, para las animaciones de la Web Animations
    API (las listas y los tamaños, que no se pueden escribir en una hoja). */
-const T = { in: 280, out: 150, move: 280, size: 280, after: 80, step: 14 };
+let outMs = null;
+const T = {
+  in: 280, move: 280, size: 280, after: 80, step: 14,
+  /* Las salidas son la misma perilla que en el CSS (--op-t-out): la fila que
+     se va de una lista, el relevo chico, la pestaña que se cierra. Se lee la
+     primera vez que hace falta, con las hojas ya cargadas. */
+  get out() {
+    if (outMs == null) {
+      const v = getComputedStyle(document.documentElement).getPropertyValue('--op-t-out').trim();
+      const n = parseFloat(v);
+      outMs = Number.isFinite(n) ? (/ms$/.test(v) ? n : /s$/.test(v) ? n * 1000 : n) : 150;
+    }
+    return outMs;
+  },
+};
 const EASE = 'cubic-bezier(.16, 1, .3, 1)';        // --op-ease
 const EASE_BOTH = 'cubic-bezier(.65, 0, .35, 1)';  // --op-ease-both
 

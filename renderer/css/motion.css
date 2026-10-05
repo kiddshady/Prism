@@ -177,7 +177,7 @@
 .op-swap > .op-swap__item.is-after { animation-delay: 60ms; }
 .op-swap > .op-swap__item.is-settled { animation: none; }
 /* Después de is-settled, con la misma especificidad: salir siempre gana. */
-.op-swap > .op-swap__item[data-state='closing'] { animation: op-swap-out 150ms var(--op-ease-both) both; }
+.op-swap > .op-swap__item[data-state='closing'] { animation: op-swap-out var(--op-t-out) var(--op-ease-both) both; }
 .op-swap > .op-swap__item[data-dir='up'][data-state='closing']   { animation-name: op-swap-up-out; }
 .op-swap > .op-swap__item[data-dir='down'][data-state='closing'] { animation-name: op-swap-down-out; }
 

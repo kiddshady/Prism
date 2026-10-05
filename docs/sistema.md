@@ -104,8 +104,13 @@ pintar uno — el sistema base ya no lo hace.
 
 ### Rojo
 
-`--op-danger`, `--op-danger-dim`, `--op-danger-wash`, `--op-danger-ring`.
-Reservados al fallo. Si el rojo aparece decorando, deja de significar.
+`--op-danger`, `--op-danger-dim`, `--op-danger-wash`, `--op-danger-ring`,
+`--op-danger-hover` (el sólido bajo el mouse). Reservados al fallo. Si el rojo
+aparece decorando, deja de significar.
+
+Lo que hunde: `--op-scrim` (el velo detrás de un modal) y `--op-foot` (el pie
+del modal, que se hunde apenas). Antes estaban escritos a mano en
+`overlays.css`.
 
 ### Hairlines, elevación, radios
 
@@ -149,7 +154,11 @@ estilo.
 | `--op-ease-in` | in | Salidas |
 
 Duraciones: `--op-t-1` (110ms, hover) · `--op-t-2` (180ms, el default) ·
-`--op-t-3` (280ms, overlays) · `--op-t-4` (420ms, vistas).
+`--op-t-3` (280ms, overlays) · `--op-t-4` (420ms, vistas) · `--op-t-out`
+(150ms, lo que se va en su lugar: el valor viejo de un relevo, la fila que sale
+de una lista, la pestaña que se cierra). `--op-t-out` es la única perilla de
+las salidas: la leen el CSS y `motion.js`. Los overlays chicos (tooltip, menú)
+salen con `--op-t-1`.
 
 Transiciones ya compuestas: `--tr-color`, `--tr-move`, `--tr-fade`,
 `--tr-surface`. **Nunca `transition: all`** — anima propiedades que no querías
@@ -265,7 +274,8 @@ contenedor que scrollea, se van de pantalla con el contenido.
 
 `.op-btn` + una variante: `--primary` (uno solo por pantalla) · `--secondary` ·
 `--ghost` · `--danger` · `--danger-solid` (lo que no tiene vuelta atrás).
-Tamaños `--sm` / `--lg`. `.op-iconbtn` (+`--sm`) para los de solo ícono.
+Tamaños `--sm` / `--lg`. `.op-iconbtn` (+`--sm`) para los de solo ícono;
+deshabilitado se ve apagado (gris y a media luz), no igual a uno que anda.
 
 Agregá `.op-flashable` para el velo de luz al presionar. Se cablea solo con
 `initClickFlash()`.
@@ -280,7 +290,9 @@ Agregá `.op-flashable` para el velo de luz al presionar. Se cablea solo con
 </div>
 ```
 
-`.op-input.is-invalid` + `.op-field__hint--error` para el error.
+`.op-input.is-invalid` + `.op-field__hint--error` para el error. Un
+`.op-input` mide 30 px justos, lo mismo que un `.op-select` y un `.op-btn`: en
+una fila no conviven dos alturas.
 `.op-textarea`, `--mono` en ambos. `.op-inputwrap` para meter un ícono adentro.
 
 ### Los que no son nativos
@@ -288,7 +300,7 @@ Agregá `.op-flashable` para el velo de luz al presionar. Se cablea solo con
 | Clase | Notas |
 |---|---|
 | `.op-select` | Es un `<button>`. Abre un `Menu` propio, no un `<select>` |
-| `.op-stepper` | Envuelve un `<input type=number>` y le pone flechas propias. Cablealo con `bindStepper()` |
+| `.op-stepper` | Envuelve un `<input type=number>` y le pone flechas propias. Cablealo con `bindStepper()`. Las flechas van en `text-3` (se tienen que ver); la del tope se apaga a `text-4` |
 | `.op-switch` | `.is-on` lo prende |
 | `.op-check` | `.is-on`; el tilde se dibuja con `stroke-dashoffset` |
 | `.op-slider` | `<input type=range>` estilado; seteale `--op-pct` |

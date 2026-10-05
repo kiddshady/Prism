@@ -54,7 +54,7 @@
 .pr-head__actions { display: flex; align-items: center; gap: var(--op-2); flex: 0 0 auto; }
 
 .pr-search { width: 240px; }
-.pr-search .op-input { padding-left: 30px; height: 30px; }
+.pr-search .op-input { padding-left: 30px; }
 
 /* ── Nueva pestaña ───────────────────────────────────────────────────────── */
 

@@ -1764,7 +1764,7 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('aud-notr')?.remove(); true`);
   ctx.tabs.close(ctx.tabs.active.id);
 
-  console.log('\n13d. Detalles: toast, tooltip y modal');
+  console.log('\n13d. Detalles: toast, tooltip, modal, campos y botones');
   const toast = await js(`(async () => {
     const { Toast } = await import('./js/overlays.js');
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1886,6 +1886,38 @@ app.whenReady().then(async () => {
     return { foco, cerrado };
   })()`);
   ok('«Borrar datos» arranca en Cancelar, no en la X', borrar.foco === 'Cancelar' && borrar.cerrado, JSON.stringify(borrar));
+
+  const piezas = await js(`(() => {
+    const box = document.createElement('div');
+    box.id = 'piezas-de-prueba';
+    box.style.cssText = 'position:fixed;left:40px;top:220px;z-index:2147483646;display:flex;gap:12px;align-items:center;padding:16px;background:var(--op-bg)';
+    box.innerHTML = '<input class="op-input" style="width:120px"><button class="op-select" style="width:120px"><span class="op-select__value">Elegir</span></button>'
+      + '<button class="op-btn op-btn--secondary">Botón</button><button class="op-iconbtn" disabled>x</button>'
+      + '<div class="op-stepper" style="width:90px"><input class="op-input" type="number" value="1" min="1" max="1">'
+      + '<div class="op-stepper__btns"><button class="op-stepper__btn" data-step="up" disabled>+</button><button class="op-stepper__btn" data-step="down">-</button></div></div>';
+    document.body.append(box);
+    const q = (s) => box.querySelector(s);
+    const color = (v) => { const p = document.createElement('span'); p.style.color = v; box.append(p); const c = getComputedStyle(p).color; p.remove(); return c; };
+    const dur = (html, sel) => { const s = document.createElement('div'); s.innerHTML = html; box.append(s); const d = getComputedStyle(s.querySelector(sel)).animationDuration; s.remove(); return d; };
+    const r = {
+      alturas: [q('.op-input').getBoundingClientRect().height, q('.op-select').getBoundingClientRect().height, q('.op-btn').getBoundingClientRect().height],
+      flecha: getComputedStyle(q('[data-step="down"]')).color, flechaApagada: getComputedStyle(q('[data-step="up"]')).color,
+      flechaOpacidad: getComputedStyle(q('[data-step="up"]')).opacity,
+      texto3: color('var(--op-text-3)'), texto4: color('var(--op-text-4)'),
+      apagado: getComputedStyle(q('.op-iconbtn[disabled]')).opacity,
+      salidaRelevo: dur('<span class="op-swap"><span class="op-swap__item" data-state="closing">x</span></span>', '.op-swap__item'),
+      salidaPestana: dur('<div class="pr-tab" data-state="closing"><div class="pr-tab__body"></div></div>', '.pr-tab__body'),
+      salidaTooltip: dur('<div class="op-tooltip" data-state="closing">x</div>', '.op-tooltip'),
+    };
+    box.remove();
+    return r;
+  })()`);
+  ok('un campo mide lo mismo que un select y un botón (30 px)', piezas.alturas.every((v) => v === 30), JSON.stringify(piezas.alturas));
+  ok('las flechas del campo numérico que andan se ven (text-3)', piezas.flecha === piezas.texto3, JSON.stringify(piezas));
+  ok('y la del tope se apaga a text-4, sin velo encima', piezas.flechaApagada === piezas.texto4 && piezas.flechaOpacidad === '1', JSON.stringify(piezas));
+  ok('un botón de ícono apagado se ve apagado', Number(piezas.apagado) < 0.7, JSON.stringify(piezas));
+  ok('las salidas en su lugar duran --op-t-out (un relevo, una pestaña)', piezas.salidaRelevo === '0.15s' && piezas.salidaPestana === '0.15s', JSON.stringify(piezas));
+  ok('y el tooltip sale con --op-t-1', piezas.salidaTooltip === '0.11s', JSON.stringify(piezas));
 
   console.log('\n14. Sin errores en la consola del cromo');
   ok('ninguno', errores.length === 0, errores.slice(0, 3).join(' | '));

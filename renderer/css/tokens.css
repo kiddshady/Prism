@@ -163,8 +163,15 @@
   --op-danger-rgb: 212 103 107;
   --op-danger:      rgb(var(--op-danger-rgb));
   --op-danger-dim:  oklch(47.5% .106 18);
+  --op-danger-hover: color-mix(in srgb, var(--op-danger-dim), var(--op-danger) 25%);   /* el sólido bajo el mouse */
   --op-danger-wash: rgb(var(--op-danger-rgb) / .12);
   --op-danger-ring: rgb(var(--op-danger-rgb) / .45);
+
+  /* ── Lo que hunde ──────────────────────────────────────────────────────────
+     El velo detrás de un modal y el pie del modal, que se hunde apenas. Antes
+     vivían escritos a mano en overlays.css. */
+  --op-scrim: rgb(3 3 4 / .48);
+  --op-foot:  rgb(0 0 0 / .16);
 
   /* ── Tipografía ────────────────────────────────────────────────────────────
      Sans para toda la interfaz, mono SOLO para dato exacto: IDs, números,
@@ -236,6 +243,13 @@
   --op-t-2: 180ms;   /* el default */
   --op-t-3: 280ms;   /* entradas de overlay */
   --op-t-4: 420ms;   /* transiciones de vista */
+  /* Lo que se va en su lugar: el valor viejo de un relevo, la fila que sale de
+     una lista, la pestaña que se cierra. Más corto que cualquier entrada (lo
+     que se va ya no importa) y más largo que un hover: con alguien esperando
+     detrás, tiene que bajar parejo. Es una sola perilla para las salidas;
+     antes eran 150 ms escritos a mano en el CSS y en motion.js. Los overlays
+     chicos salen con --op-t-1. */
+  --op-t-out: 150ms;
 
   /* Transiciones nombradas: se componen, nunca se escribe `transition: all`
      (que anima propiedades que no querías y cuesta caro en repaints).
