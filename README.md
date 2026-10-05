@@ -260,6 +260,9 @@ el instalador le saca a `file://` el privilegio de leer otros archivos.
   número subía sin cambiar de sufijo: una descarga decía «1024 kB» un
   instante antes de «1,0 MB», y un contador, «1000k». La unidad y los
   decimales se eligen con el valor ya redondeado (format.js).
+- **El cromo también se cae.** Las páginas tienen su aviso de pestaña rota,
+  pero si se caía el proceso del cromo, la ventana quedaba con la página
+  viva y sin barra ni pestañas. Se recarga solo, con tope (src/recover.cjs).
 - **El anillo de foco con `box-shadow` lo pisa cualquier control con sombra
   propia.** Primario, secundario, switches, checks y selects quedaban sin
   ninguna marca de foco con el teclado. Es un `outline` (docs/sistema.md).
@@ -304,6 +307,7 @@ src/
   ipc.cjs             Lo que el cromo puede pedir.
   store.cjs           JSON atómico (de Opal) y los ajustes.
   windows.cjs         Las ventanas (normal e incógnito): de cuál viene cada pedido.
+  recover.cjs         Si se cae el proceso del cromo, lo recarga (de Opal).
 renderer/
   index.html          El shell: tira de pestañas, barra, hoja de la página.
   css/prism.css       El cromo del navegador (prefijo pr-).

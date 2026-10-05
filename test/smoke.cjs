@@ -1970,6 +1970,30 @@ app.whenReady().then(async () => {
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   await until(() => js(`!document.querySelector('.pr-pass')`));
 
+  console.log('\n13e. Si se cae el cromo, vuelve solo');
+  /* Va al final: recarga el cromo. Las pestañas viven en sus procesos y su
+     estado en main, así que el cromo nuevo tiene que quedar como estaba. */
+  const cromoAntes = { n: ctx.tabs.list.length, activa: ctx.tabs.active?.id };
+  win.webContents.forcefullyCrashRenderer();
+  // Con el cromo caído, executeJavaScript no contesta nunca: cada intento tiene su plazo.
+  const vivo = () => Promise.race([js(`!document.getElementById('boot-splash') && !!window.__prism && document.querySelectorAll('.pr-tab').length > 0`).catch(() => false), sleep(1500).then(() => false)]);
+  const volvio = await until(vivo, 15000);
+  ok('el cromo se recarga y arranca de nuevo', volvio);
+  if (!volvio) {
+    console.log(`\n═══ ${pass} ok · ${fail} fallas ═══`);
+    server.close();
+    app.exit(1);
+    return;
+  }
+  ok('con las mismas pestañas, y la misma activa', ctx.tabs.list.length === cromoAntes.n && ctx.tabs.active?.id === cromoAntes.activa, JSON.stringify({ antes: cromoAntes, ahora: { n: ctx.tabs.list.length, activa: ctx.tabs.active?.id } }));
+  ok('y tantas pestañas en la tira como en main', await until(() => js(`document.querySelectorAll('.pr-tab:not([data-state="closing"])').length === ${cromoAntes.n}`), 4000));
+  const cae = async () => {
+    const p = await js(`(() => { const r = document.getElementById('page').getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; })()`);
+    const v = ctx.tabs.active.view?.getBounds();
+    return v && Math.abs(v.x - p.x) <= 1 && Math.abs(v.y - p.y) <= 1 && Math.abs(v.width - p.w) <= 1 && Math.abs(v.height - p.h) <= 1;
+  };
+  ok('la página sigue cayendo exactamente sobre #page', await until(cae, 4000));
+
   console.log('\n14. Sin errores en la consola del cromo');
   ok('ninguno', errores.length === 0, errores.slice(0, 3).join(' | '));
 

@@ -44,6 +44,7 @@ const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
 const { createDefaultBrowser, targetsFromArgv } = require('./src/default-browser.cjs');
 const { createAutostart, HIDDEN } = require('./src/autostart.cjs');
+const { keepAlive } = require('./src/recover.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
    renderer lo vuelve a mandar apenas carga (win.setBackground), así que este
@@ -316,6 +317,8 @@ function createWindow(w, state) {
   const offList = windows.add(w);
 
   win.loadURL(ui.uiUrl('index.html'));
+  // Si se cae el proceso del cromo, se recarga solo (recover.cjs).
+  keepAlive(win);
 
   win.once('ready-to-show', () => {
     if (SHOTS) { win.showInactive(); return; }
