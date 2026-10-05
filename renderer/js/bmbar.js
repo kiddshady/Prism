@@ -108,6 +108,9 @@ function update(el, b) {
 function makeItem(b) {
   const el = document.createElement('button');
   el.className = 'pr-bm';
+  // La barra no se recorre con Tab (como en Chrome): con decenas de
+  // favoritos, había que pasar por todos para llegar a la página.
+  el.tabIndex = -1;
   el.dataset.id = b.id;
   update(el, b);
   return el;
@@ -135,7 +138,7 @@ function showEmpty() {
   if (items.querySelector('.pr-bmbar__empty:not([data-state="closing"])')) return;
   items.insertAdjacentHTML('beforeend', `<div class="pr-bmbar__empty">${Icons.svg('star')}
     <span>Para tener un sitio a mano acá, tocá la estrella de la barra.</span>
-    <button class="pr-bmbar__link" data-import>Importar favoritos</button></div>`);
+    <button class="pr-bmbar__link" data-import tabindex="-1">Importar favoritos</button></div>`);
 }
 
 let painted = false;

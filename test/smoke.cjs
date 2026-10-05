@@ -1771,6 +1771,66 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('aud-notr')?.remove(); true`);
   ctx.tabs.close(ctx.tabs.active.id);
 
+  console.log('\n13c2. El Tab recorre solo lo que se ve');
+  /* La barra de buscar cerrada estaba escondida con aria-hidden solo: el Tab
+     caía en su campo y en sus tres botones, invisibles, y sus tooltips
+     («Cerrar Esc») flotaban al lado de la ventana. Y la barra de favoritos y
+     los botones de la ventana tampoco se recorren (como en Chrome). */
+  await enfocada();
+  const recorrido = await (async () => {
+    const vistos = [];
+    await js(`document.activeElement?.blur(); true`);
+    for (let i = 0; i < 30; i++) {
+      win.webContents.focus();
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' });
+      await sleep(60);
+      const r = await js(`(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        const b = el.getBoundingClientRect();
+        let opaco = true;
+        for (let a = el; a && a !== document.documentElement; a = a.parentElement) if (getComputedStyle(a).opacity === '0') opaco = false;
+        return { nombre: (el.id ? '#' + el.id : el.tagName.toLowerCase() + '.' + [...el.classList].join('.')),
+          oculto: !!el.closest('[aria-hidden="true"],[inert]') || b.width < 2 || b.height < 2 || !opaco,
+          barra: !!el.closest('#bmbar'), ventana: el.matches('.op-wincontrol') };
+      })()`);
+      if (!r) continue;
+      if (vistos.some((v) => v.nombre === r.nombre)) break;
+      vistos.push(r);
+    }
+    return vistos;
+  })();
+  const pasos = recorrido.map((v) => v.nombre).join(' → ');
+  ok('el Tab no se detiene en nada que no se vea', recorrido.length > 3 && !recorrido.some((v) => v.oculto), pasos);
+  ok('ni en la barra de favoritos ni en los botones de la ventana', !recorrido.some((v) => v.barra || v.ventana), pasos);
+  ok('y pasa por la barra de direcciones', recorrido.some((v) => v.nombre === '#omni-input'), pasos);
+  ctx.tabs.create({ url: `${BASE}/` });
+  await until(() => ctx.tabs.active.title === 'Inicio de prueba' && !ctx.tabs.active.loading);
+  ok('la barra de buscar, cerrada, es inerte', await js(`document.getElementById('find').inert`));
+  ctx.command('find:open');
+  ok('abierta deja de serlo, y el foco va a su campo', await until(() => js(`!document.getElementById('find').inert && document.activeElement?.id === 'find-input'`)));
+  await js(`document.getElementById('find-close').click(); true`);
+  ok('y al cerrarla vuelve a ser inerte', await until(() => js(`document.getElementById('find').inert`)));
+  ctx.tabs.close(ctx.tabs.active.id);
+  if (!(await js(`!!document.querySelector('.pr-bm')`))) {
+    ctx.library.addBookmark({ url: `${BASE}/dos`, title: 'Página dos' });
+    ctx.send('library:changed');
+    await until(() => js(`!!document.querySelector('.pr-bm')`));
+  }
+  // Con el anillo prendido de verdad: sin la ventana enfocada no hay :focus-visible, y se insiste.
+  const medirBarra = () => js(`(() => [document.querySelector('.pr-bm'), document.getElementById('bmbar-more')].map((el) => {
+    el.focus({ focusVisible: true });
+    const s = getComputedStyle(el);
+    const r = { tab: el.tabIndex, prendido: el.matches(':focus-visible') && s.outlineStyle !== 'none', sale: parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset) };
+    el.blur();
+    return r;
+  }))()`);
+  let barra = [];
+  await until(async () => { await enfocada(); barra = await medirBarra(); return barra.every((b) => b.prendido); }, 6000);
+  ok('la barra de favoritos queda fuera del Tab', barra.every((b) => b.tab === -1), JSON.stringify(barra));
+  ok('y su anillo va por dentro: la barra ya no le come el canto', barra.every((b) => b.prendido && b.sale <= 0.5), JSON.stringify(barra));
+
   console.log('\n13d. Detalles: toast, tooltip, modal, campos y botones');
   /* Lo que vino de Opal en su tanda 7. Una página web activa: la estrella
      solo está con un sitio, y la que tarda en cargar deja ver «detener». */

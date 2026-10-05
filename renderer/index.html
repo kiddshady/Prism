@@ -81,10 +81,13 @@
     <!-- Solo en la ventana de incógnito (app.js le pone .is-incognito a la app). -->
     <div class="pr-incognito" aria-label="Ventana de incógnito"><i data-icon="ghost"></i><span>Incógnito</span></div>
 
+    <!-- Fuera del recorrido del Tab, como en Chrome: la ventana se maneja con
+         Win+flechas o Alt+Espacio, y tres paradas antes de la barra de
+         direcciones solo estorbaban. -->
     <div class="op-wincontrols">
-      <button class="op-wincontrol" id="win-min"   aria-label="Minimizar"><i data-icon="winMin"></i></button>
-      <button class="op-wincontrol op-iconswap" id="win-max"   aria-label="Maximizar"><i data-icon="winMax"></i><i data-icon="winRestore"></i></button>
-      <button class="op-wincontrol op-wincontrol--close" id="win-close" aria-label="Cerrar"><i data-icon="winClose"></i></button>
+      <button class="op-wincontrol" id="win-min"   aria-label="Minimizar" tabindex="-1"><i data-icon="winMin"></i></button>
+      <button class="op-wincontrol op-iconswap" id="win-max"   aria-label="Maximizar" tabindex="-1"><i data-icon="winMax"></i><i data-icon="winRestore"></i></button>
+      <button class="op-wincontrol op-wincontrol--close" id="win-close" aria-label="Cerrar" tabindex="-1"><i data-icon="winClose"></i></button>
     </div>
   </header>
 
@@ -117,7 +120,7 @@
 
     <!-- Buscar en la página: entra a la barra y achica la omnibox, en vez de
          flotar sobre la página (ahí taparía justo lo que se está buscando). -->
-    <div class="pr-find" id="find" aria-hidden="true">
+    <div class="pr-find" id="find" inert>
       <div class="pr-find__inner">
         <i data-icon="search"></i>
         <input class="pr-find__input" id="find-input" type="text" spellcheck="false" placeholder="Buscar en la página">
@@ -148,7 +151,7 @@
        va al menú de la punta. -->
   <nav class="pr-bmbar" id="bmbar" aria-label="Barra de favoritos">
     <div class="pr-bmbar__items" id="bmbar-items"></div>
-    <button class="op-iconbtn op-iconbtn--sm pr-bmbar__more" id="bmbar-more" aria-label="Más favoritos"><i data-icon="chevronRight"></i></button>
+    <button class="op-iconbtn op-iconbtn--sm pr-bmbar__more" id="bmbar-more" aria-label="Más favoritos" tabindex="-1"><i data-icon="chevronRight"></i></button>
   </nav>
 
   <!-- ── La página ──────────────────────────────────────────────────────────

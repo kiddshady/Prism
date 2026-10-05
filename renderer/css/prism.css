@@ -823,6 +823,11 @@
 /* Cerrada se pliega a lo ancho (y se come el gap) en vez de display:none. */
 .pr-bmbar__more:not(.is-on) { width: 0; margin-left: calc(-1 * var(--op-1)); opacity: 0; transform: scale(.8); pointer-events: none; }
 .pr-bm__label > .op-swap__item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* El anillo va por dentro: la barra mide 30 px y recorta lo que se pasa, y
+   por fuera (3,5 px) el del «más» perdía el canto de arriba. Con Tab la barra
+   no se recorre, pero un botón tocado con el mouse lo muestra si después se
+   aprieta una tecla. */
+.pr-bmbar :is(.pr-bm, .pr-bmbar__more, .pr-bmbar__link):focus-visible { outline-offset: -1.5px; }
 
 /* El menú de la punta (bmbar.js): un menú de Opal con los favicons de la
    barra, cuyas filas se arrastran. Mismo trato que el arrastre de la barra:

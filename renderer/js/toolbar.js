@@ -60,7 +60,7 @@ export function openFind() {
   // Lo de la vez anterior se quedó para plegarse con la barra: ahora se va.
   if (!findInput.value) paintCount('');
   find.classList.add('is-open');
-  find.setAttribute('aria-hidden', 'false');
+  find.inert = false;
   findInput.focus();
   findInput.select();
   if (findInput.value) api.page.find(findInput.value, { newSession: true });
@@ -75,8 +75,11 @@ const paintCount = (text) => swapText(findCount, text, { dir: findDir });
 export function closeFind({ focusPage = false } = {}) {
   if (!findOpen) return;
   findOpen = false;
+  /* Cerrada, inerte: ni el Tab ni el mouse llegan a lo que no se ve. Con
+     aria-hidden solo, sus botones seguían en el recorrido del Tab, sin
+     anillo a la vista y con su tooltip flotando al lado de la ventana. */
   find.classList.remove('is-open', 'is-miss');
-  find.setAttribute('aria-hidden', 'true');
+  find.inert = true;
   api.page.findStop();
   if (focusPage) api.page.focus();
 }
