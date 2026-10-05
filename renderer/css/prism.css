@@ -836,6 +836,7 @@
    tenue en su lugar mientras un fantasma sigue al mouse. */
 .pr-bmmenu { max-width: 320px; }
 .pr-bmmenu__item > img { width: 14px; height: 14px; flex: 0 0 auto; border-radius: 3px; }
+.pr-bmmenu__item.is-open { background: var(--op-wash-2); color: var(--op-text); }
 .pr-bmmenu.is-sorting .pr-bmmenu__item { transition: var(--tr-color), transform var(--op-t-2) var(--op-ease), opacity var(--op-t-1) var(--op-ease-soft); }
 .pr-bmmenu.is-sorting .pr-bmmenu__item:not(.is-dragging):hover { background: transparent; color: var(--op-text-2); }
 .pr-bmmenu .pr-bmmenu__item.is-dragging,

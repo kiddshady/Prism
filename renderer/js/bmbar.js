@@ -393,14 +393,16 @@ function open(url, { background = false } = {}) {
   else api.tabs.navigate(S.activeId, url).catch(() => {});
 }
 
-function itemMenu(e, b, btn) {
+/** `then`: lo que pasa antes de cada opción (en el menú de la punta, cerrarlo). */
+function itemMenu(e, b, btn, then = () => {}) {
   btn.classList.add('is-open');
+  const go = (fn) => () => { then(); fn(); };
   menu(pointAnchor(e.clientX, e.clientY), [
-    { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: () => open(b.url, { background: true }) },
-    { label: 'Copiar la dirección', icon: 'link', onSelect: () => copyUrl(b.url) },
-    { label: 'Editar…', icon: 'edit', onSelect: () => editBookmark(b.id) },
+    { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: go(() => open(b.url, { background: true })) },
+    { label: 'Copiar la dirección', icon: 'link', onSelect: go(() => copyUrl(b.url)) },
+    { label: 'Editar…', icon: 'edit', onSelect: go(() => editBookmark(b.id)) },
     { sep: true },
-    { label: 'Quitar de favoritos', icon: 'trash', danger: true, onSelect: () => api.bookmarks.remove(b.id) },
+    { label: 'Quitar de favoritos', icon: 'trash', danger: true, onSelect: go(() => api.bookmarks.remove(b.id)) },
   ], { align: 'start', onClose: () => btn.classList.remove('is-open') });
 }
 
@@ -510,6 +512,7 @@ async function openMore() {
   el.addEventListener('pointercancel', () => cancelRowDrag());
   el.addEventListener('click', onRowClick);
   el.addEventListener('auxclick', onRowAux);
+  el.addEventListener('contextmenu', onRowContext);
   // No se lleva el foco (como un menú), y el botón del medio no arranca el autoscroll.
   el.addEventListener('mousedown', (e) => e.preventDefault());
   el.addEventListener('mouseover', (e) => {
@@ -521,7 +524,8 @@ async function openMore() {
   el.addEventListener('mouseleave', () => { if (!mdrag?.moved) hover(''); });
 
   pan.onKey = (e) => {
-    if (!pan || mdrag?.moved) return;
+    // Con el menú de una fila abierto, las teclas son de ese menú (Escape cierra solo ese).
+    if (!pan || mdrag?.moved || Menu.isOpen) return;
     if (e.key === 'Escape') { e.stopPropagation(); closeMore(); return; }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
@@ -545,6 +549,8 @@ async function openMore() {
   pan.onDown = (e) => {
     if (!pan || mdrag) return;
     if (el.contains(e.target) || more.contains(e.target)) return;
+    // El menú del click derecho de una fila: elegir ahí ya cierra este (itemMenu).
+    if (e.target.closest?.('.op-menu')) return;
     closeMore();
   };
   document.addEventListener('keydown', pan.onKey, true);
@@ -582,6 +588,16 @@ function onRowAux(e) {
   if (!hit?.b || e.button !== 1) return;
   closeMore();
   open(hit.b.url, { background: true });
+}
+
+/** Click derecho en una fila: el mismo menú que en la barra, encima de este. */
+function onRowContext(e) {
+  e.preventDefault();
+  if (mdrag?.moved) return;
+  const hit = rowOf(e);
+  if (!hit?.b) return;
+  hover('');
+  itemMenu(e, hit.b, hit.row, () => closeMore());
 }
 
 /* ── Arrastrar una fila del menú ─────────────────────────────────────────── */
