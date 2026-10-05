@@ -373,13 +373,25 @@ await Modal.confirm({ title, sub, confirmLabel, danger });
 
 **Tooltips**: declarativos. `data-tip="texto"`, opcionalmente `data-tip-side`
 (`top`|`bottom`|`left`|`right`) y `data-tip-key` para el atajo. Nunca `title=`.
+Aparecen también al llegar con Tab (con `:focus-visible`, no con el foco de un
+click) y Escape los descarta. Un botón de solo ícono sin `aria-label` toma el
+texto del tooltip como nombre, para que un lector de pantalla no diga «botón»
+a secas. Si el ancla se va del DOM mientras se ve, el tooltip se va con ella.
+
+**Toasts**: el hover pausa la cuenta; al soltarlo sigue con lo que le quedaba.
 
 **Menu items**: `{ label, icon, key, danger, selected, disabled, onSelect }`,
 más `{ sep: true }` y `{ groupLabel }`.
 
 **Modal**: devuelve una promesa con el `value` del botón que se apretó (`null`
 si se cerró). El `body` puede ser HTML o un `Node` — si es un nodo, podés leer
-sus campos después de que cierre. Atrapa el foco y cierra con Escape.
+sus campos después de que cierre. Atrapa el foco y cierra con Escape. El foco
+arranca en el botón que tenga `autofocus` (para un diálogo de opciones, como
+imprimir, donde las flechas no pueden cambiar un campo) y, si ninguno lo pide,
+en el primer campo visible del cuerpo. Un diálogo con un nombre para escribir
+no le pone `autofocus` al botón. Enter en un campo de una línea confirma con la
+acción `primary`: nunca con la destructiva, ni en un textarea, ni con un menú
+abierto encima.
 
 Hay uno solo a la vista: el que llega con otro abierto **espera su turno** y,
 cuando el actual se cierra, entra sobre el mismo velo (relevo, no dos modales

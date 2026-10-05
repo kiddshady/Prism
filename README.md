@@ -254,7 +254,8 @@ el instalador le saca a `file://` el privilegio de leer otros archivos.
   ella. El fetch que se le pasa tira error si la respuesta no es `ok`.
 - **Un menú recién creado ya está animando.** Medido con
   `getBoundingClientRect` sale achicado por la escala de su entrada, y se
-  ubicaba como si fuera más chico: el tamaño va con `offsetWidth`.
+  ubicaba como si fuera más chico: el tamaño va con `offsetWidth`. Al
+  tooltip le pasaba lo mismo: quedaba unos 2,5 px corrido de su botón.
 - **Elegir la unidad antes de redondear.** Justo debajo de un límite, el
   número subía sin cambiar de sufijo: una descarga decía «1024 kB» un
   instante antes de «1,0 MB», y un contador, «1000k». La unidad y los

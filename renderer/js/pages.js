@@ -560,7 +560,8 @@ export async function editBookmark(id) {
     title: 'Editar favorito',
     body,
     width: 460,
-    actions: [{ label: 'Cancelar', value: false }, { label: 'Guardar', value: true, variant: 'primary', autofocus: true }],
+    // Sin autofocus: el foco arranca en el nombre, y Enter guarda.
+    actions: [{ label: 'Cancelar', value: false }, { label: 'Guardar', value: true, variant: 'primary' }],
   });
   if (!ok) return;
   await api.bookmarks.update(id, { title: body.querySelector('#b-title').value, url: body.querySelector('#b-url').value })

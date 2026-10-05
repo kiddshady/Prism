@@ -38,9 +38,13 @@ const Tooltip = (() => {
   let anchor = null;
   let timer = null;
   let left = -Infinity;  // cuándo se fue el último por salir de su ancla
+  let watch = null;      // vigila que el ancla siga en el DOM mientras se ve
+  let byKey = false;     // el que espera llegó con el teclado
 
-  function hide(immediate = false) {
-    clearTimeout(timer);
+  /** `keep`: el que espera para aparecer sigue esperando (ver el scroll). */
+  function hide(immediate = false, { keep = false } = {}) {
+    if (!keep) clearTimeout(timer);
+    clearInterval(watch);
     if (!current) return;
     const el = current;
     current = null;
@@ -67,6 +71,10 @@ const Tooltip = (() => {
     }
     layer().appendChild(tip);
     current = tip;
+    /* Si el ancla se va del DOM mientras se ve (una lista que se repinta), el
+       navegador no manda pointerout, y el tooltip quedaba clavado. El mouse
+       puede no moverse más: se mira cada tanto. */
+    watch = setInterval(() => { if (!anchor?.isConnected) hide(true); }, 250);
 
     const a = el.getBoundingClientRect();
     let [x, y, t] = place(tip, a, el.dataset.tipSide || 'top');
@@ -85,7 +93,9 @@ const Tooltip = (() => {
   }
 
   function place(tip, a, side) {
-    const t = tip.getBoundingClientRect();
+    /* El tamaño de layout, no el del rectángulo: la entrada ya arrancó y la
+       escala lo achica, y quedaba unos 2,5 px descentrado de su ancla. */
+    const t = { width: tip.offsetWidth, height: tip.offsetHeight };
     let x, y;
     if (side === 'bottom')      { x = a.left + a.width / 2 - t.width / 2; y = a.bottom + GAP; }
     else if (side === 'left')   { x = a.left - t.width - GAP;             y = a.top + a.height / 2 - t.height / 2; }
@@ -101,21 +111,66 @@ const Tooltip = (() => {
 
   let wall = null;
 
+  /* Un botón de solo ícono con data-tip y sin aria-label es, para un lector de
+     pantalla, «botón» a secas: el texto del tooltip pasa a ser su nombre. Lo
+     que la app nombró por su cuenta no se toca. */
+  const named = new WeakSet();
+  function label(root) {
+    const els = root.querySelectorAll ? [...root.querySelectorAll('[data-tip]')] : [];
+    if (root.matches?.('[data-tip]')) els.push(root);
+    for (const el of els) {
+      if (el.textContent.trim()) continue;
+      if (el.hasAttribute('aria-label') && !named.has(el)) continue;
+      el.setAttribute('aria-label', el.dataset.tip);
+      named.add(el);
+    }
+  }
+
   /** `opts.wall()` → la Y desde la que el DOM queda tapado (o null). */
   function init(root = document, opts = {}) {
     wall = opts.wall || null;
+    label(document.body);
+    new MutationObserver((muts) => {
+      for (const m of muts) {
+        if (m.type === 'attributes') label(m.target);
+        else m.addedNodes.forEach((n) => { if (n.nodeType === 1) label(n); });
+      }
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-tip'] });
+
+    /* Con el teclado también: el que llega con Tab a un botón de ícono tiene
+       que poder saber qué hace. Solo con :focus-visible; el foco que deja un
+       click no lo muestra. */
+    root.addEventListener('focusin', (e) => {
+      const el = e.target.closest?.('[data-tip]');
+      if (!el || el === anchor || !el.matches(':focus-visible')) return;
+      clearTimeout(timer);
+      const warm = current || performance.now() - left < 400;
+      byKey = true;
+      timer = setTimeout(() => { if (el.isConnected && el.matches(':focus')) show(el); }, warm ? 110 : 420);
+    });
+    root.addEventListener('focusout', (e) => {
+      const el = e.target.closest?.('[data-tip]');
+      if (el && el === anchor) hide();
+      else if (el) clearTimeout(timer);
+    });
+    // Escape lo descarta sin mover el foco (y sigue de largo: no es suyo).
+    root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && current) hide(true); });
+
     root.addEventListener('pointerover', (e) => {
+      // El ancla se fue del DOM: el pointerout no llega nunca.
+      if (current && anchor && !anchor.isConnected) hide(true);
       const el = e.target.closest?.('[data-tip]');
       if (!el || el === anchor) return;
       clearTimeout(timer);
       /* Moverse entre botones vecinos no reinicia la espera larga. No alcanza con
          mirar `current`: el pointerout del botón anterior llega ANTES que este
          pointerover y ya lo cerró. Por eso cuenta también el que se acaba de ir.
-         La espera corta (100 ms) es lo que dura su salida: el nuevo aparece
+         La espera corta (110 ms) es lo que dura su salida: el nuevo aparece
          cuando el viejo terminó de irse, sin encimarse. Si el ancla se fue del
          DOM durante la espera, no hay dónde anclarlo: saldría en la esquina. */
       const warm = current || performance.now() - left < 400;
-      timer = setTimeout(() => { if (el.isConnected) show(el); }, warm ? 100 : 420);
+      byKey = false;
+      timer = setTimeout(() => { if (el.isConnected) show(el); }, warm ? 110 : 420);
     });
     root.addEventListener('pointerout', (e) => {
       const el = e.target.closest?.('[data-tip]');
@@ -124,7 +179,10 @@ const Tooltip = (() => {
     });
     // Un tooltip flotando sobre un click o un scroll es basura visual.
     root.addEventListener('pointerdown', () => hide(true));
-    window.addEventListener('scroll', () => hide(true), true);
+    /* El scroll se lleva al que se ve (su lugar ya no es ese). Al que espera
+       por el teclado no: llegar con Tab a un botón fuera de la vista lo
+       acerca con un scroll, y eso cancelaba justo el tooltip que se pedía. */
+    window.addEventListener('scroll', () => hide(true, { keep: byKey }), true);
     window.addEventListener('blur', () => hide(true));
   }
 
@@ -160,7 +218,7 @@ const Toast = (() => {
         <div class="op-toast__title"></div>
         ${text ? '<div class="op-toast__text"></div>' : ''}
       </div>
-      <button class="op-iconbtn op-iconbtn--sm" data-close>${Icons.svg('close')}</button>
+      <button class="op-iconbtn op-iconbtn--sm" data-close aria-label="Cerrar">${Icons.svg('close')}</button>
       ${duration ? '<span class="op-toast__life"></span>' : ''}`;
 
     // textContent, no innerHTML: el contenido puede venir de un error real.
@@ -189,16 +247,24 @@ const Toast = (() => {
     el.querySelector('[data-close]').addEventListener('click', close);
 
     if (duration) {
-      let timer = setTimeout(close, duration);
+      /* Hover pausa la cuenta: si te acercás a leerlo, no se te escapa. Lo
+         que queda se lleva a mano, descontando lo que corrió. Antes se leía
+         de la escala de la barra y la cuenta estaba al revés: tocado apenas
+         aparecía, se cerraba enseguida con la barra casi llena; tocado al
+         final, se quedaba casi toda la duración con la barra ya vacía. */
+      let left = duration;
+      let since = performance.now();
+      let timer = setTimeout(close, left);
       const life = el.querySelector('.op-toast__life');
-      // Hover pausa la cuenta: si te acercás a leerlo, no se te escapa.
       el.addEventListener('pointerenter', () => {
         clearTimeout(timer);
+        left -= performance.now() - since;
         if (life) life.style.animationPlayState = 'paused';
       });
       el.addEventListener('pointerleave', () => {
         if (life) life.style.animationPlayState = 'running';
-        const left = life ? duration * (1 - (parseFloat(getComputedStyle(life).transform.split(',')[0].replace('matrix(', '')) || 0)) : 1200;
+        since = performance.now();
+        // Un respiro mínimo para soltarlo, aunque ya casi no le quedara.
         timer = setTimeout(close, Math.max(900, left));
       });
     }
@@ -350,6 +416,10 @@ const Menu = (() => {
 
 /* ══ Modal ═══════════════════════════════════════════════════════════════════ */
 
+/** Los campos de una línea: los que se confirman con Enter. */
+const TEXT_FIELDS = ['text', 'search', 'url', 'email', 'tel', 'password', 'number']
+  .map((t) => `input[type="${t}"]:not([disabled])`).join(', ') + ', input:not([type]):not([disabled])';
+
 const Modal = (() => {
   let open = null;
   /* Los que pidieron turno con otro abierto. El nuevo pisaba al de abajo, que
@@ -383,6 +453,17 @@ const Modal = (() => {
          el DOM hasta que termine su animación. */
       if (document.querySelector('.op-menu:not([data-state="closing"])')) return;
       e.preventDefault(); e.stopPropagation(); close(null);
+    }
+    /* Enter en un campo de una línea confirma, como en un formulario: no hay
+       <form>, y había que ir con el mouse hasta el botón. Solo la acción
+       primaria, nunca la destructiva; no en un textarea (Enter es un renglón
+       nuevo), no con un menú abierto encima (el Enter es suyo), no mientras
+       se arma, y no a mitad de una composición del teclado. */
+    if (e.key === 'Enter' && !e.isComposing && open.primary && e.target.matches?.(TEXT_FIELDS)
+        && open.anim.contains(e.target) && !open.anim.classList.contains('is-arming')
+        && !document.querySelector('.op-menu:not([data-state="closing"])')) {
+      e.preventDefault(); e.stopPropagation(); open.primary.click();
+      return;
     }
     if (e.key !== 'Tab') return;
     // Trampa de foco: el tabulador no se escapa del modal.
@@ -462,13 +543,16 @@ const Modal = (() => {
     else bodyEl.innerHTML = body;
 
     const foot = modal.querySelector('.op-modal__foot');
+    let primary = null;
+    let auto = null;
     actions.forEach((a) => {
       const b = document.createElement('button');
       b.className = `op-btn op-flashable op-btn--${a.variant || 'ghost'}`;
       b.textContent = a.label;
       b.addEventListener('click', mine(() => close(a.value)));
       foot.appendChild(b);
-      if (a.autofocus && !arm) setTimeout(() => b.focus(), 60);
+      if (a.variant === 'primary' && !primary) primary = b;
+      if (a.autofocus && !auto) auto = b;
     });
 
     modal.querySelector('[data-dismiss]')?.addEventListener('click', mine(() => close(null)));
@@ -481,15 +565,23 @@ const Modal = (() => {
 
     // El foco vuelve a donde estaba antes del PRIMERO de la fila.
     const restore = inherited ? inherited.restore : document.activeElement;
-    open = { scrim, anim, req, dismissible, restore };
+    open = { scrim, anim, req, dismissible, restore, primary };
     document.addEventListener('keydown', onKey, true);
     if (arm) {
       anim.classList.add('is-arming');
       setTimeout(() => anim.classList.remove('is-arming'), arm);
       modal.tabIndex = -1;
       setTimeout(() => modal.focus(), 60);
-    } else if (!actions.some((a) => a.autofocus)) {
-      setTimeout(() => anim.querySelector('button,input,textarea')?.focus(), 60);
+    } else {
+      /* El foco: al botón con autofocus si alguno lo pide. Es una decisión de
+         quien arma el diálogo: en uno de opciones (imprimir) Enter va al
+         botón, y las flechas no pueden cambiar las copias. Si nadie lo pide,
+         adonde se va a escribir: el primer campo visible del cuerpo (con el
+         foco en «Guardar», había que ir con el mouse hasta el nombre). Sin
+         campos, el primero del pie; antes caía en la X de cerrar. */
+      const field = [...bodyEl.querySelectorAll(`${TEXT_FIELDS}, textarea:not([disabled]), select:not([disabled])`)]
+        .find((f) => f.checkVisibility({ visibilityProperty: true }));
+      setTimeout(() => (auto || field || foot?.querySelector('button') || anim.querySelector('button'))?.focus(), 60);
     }
   }
 

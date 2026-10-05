@@ -46,7 +46,7 @@ const ok = (n, c, x = '') => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const bail = (w, e) => { console.log(`ABORTADO ${w}`, e?.stack || e || ''); app.exit(3); };
 process.on('unhandledRejection', (e) => bail('rechazo', e));
-setTimeout(() => bail('timeout de 120s'), 120000);
+setTimeout(() => bail('timeout de 160s'), 160000);
 
 /** Espera a que algo sea verdad (o se rinde y devuelve false). */
 async function until(fn, ms = 6000) {
@@ -1763,6 +1763,129 @@ app.whenReady().then(async () => {
   await until(() => js(`!document.querySelector('.pr-pass')`));
   await js(`document.getElementById('aud-notr')?.remove(); true`);
   ctx.tabs.close(ctx.tabs.active.id);
+
+  console.log('\n13d. Detalles: toast, tooltip y modal');
+  const toast = await js(`(async () => {
+    const { Toast } = await import('./js/overlays.js');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    Toast.show({ title: 'Con hover', duration: 2000 });
+    const el = [...document.querySelectorAll('.op-toast')].pop();
+    const cerrar = el.querySelector('[data-close]').getAttribute('aria-label');
+    await wait(200);
+    el.dispatchEvent(new PointerEvent('pointerenter'));
+    await wait(600);
+    el.dispatchEvent(new PointerEvent('pointerleave'));
+    await wait(1200);
+    const sigue = el.isConnected && el.dataset.state !== 'closing';
+    await wait(1100);
+    return { cerrar, sigueA1200: sigue, seFueA2300: !el.isConnected || el.dataset.state === 'closing' };
+  })()`);
+  ok('el toast tocado al principio sigue con el tiempo que le quedaba', toast.sigueA1200 && toast.seFueA2300, JSON.stringify(toast));
+  ok('y su cruz se llama «Cerrar»', toast.cerrar === 'Cerrar', JSON.stringify(toast));
+
+  const tip = await js(`(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const b = document.createElement('button');
+    // Un texto largo: la escala de la entrada lo corre varios píxeles si se mide mal.
+    b.className = 'op-iconbtn'; b.dataset.tip = 'Se va, y es un tooltip bastante largo'; b.innerHTML = '<svg width="14" height="14"></svg>';
+    b.style.cssText = 'position:fixed;left:600px;top:400px;z-index:5';
+    document.body.append(b);
+    b.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+    await wait(700);
+    const t = document.querySelector('.op-tooltip:not([data-state="closing"])');
+    const rb = b.getBoundingClientRect(); const rt = t?.getBoundingClientRect();
+    const centrado = t ? Math.abs((rt.left + rt.right) / 2 - (rb.left + rb.right) / 2) : null;
+    const nombre = b.getAttribute('aria-label');
+    b.remove();
+    await wait(450);
+    return { seVio: !!t, centrado, nombre, huerfano: !!document.querySelector('.op-tooltip:not([data-state="closing"])') };
+  })()`);
+  ok('un tooltip queda centrado sobre su ancla (medido sin la escala de su entrada)', tip.seVio && tip.centrado <= 1, JSON.stringify(tip));
+  ok('si su ancla se va del DOM, el tooltip se va', tip.seVio && !tip.huerfano, JSON.stringify(tip));
+  ok('un botón de solo ícono toma su nombre del tooltip', tip.nombre === 'Se va, y es un tooltip bastante largo', JSON.stringify(tip));
+  // También los que ya estaban al arrancar: el chip del zoom no trae aria-label propio.
+  ok('y también los que ya estaban al arrancar', await js(`document.getElementById('omni-zoom').getAttribute('aria-label') === 'Restablecer el zoom'`));
+  /* Sin la ventana enfocada no hay :focus-visible, y la de prueba compite por
+     el foco con el escritorio: se insiste, como con los anillos (13b). Un
+     tooltip que no aparece con el teclado no aparece nunca. */
+  let tipTeclado = {};
+  await until(async () => {
+    win.focus(); win.webContents.focus();
+    tipTeclado = await js(`(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const b = document.getElementById('btn-pass');
+      b.focus({ focusVisible: true });
+      const foco = b.matches(':focus-visible');
+      await wait(650);
+      const visto = document.querySelector('.op-tooltip:not([data-state="closing"])')?.textContent;
+      b.blur();
+      await wait(300);
+      return { foco, visto, seFue: !document.querySelector('.op-tooltip:not([data-state="closing"])') };
+    })()`);
+    return tipTeclado.foco && tipTeclado.visto === 'Contraseñas y tarjetas' && tipTeclado.seFue;
+  }, 8000);
+  ok('el tooltip aparece también al llegar con Tab, y se va al salir', tipTeclado.visto === 'Contraseñas y tarjetas' && tipTeclado.seFue, JSON.stringify(tipTeclado));
+
+  const conEnter = await js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    // Un campo escondido antes que el de verdad: el foco no se va a lo que no se ve.
+    const p = Modal.show({ title: 'Con un campo', body: '<input class="op-input" id="campo-oculto" style="display:none"><input class="op-input" id="campo-enter" value="algo">',
+      actions: [{ label: 'Cancelar', value: false }, { label: 'Guardar', value: 'guardado', variant: 'primary' }] });
+    await wait(200);
+    const foco = document.activeElement?.id;
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const v = await Promise.race([p, wait(1200).then(() => 'sin respuesta')]);
+    // Si Enter no lo cerró, se cierra acá: el siguiente esperaría su turno para siempre.
+    if (v === 'sin respuesta') { Modal.close(null); await p; }
+    await wait(400);
+    // Con autofocus en el botón, se queda el foco aunque haya campos (imprimir).
+    const q = Modal.show({ title: 'De opciones', body: '<input class="op-input" id="campo-copias" type="number" value="1">',
+      actions: [{ label: 'Cancelar', value: null }, { label: 'Imprimir', value: 'go', variant: 'primary', autofocus: true }] });
+    await wait(200);
+    const focoAuto = document.activeElement?.textContent;
+    Modal.close(null);
+    await Promise.race([q, wait(1500)]);
+    await wait(400);
+    return { foco, v, focoAuto };
+  })()`);
+  ok('en un modal con un campo, el foco arranca en el primer campo visible', conEnter.foco === 'campo-enter', JSON.stringify(conEnter));
+  ok('y Enter en el campo confirma con la acción primaria', conEnter.v === 'guardado', JSON.stringify(conEnter));
+  ok('un botón con autofocus se queda el foco aunque haya campos', conEnter.focoAuto === 'Imprimir', JSON.stringify(conEnter));
+
+  // Los de verdad: editar un favorito se escribe y se guarda con Enter; borrar datos no arranca en la X.
+  ctx.library.addBookmark({ url: `${BASE}/editar`, title: 'Para editar' });
+  const fav = ctx.library.listBookmarks().find((x) => x.url === `${BASE}/editar`);
+  const edicion = await js(`(async () => {
+    const { editBookmark } = await import('./js/pages.js');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const p = editBookmark(${JSON.stringify(fav?.id)});
+    await wait(400);
+    const foco = document.activeElement?.id;
+    const alto = document.getElementById('b-title')?.getBoundingClientRect().height;
+    document.activeElement.value = 'Editado con Enter';
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    const v = await Promise.race([p, wait(1500).then(() => 'sin respuesta')]);
+    if (v === 'sin respuesta') { const { Modal } = await import('./js/overlays.js'); Modal.close(null); await wait(400); }
+    return { foco, alto };
+  })()`);
+  ok('«Editar favorito» arranca con el foco en el nombre', edicion.foco === 'b-title', JSON.stringify(edicion));
+  ok('y Enter lo guarda', await until(() => ctx.library.listBookmarks().find((x) => x.id === fav?.id)?.title === 'Editado con Enter'));
+  await until(() => js(`!document.querySelector('.op-modal__anim:not([data-state="closing"])')`));
+  ctx.library.removeBookmark(fav?.id);
+  const borrar = await js(`(async () => {
+    const { clearDataModal } = await import('./js/pages.js');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    clearDataModal();
+    await wait(400);
+    const foco = document.activeElement?.textContent;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await wait(400);
+    const cerrado = !document.querySelector('.op-modal__anim:not([data-state="closing"])');
+    if (!cerrado) { const { Modal } = await import('./js/overlays.js'); Modal.close(null); await wait(400); }
+    return { foco, cerrado };
+  })()`);
+  ok('«Borrar datos» arranca en Cancelar, no en la X', borrar.foco === 'Cancelar' && borrar.cerrado, JSON.stringify(borrar));
 
   console.log('\n14. Sin errores en la consola del cromo');
   ok('ninguno', errores.length === 0, errores.slice(0, 3).join(' | '));
