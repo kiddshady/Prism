@@ -181,6 +181,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${'Guia de trabajos practicos de Farmacologia - Unidad 4 - '.repeat(4)}(catedra).pdf"` });
     return res.end('%PDF-1.4\n%%EOF\n');
   }
+  /* Una página que tarda en llegar: mientras carga, recargar es detener. */
+  if (req.url === '/lenta') {
+    setTimeout(() => { res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end('<title>Lenta</title><body>lenta</body>'); }, 1500);
+    return undefined;
+  }
   /* Una descarga que no termina nunca: gotea mientras la conexión siga. */
   if (req.url === '/lento') {
     res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="lento.bin"', 'Content-Length': String(50 * 1024 * 1024) });
@@ -330,7 +335,7 @@ app.whenReady().then(async () => {
   console.log('\n6. Favoritos');
   await js(`document.getElementById('omni-star').click()`);
   ok('la estrella lo guarda', await until(() => ctx.library.isBookmarked(`${BASE}/`)));
-  ok('y se enciende', await until(() => js(`document.getElementById('omni-star').classList.contains('is-on')`)));
+  ok('y se enciende', await until(() => js(`document.getElementById('omni-star').classList.contains('is-b')`)));
 
   console.log('\n7. Pestañas');
   ctx.command('tab:new');
@@ -1765,6 +1770,12 @@ app.whenReady().then(async () => {
   ctx.tabs.close(ctx.tabs.active.id);
 
   console.log('\n13d. Detalles: toast, tooltip, modal, campos y botones');
+  /* Lo que vino de Opal en su tanda 7. Una página web activa: la estrella
+     solo está con un sitio, y la que tarda en cargar deja ver «detener». */
+  ctx.tabs.create({ url: `${BASE}/lenta` });
+  ok('mientras carga, recargar pasa a detener (sus íconos se cruzan)', await until(() => js(`document.getElementById('btn-reload').classList.contains('is-b')`), 3000));
+  ok('y al terminar vuelve a recargar', await until(() => js(`!document.getElementById('btn-reload').classList.contains('is-b')`), 6000) && ctx.tabs.active.title === 'Lenta', ctx.tabs.active.title);
+
   const toast = await js(`(async () => {
     const { Toast } = await import('./js/overlays.js');
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1918,6 +1929,46 @@ app.whenReady().then(async () => {
   ok('un botón de ícono apagado se ve apagado', Number(piezas.apagado) < 0.7, JSON.stringify(piezas));
   ok('las salidas en su lugar duran --op-t-out (un relevo, una pestaña)', piezas.salidaRelevo === '0.15s' && piezas.salidaPestana === '0.15s', JSON.stringify(piezas));
   ok('y el tooltip sale con --op-t-1', piezas.salidaTooltip === '0.11s', JSON.stringify(piezas));
+
+  /* Los seis botones de dos íconos son ahora un .op-iconswap: los dos en la
+     misma celda (por el centro: el escondido va achicado), y con .is-b se
+     cruzan. Cada uno con el disparador de verdad donde se puede. */
+  ctx.send('win:maximized', true);
+  ok('maximizada, el botón cambia a restaurar', await until(() => js(`document.getElementById('win-max').classList.contains('is-b')`), 2000));
+  ctx.send('win:maximized', false);
+  await until(() => js(`!document.getElementById('win-max').classList.contains('is-b')`), 2000);
+  // En el humo el bloqueador está apagado: el escudo va tachado en todos lados.
+  ok('el escudo apagado muestra el tachado', await js(`(() => { const s = document.getElementById('btn-shield'); return s.classList.contains('is-off') && s.classList.contains('is-b'); })()`));
+  const cruce = async (sel) => js(`(async () => {
+    const b = document.querySelector(${JSON.stringify(sel)});
+    if (!b) return { falta: true };
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const svgs = () => [...b.children].filter((c) => c.tagName === 'svg');
+    const c = svgs().map((i) => i.getBoundingClientRect());
+    const misma = c.length === 2 && Math.abs((c[0].left + c[0].right) - (c[1].left + c[1].right)) < 1 && Math.abs((c[0].top + c[0].bottom) - (c[1].top + c[1].bottom)) < 1;
+    const era = b.classList.contains('is-b');
+    const op = () => svgs().map((i) => getComputedStyle(i).opacity).join(',');
+    b.classList.toggle('is-b', false); await wait(450); const a = op();
+    b.classList.toggle('is-b', true); await wait(450); const bb = op();
+    b.classList.toggle('is-b', era);
+    return { misma, a, b: bb };
+  })()`);
+  for (const [nombre, sel] of [['maximizar', '#win-max'], ['recargar', '#btn-reload'], ['la estrella', '#omni-star'], ['el escudo', '#btn-shield']]) {
+    const r = await cruce(sel);
+    ok(`${nombre}: sus dos íconos en la misma celda, y se cruzan`, r.misma && r.a === '1,0' && r.b === '0,1', JSON.stringify(r));
+  }
+  await js(`document.getElementById('btn-pass').click()`);
+  await until(() => js(`document.querySelectorAll('.pr-pass__row').length >= 1`));
+  if (!(await js(`!!document.querySelector('.pr-pass [data-a="reveal"]')`))) await js(`document.querySelector('.pr-pass__row').click()`);
+  ok('la bóveda muestra el ojo de un secreto', await until(() => js(`!!document.querySelector('.pr-pass [data-a="reveal"]')`), 3000));
+  await js(`document.querySelector('.pr-pass [data-a="reveal"]').click()`);
+  ok('el ojo, al mostrar, cambia al tachado', await until(() => js(`document.querySelector('.pr-pass [data-a="reveal"]').classList.contains('is-b')`), 3000));
+  for (const [nombre, sel] of [['copiar', '.pr-pass__copy'], ['el ojo', '.pr-pass [data-a="reveal"]']]) {
+    const r = await cruce(sel);
+    ok(`${nombre}: sus dos íconos en la misma celda, y se cruzan`, r.misma && r.a === '1,0' && r.b === '0,1', JSON.stringify(r));
+  }
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!document.querySelector('.pr-pass')`));
 
   console.log('\n14. Sin errores en la consola del cromo');
   ok('ninguno', errores.length === 0, errores.slice(0, 3).join(' | '));

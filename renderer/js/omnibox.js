@@ -100,7 +100,7 @@ function sync() {
 
   const canStar = !!t && !t.internal && !t.error && !t.crashed && /^(https?|file):/i.test(t.url || '');
   star.hidden = !canStar;
-  star.classList.toggle('is-on', !!t?.bookmarked);
+  star.classList.toggle('is-b', !!t?.bookmarked);   // vacía ↔ llena (.op-iconswap)
   star.dataset.tip = t?.bookmarked ? 'Quitar de favoritos' : 'Agregar a favoritos';
 
   // El zoom corre de un valor al otro; y si vuelve a 100, el chip se va

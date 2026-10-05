@@ -301,11 +301,8 @@
 .pr-tool { width: 32px; height: 32px; }
 .pr-tool.is-open { background: var(--op-wash-2); color: var(--op-text); }
 
-/* Recargar ↔ detener: los dos íconos viven encimados y se cruzan girando. */
-.pr-reload > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
-.pr-reload .pr-reload__b { opacity: 0; transform: rotate(-90deg) scale(.7); }
-.pr-reload.is-loading .pr-reload__a { opacity: 0; transform: rotate(90deg) scale(.7); }
-.pr-reload.is-loading .pr-reload__b { opacity: 1; transform: none; }
+/* Recargar ↔ detener (.op-iconswap): se cruzan girando. */
+.pr-reload { --swap-out: rotate(90deg) scale(.7); --swap-in: rotate(-90deg) scale(.7); }
 
 /* ── La omnibox ──────────────────────────────────────────────────────────────
    Un pozo, como todo campo de Opal. Con foco se hunde más y el canto se
@@ -417,10 +414,9 @@
 }
 .pr-omni__chip:hover { background: var(--op-wash-2); color: var(--op-text); }
 
-.pr-omni__star > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
-.pr-omni__star .pr-star__b { opacity: 0; transform: scale(.4) rotate(-40deg); color: var(--op-text); }
-.pr-omni__star.is-on .pr-star__a { opacity: 0; }
-.pr-omni__star.is-on .pr-star__b { opacity: 1; transform: none; }
+/* La estrella (.op-iconswap): la llena llega latiendo, la vacía solo se apaga. */
+.pr-omni__star { --swap-out: none; --swap-in: scale(.4) rotate(-40deg); }
+.pr-omni__star > .op-icon:last-of-type { color: var(--op-text); }
 
 /* El chip del zoom y la estrella entran y se van, no aparecen de golpe:
    `hidden` es display:none, y con `allow-discrete` el display espera a que
@@ -522,11 +518,6 @@
 .pr-shield,
 .pr-dl { position: relative; overflow: visible; }
 .pr-shield.is-off { color: var(--op-text-4); }
-/* Escudo ↔ escudo tachado, encimados: se cruzan como recargar ↔ detener. */
-.pr-shield > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
-.pr-shield .pr-shield__b,
-.pr-shield.is-off .pr-shield__a { opacity: 0; transform: scale(.7); }
-.pr-shield.is-off .pr-shield__b { opacity: 1; transform: none; }
 .pr-badge {
   position: absolute;
   right: 1px;
@@ -1270,18 +1261,10 @@
 /* Cuatro puntos: lo tapado de un número de tarjeta, de un código, de un PIN. */
 .pr-pass__dots--4 { width: 36px; }
 
-/* Copiar y mostrar: los dos íconos apilados cruzan de uno al otro. */
+/* Copiar y mostrar: los dos íconos cruzan de uno al otro (.op-iconswap). */
 .pr-pass__copy,
 .pr-pass__eye { color: var(--op-text-3); }
-.pr-pass__copy > .op-icon,
-.pr-pass__eye > .op-icon { grid-area: 1 / 1; transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease); }
-.pr-copy__b,
-.pr-eye__b { opacity: 0; transform: scale(.6); }
 .pr-pass__copy.is-done { color: var(--op-text); }
-.pr-pass__copy.is-done .pr-copy__a,
-.pr-pass__eye.is-on .pr-eye__a { opacity: 0; transform: scale(.6); }
-.pr-pass__copy.is-done .pr-copy__b,
-.pr-pass__eye.is-on .pr-eye__b { opacity: 1; transform: none; }
 
 .pr-pass__urls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
 .pr-pass__url {

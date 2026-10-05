@@ -112,6 +112,22 @@
 .op-iconbtn.is-active { background: var(--op-wash-2); color: var(--op-text); }
 /* Apagado se ve apagado: antes era igual a uno que anda, y el click no hacía nada. */
 .op-iconbtn:disabled { color: var(--op-text-4); opacity: .55; pointer-events: none; }
+
+/* Dos estados de un mismo botón con dos íconos (copiar → copiado, recargar →
+   detener, maximizar → restaurar): los dos viven en la misma celda y se
+   cruzan; .is-b muestra el segundo. Cambiar el SVG por innerHTML lo hacía
+   saltar de un cuadro al otro. Son los dos SVG del botón: lo que no es un
+   SVG (el contador del escudo) no entra en el cruce. Cómo se va el primero
+   y de dónde llega el segundo se cambia con --swap-out y --swap-in (recargar
+   gira, la estrella late). Antes era una regla copiada seis veces, una por
+   botón, y cada copia con su propia escala. */
+.op-iconswap > .op-icon {
+  grid-area: 1 / 1;
+  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease);
+}
+.op-iconswap > .op-icon:last-of-type { opacity: 0; transform: var(--swap-in, scale(.75)); }
+.op-iconswap.is-b > .op-icon:first-of-type { opacity: 0; transform: var(--swap-out, scale(.75)); }
+.op-iconswap.is-b > .op-icon:last-of-type { opacity: 1; transform: none; }
 .op-iconbtn--sm { width: 22px; height: 22px; }
 .op-iconbtn--sm .op-icon { width: 13px; height: 13px; }
 

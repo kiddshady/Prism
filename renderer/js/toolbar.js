@@ -25,6 +25,7 @@ function sync() {
   fwd.disabled = !t?.canGoForward;
   const loading = !!t?.loading && !t.internal;
   reload.classList.toggle('is-loading', loading);
+  reload.classList.toggle('is-b', loading);   // recargar ↔ detener se cruzan (.op-iconswap)
   reload.dataset.tip = loading ? 'Detener' : 'Recargar';
   // Detener no tiene tecla: Escape es de la página (cierra SUS modales), no de Prism.
   if (loading) delete reload.dataset.tipKey;
@@ -35,8 +36,9 @@ function sync() {
   // El escudo: cuenta lo bloqueado en ESTA página.
   const off = !!t?.adblockOff;
   const n = t && !t.internal ? t.blocked || 0 : 0;
-  // Escudo ↔ escudo tachado: los dos íconos están encimados y se cruzan (CSS).
+  // Escudo ↔ escudo tachado: los dos íconos están encimados y se cruzan (.op-iconswap).
   shield.classList.toggle('is-off', off);
+  shield.classList.toggle('is-b', off);
   // El número se queda puesto mientras la insignia se apaga: si se vaciara
   // primero, se vería encogerse una pastilla vacía. Y corre: mientras una
   // página carga, sube de a varios.

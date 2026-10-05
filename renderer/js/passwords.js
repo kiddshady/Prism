@@ -282,8 +282,8 @@ function field(label, icon, value, { copy = null, mono = false, secret = null } 
         <div class="pr-pass__label">${esc(label)}</div>
         <div class="pr-pass__value${mono ? ' is-mono' : ''}${secret ? ' is-secret' : ''}"${secret ? ` id="pp-secret-${secret}"` : ''}>${value}</div>
       </div>
-      ${secret ? `<button class="op-iconbtn op-iconbtn--sm pr-pass__eye${shown ? ' is-on' : ''}" data-a="reveal" data-f="${secret}" aria-label="Mostrar" data-tip="${shown ? 'Ocultar' : 'Mostrar'}">${Icons.svg('eye', 'pr-eye__a')}${Icons.svg('eyeOff', 'pr-eye__b')}</button>` : ''}
-      ${copy ? `<button class="op-iconbtn op-iconbtn--sm pr-pass__copy" data-copy="${copy}" aria-label="Copiar" data-tip="Copiar">${Icons.svg('copy', 'pr-copy__a')}${Icons.svg('check', 'pr-copy__b')}</button>` : ''}
+      ${secret ? `<button class="op-iconbtn op-iconbtn--sm op-iconswap pr-pass__eye${shown ? ' is-on is-b' : ''}" data-a="reveal" data-f="${secret}" aria-label="Mostrar" data-tip="${shown ? 'Ocultar' : 'Mostrar'}">${Icons.svg('eye')}${Icons.svg('eyeOff')}</button>` : ''}
+      ${copy ? `<button class="op-iconbtn op-iconbtn--sm op-iconswap pr-pass__copy" data-copy="${copy}" aria-label="Copiar" data-tip="Copiar">${Icons.svg('copy')}${Icons.svg('check')}</button>` : ''}
     </div>`;
 }
 
@@ -371,7 +371,7 @@ const secretInput = (name, { label, mono = true, attrs = '' }) => `
   <label class="op-field"><span class="op-field__label">${label}</span>
     <span class="pr-pass__pwwrap">
       <input class="op-input${mono ? ' op-input--mono' : ''}" name="${name}" type="password" spellcheck="false" autocomplete="new-password" ${attrs}>
-      <button type="button" class="op-iconbtn op-iconbtn--sm pr-pass__eye" data-a="form-eye" aria-label="Mostrar">${Icons.svg('eye', 'pr-eye__a')}${Icons.svg('eyeOff', 'pr-eye__b')}</button>
+      <button type="button" class="op-iconbtn op-iconbtn--sm op-iconswap pr-pass__eye" data-a="form-eye" aria-label="Mostrar">${Icons.svg('eye')}${Icons.svg('eyeOff')}</button>
     </span></label>`;
 
 const formActions = `
@@ -450,9 +450,9 @@ function select(id) {
 }
 
 function flashCopied(b) {
-  b.classList.add('is-done');
+  b.classList.add('is-done', 'is-b');
   clearTimeout(b.__t);
-  b.__t = setTimeout(() => b.classList.remove('is-done'), 1400);
+  b.__t = setTimeout(() => b.classList.remove('is-done', 'is-b'), 1400);
 }
 
 async function copyField(field, b = null) {
@@ -613,7 +613,7 @@ function wire(el) {
          vela, cambia de tipo cuando no se ve y vuelve. Lo que manda es el
          ojo, así un doble clic termina donde quedó él. */
       const input = b.parentElement.querySelector('input');
-      b.classList.toggle('is-on');
+      b.classList.toggle('is-b', b.classList.toggle('is-on'));
       input.classList.add('is-veiled');
       clearTimeout(input.__veil);
       input.__veil = setTimeout(() => {
@@ -634,6 +634,7 @@ function wire(el) {
       // (una contraseña larga ocupa más de un renglón).
       swap(main.querySelector(`#pp-secret-${f}`), secretHTML(it, f), { size: true });
       b.classList.toggle('is-on', shown);
+      b.classList.toggle('is-b', shown);   // el ojo ↔ el ojo tachado (.op-iconswap)
       b.dataset.tip = shown ? 'Ocultar' : 'Mostrar';
       return null;
     }

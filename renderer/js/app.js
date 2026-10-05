@@ -31,9 +31,9 @@ function wireWindow() {
   document.getElementById('win-close').addEventListener('click', () => w.close());
   const maxBtn = document.getElementById('win-max');
   maxBtn.addEventListener('click', () => w.toggleMaximize());
-  // Los dos íconos están encimados en el botón y se cruzan (shell.css).
+  // Los dos íconos están encimados en el botón y se cruzan (.op-iconswap).
   const paintMax = (isMax) => {
-    maxBtn.classList.toggle('is-max', !!isMax);
+    maxBtn.classList.toggle('is-b', !!isMax);
     maxBtn.setAttribute('aria-label', isMax ? 'Restaurar' : 'Maximizar');
   };
   w.onMaximized(paintMax);

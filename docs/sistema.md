@@ -277,6 +277,13 @@ contenedor que scrollea, se van de pantalla con el contenido.
 Tamaños `--sm` / `--lg`. `.op-iconbtn` (+`--sm`) para los de solo ícono;
 deshabilitado se ve apagado (gris y a media luz), no igual a uno que anda.
 
+`.op-iconswap` es un botón con dos íconos en la misma celda (recargar ↔
+detener, la estrella vacía ↔ llena, copiar ↔ copiado, maximizar ↔ restaurar):
+`.is-b` muestra el segundo y se cruzan. Son los dos SVG del botón; lo que no es
+un SVG (el contador del escudo) no entra. `--swap-out` y `--swap-in` cambian
+cómo se va el primero y de dónde llega el segundo (por defecto `scale(.75)`;
+recargar gira, la estrella late). Antes era una regla copiada seis veces.
+
 Agregá `.op-flashable` para el velo de luz al presionar. Se cablea solo con
 `initClickFlash()`.
 
