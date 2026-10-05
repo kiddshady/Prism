@@ -39,6 +39,12 @@ export function hold() {
     const put = (shots || []).map(({ slot, url }) => ({ el: imgs()[slot], url })).filter((x) => x.el && x.url);
     if (put.length) {
       await Promise.all(put.map(async ({ el, url }) => {
+        /* Clavada al tamaño de su hoja de ahora. Si la hoja cambia mientras
+           tanto (dividir desde el menú de una pestaña la deja en la mitad),
+           la foto se recorta en vez de estirarse: aplastada a la mitad, la
+           página se veía deformada ~165 ms antes de volver acomodada. */
+        el.style.width = `${el.parentElement.clientWidth}px`;
+        el.style.height = `${el.parentElement.clientHeight}px`;
         el.src = url;
         try { await el.decode(); } catch { /* una foto rota no frena el overlay */ }
       }));
@@ -78,6 +84,8 @@ function thaw() {
       for (const el of imgs()) {
         el.classList.remove('is-on');
         el.removeAttribute('src');
+        el.style.removeProperty('width');
+        el.style.removeProperty('height');
       }
     }
   });
@@ -95,7 +103,11 @@ export function reset() {
   count = 0;
   frozen = false;
   api.page.hold(false).catch(() => {});
-  imgs().forEach((el) => el.classList.remove('is-on'));
+  imgs().forEach((el) => {
+    el.classList.remove('is-on');
+    el.style.removeProperty('width');
+    el.style.removeProperty('height');
+  });
 }
 
 /* ── La foto de la ventanita ───────────────────────────────────────────────
