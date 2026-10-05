@@ -1028,8 +1028,10 @@
   overflow: hidden;
 }
 .pr-pop[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
-/* El calco de lo que mostraba un panel que se rehízo: opaco y encima, se esfuma. */
-.pr-pop__calco { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--pr-float); border-radius: inherit; overflow: hidden; }
+/* El calco de lo que mostraba un panel que se rehízo: opaco y encima, se esfuma.
+   Recortado un píxel: el canto de la hoja (una sombra inset, debajo de los
+   hijos) queda a la vista, o se apaga y vuelve con cada fundido. */
+.pr-pop__calco { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--pr-float); border-radius: inherit; overflow: hidden; clip-path: inset(1px round calc(var(--op-r-xl) - 1px)); }
 .pr-pop__head { display: flex; align-items: center; gap: var(--op-2); padding: var(--op-4) var(--op-4) var(--op-2); }
 .pr-pop__title { font-size: var(--op-fs-13); font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); }
 .pr-pop__sub { font-size: var(--op-fs-11); color: var(--op-text-3); }
@@ -1181,7 +1183,17 @@
 }
 /* Debajo de un calco no se mueve: entrando, temblaría lo que las dos comparten. */
 .pr-pass__view.is-quiet { animation: none; }
-.pr-pass__view.op-dissolving { background: var(--pr-float); }
+.pr-pass__view.op-dissolving {
+  background: var(--pr-float);
+  /* El calco no pisa el canto de la hoja (su línea de luz es una sombra
+     inset, va debajo de los hijos): tapándola, la línea de arriba se apagaba
+     y volvía con cada fundido, y este lado se veía un píxel más alto. */
+  clip-path: inset(1px 1px 1px 0 round 0 calc(var(--op-r-xl) - 1px) calc(var(--op-r-xl) - 1px) 0);
+}
+/* Después de is-quiet, con la misma especificidad: salir siempre gana. Sin
+   esto, una vista que nació quieta no se esfumaba al irse: quedaba entera
+   encima de la nueva hasta el plazo de red y se cortaba de un cuadro al otro. */
+.pr-pass__view[data-state='closing'] { animation: op-dissolve var(--op-t-2) var(--op-ease-both) both; }
 @keyframes pr-pass-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 .pr-pass__head { display: flex; align-items: center; gap: var(--op-3); padding: var(--op-1) 0 var(--op-4); }

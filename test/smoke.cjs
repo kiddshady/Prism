@@ -861,6 +861,49 @@ app.whenReady().then(async () => {
   ok('la contraseña no está en el cromo hasta que se pide', await js(`!document.querySelector('.pr-pass').innerText.includes('nueva')`));
   await js(`document.querySelector('[data-a=reveal]').click()`);
   ok('mostrarla la trae', await until(() => js(`document.getElementById('pp-secret-password').textContent === 'nueva'`)));
+  /* El detalle se releva con un fundido también cuando la vista que se va
+     nació quieta (debajo de otro calco): su is-quiet le ganaba a la salida, y
+     quedaba entera encima de la nueva hasta el plazo de red. */
+  await js(`document.querySelector('.pr-pass [data-a=edit]').click()`);
+  await until(() => js(`!!document.querySelector('#pp-form') && document.querySelectorAll('#pp-main .pr-pass__view').length === 1`));
+  const calco = await js(`new Promise((resolve) => {
+    document.querySelector('.pr-pass [data-a=cancel]').click();
+    setTimeout(() => {
+      const v = document.querySelector('#pp-main .pr-pass__view[data-state=closing]');
+      resolve(v ? { quieta: v.classList.contains('is-quiet'), anim: getComputedStyle(v).animationName, op: Number(getComputedStyle(v).opacity) } : null);
+    }, 90);
+  })`);
+  ok('el detalle que se va se esfuma, aunque haya nacido quieto', !!calco && calco.quieta && calco.anim === 'op-dissolve' && calco.op < 0.9, JSON.stringify(calco));
+  await until(() => js(`document.querySelectorAll('#pp-main .pr-pass__view').length === 1`));
+  /* Y mientras se funde no tapa el canto de la hoja: la línea de luz de
+     arriba se apagaba y volvía, y ese lado se veía un píxel más alto que el
+     de la lista. Se mide pintado, con el fundido congelado a 60 ms; si el
+     plazo de red sacó el calco antes de la foto, se repite. */
+  const cantoHoja = async () => {
+    const rect = await js(`(() => { const r = document.querySelector('#pp-main').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top), width: 1, height: 1 }; })()`);
+    const b = (await win.webContents.capturePage(rect)).toBitmap();
+    return Math.round((b[0] + b[1] + b[2]) / 3);
+  };
+  const cantoQuieto = await cantoHoja();
+  let cantoFundiendo = null;
+  for (let i = 0; i < 4 && cantoFundiendo == null; i++) {
+    const congelado = await js(`new Promise((resolve) => {
+      document.querySelector('.pr-pass [data-a=${i % 2 ? 'cancel' : 'edit'}]').click();
+      const a = document.querySelector('#pp-main .pr-pass__view[data-state=closing]')?.getAnimations().find((x) => x.animationName === 'op-dissolve');
+      if (!a) return resolve(false);
+      a.pause();
+      a.currentTime = 60;
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)));
+    })`);
+    const v = congelado ? await cantoHoja() : null;
+    if (congelado && await js(`!!document.querySelector('#pp-main .pr-pass__view[data-state=closing]')`)) cantoFundiendo = v;
+    await until(() => js(`document.querySelectorAll('#pp-main .pr-pass__view').length === 1`));
+  }
+  ok('y fundiéndose no tapa el canto de la hoja', cantoFundiendo != null && Math.abs(cantoFundiendo - cantoQuieto) <= 3, `${cantoQuieto} → ${cantoFundiendo}`);
+  if (await js(`!!document.querySelector('#pp-form')`)) {
+    await js(`document.querySelector('.pr-pass [data-a=cancel]').click()`);
+    await until(() => js(`!document.querySelector('#pp-form') && document.querySelectorAll('#pp-main .pr-pass__view').length === 1`));
+  }
 
   /* Importar de Proton y borrar la exportación, con el CSV abierto en otro
      programa: el aviso no puede decir que lo borró. */
