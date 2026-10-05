@@ -9,7 +9,7 @@ import { Icons } from './icons.js';
 import { Tooltip } from './overlays.js';
 import { initClickFlash, initScrollFades, raf2 } from './motion.js';
 import { colorToken } from './ui.js';
-import { api, S, emit } from './state.js';
+import { api, S, emit, activeTab } from './state.js';
 import * as Freeze from './freeze.js';
 import * as Tabstrip from './tabstrip.js';
 import * as Split from './split.js';
@@ -171,6 +171,8 @@ async function boot() {
   api.update.onState(onUpdate);
 
   applyTabs(state);
+  // El incógnito arranca listo para escribir, como en Chrome: el foco en la barra.
+  if (info.private && activeTab()?.internal === 'nueva') Omnibox.focus();
   emit('downloads', false);
   window.__prism = { freeze: Freeze.debug, S };
   watchPage();

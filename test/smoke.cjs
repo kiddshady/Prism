@@ -1405,6 +1405,7 @@ app.whenReady().then(async () => {
   const gjs = (c) => g.win.webContents.executeJavaScript(c);
   ok('Ctrl+Mayús+N abre la ventana de incógnito', await until(() => g.win && !g.win.isDestroyed() && g.tabs.active?.internal === 'nueva', 8000));
   await until(() => gjs(`!document.getElementById('boot-splash') && !!window.__prism`), 8000);
+  ok('arranca con el foco en la barra de direcciones, para escribir de una', await until(() => gjs(`document.activeElement?.id === 'omni-input'`)));
   ok('con su fantasmita en la barra', await until(() => gjs(`getComputedStyle(document.querySelector('.pr-incognito')).display === 'flex'`)));
   ok('y la pestaña nueva de incógnito', await until(() => gjs(`!!document.querySelector('.pr-view[data-page="nueva"] .pr-incog') && !document.getElementById('ntp-tiles')`)));
   ok('la normal no lleva fantasma', await js(`getComputedStyle(document.querySelector('.pr-incognito')).display === 'none'`));
