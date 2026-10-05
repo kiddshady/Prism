@@ -1041,6 +1041,30 @@ app.whenReady().then(async () => {
   /* La de prueba de Stripe: no es de nadie. */
   const tarjetaPrueba = await V.save({ kind: 'card', title: 'Débito de prueba', holder: 'Fran Pavez', number: '4242 4242 4242 4242', expiry: '08/29', cvv: '123' });
   ok('la tarjetaPrueba tampoco queda a la vista en disco', !fs.readFileSync(path.join(process.env.PRISM_DATA, 'vault.json'), 'utf8').includes('4242'));
+  /* Con tantas contraseñas que la lista desborda, pasar a tarjetas: mientras
+     las que se van se esfuman, la barra seguía y la tarjeta entraba más
+     angosta, y saltaba al irse ellas. Se mide en cada cuadro del relevo. */
+  const relleno = [];
+  for (let i = 0; i < 14; i++) relleno.push(await V.save({ title: `relleno${i}.com`, username: `u${i}`, password: 'x', urls: [`https://relleno${i}.com`] }));
+  await js(`document.getElementById('btn-pass').click()`);
+  await until(() => js(`document.querySelectorAll('.pr-pass__row').length > 12`));
+  await sleep(500);
+  const anchosDeFila = await js(`new Promise((resolve) => {
+    const list = document.getElementById('pp-list');
+    const seen = new Set();
+    const t0 = performance.now();
+    const tick = () => {
+      for (const el of list.querySelectorAll('.pr-pass__row:not([data-state=closing])')) seen.add(Math.round(el.getBoundingClientRect().width));
+      if (performance.now() - t0 < 600) requestAnimationFrame(tick); else resolve([...seen]);
+    };
+    document.querySelector('#pp-kind [data-value="card"]').click();
+    requestAnimationFrame(tick);
+  })`);
+  ok('pasar de contraseñas a tarjetas no cambia el ancho de las filas', anchosDeFila.length === 1, JSON.stringify(anchosDeFila));
+  await js(`document.querySelector('#pp-kind [data-value="login"]').click()`);
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!document.querySelector('.pr-pass')`));
+  for (const it of relleno) await V.remove(it.id);
   /** Un clic de verdad (mouseDown + mouseUp) en un campo; de un iframe, solo dónde está. */
   const clickIn = async (wc, sel, frame = null, { click = true } = {}) => {
     const rect = (code, f) => (f ? f.executeJavaScript(code) : wc.executeJavaScript(code));

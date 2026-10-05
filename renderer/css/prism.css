@@ -1121,7 +1121,15 @@
 .pr-pass__kinds + .pr-pass__top { padding-top: var(--op-2); }
 .pr-pass__top { display: flex; align-items: center; gap: var(--op-1); padding: var(--op-3) var(--op-2) var(--op-1) var(--op-3); }
 .pr-pass__search { flex: 1 1 auto; min-width: 0; }
-.pr-pass__list { --op-fade: 12px; flex: 1 1 auto; min-height: 0; padding-left: var(--op-2); padding-right: var(--op-2); }
+/* El lugar de la barra está siempre reservado: al pasar de contraseñas a
+   tarjetas (o al buscar), las filas que se van todavía desbordan, la barra
+   seguía, y las nuevas entraban 10 px más angostas y saltaban al irse ella.
+   El carril es más angosto que el de siempre (el pulgar se ve igual, de
+   4 px): con los 4 px de relleno que pide el anillo de foco, la derecha
+   suma lo mismo que antes y las filas no pierden ancho. */
+.pr-pass__list { --op-fade: 12px; flex: 1 1 auto; min-height: 0; padding-left: var(--op-2); padding-right: var(--op-1); scrollbar-gutter: stable; }
+.pr-pass__list::-webkit-scrollbar { width: 6px; }
+.pr-pass__list::-webkit-scrollbar-thumb { border-width: 3px 1px; }
 .pr-pass__row {
   display: flex;
   align-items: center;
