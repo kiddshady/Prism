@@ -265,6 +265,13 @@
    separa de Actualizaciones le quedaba pegada al botón y al texto. */
 .pr-opt--foot { min-height: 0; }
 .pr-dflt + .pr-auto { box-shadow: inset 0 1px 0 var(--op-line); }
+/* La fila del respaldo cambia de forma en su lugar (un relevo): la raya que
+   la separa de la de arriba va en el envoltorio, que es el que se queda. */
+.pr-opt + .pr-bk { box-shadow: inset 0 1px 0 var(--op-line); }
+.pr-opt__hint--error { color: var(--op-danger); }
+/* La hora de la última copia se releva adentro de la frase: en línea, o el
+   relevo (una grilla) la bajaba a un renglón propio y partía la frase en tres. */
+.pr-opt .pr-bk__when.op-swap { display: inline-grid; vertical-align: bottom; }
 /* Lo que aparece según otro ajuste se despliega (0fr → 1fr) y se esfuma. */
 .pr-chipset,
 #s-certs-head,

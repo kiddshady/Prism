@@ -18,7 +18,7 @@ import { api, S, on, activeTab } from './state.js';
 import { Icons } from './icons.js';
 import { exit, scrollFade, bindSwitcher, raf2, reconcile, roll, swap, swapText, glideSize } from './motion.js';
 import { esc } from './ui.js';
-import { fmtBytes, fmtDur, relTime, plural, locale } from './format.js';
+import { fmtBytes, fmtDur, fmtDate, relTime, plural, locale } from './format.js';
 import { menu, modal, confirm } from './layers.js';
 import { say } from './status.js';
 import { attachSuggest } from './suggest.js';
@@ -942,8 +942,9 @@ function settingsPage() {
           <div class="pr-opt__hint">También ofrece guardar las contraseñas después de entrar. Todo se guarda cifrado con tu cuenta de Windows: el archivo copiado a otra compu, o leído desde otra cuenta, no se abre. Una página solo recibe las contraseñas de su propio sitio, y una tarjeta se completa solo en páginas seguras y cuando la elegís vos.</div></div>
           <div class="pr-opt__ctl">${toggle('passwords', 'Contraseñas')}</div></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Tus contraseñas y tarjetas</div>
-          <div class="pr-opt__hint">Buscar, editar, agregar notas o importar de Proton Pass. También desde la llave de la barra.</div></div>
+          <div class="pr-opt__hint">Buscar, editar, agregar notas, o importar de Proton Pass o de un respaldo. También desde la llave de la barra.</div></div>
           <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-pass"><i data-icon="passKey"></i> Abrir</button></div></div>
+        <div class="pr-bk" data-key="${backupKey()}">${backupHTML()}</div>
         <div class="op-reveal pr-chipset" id="s-never"><div>
           <div class="pr-opt pr-opt--label"><div class="pr-opt__text"><div class="pr-opt__label">Nunca ofrecer guardar en</div></div></div>
           <div class="pr-chips"></div>
@@ -1044,6 +1045,7 @@ function settingsPage() {
     } else {
       auto.querySelectorAll('[data-autostart]').forEach((b) => b.classList.toggle('is-on', !!S.autostart?.on));
     }
+    relayBackup(col.querySelector('.pr-bk'));
     relayAllUpdate();
   }
 
@@ -1111,6 +1113,8 @@ function settingsPage() {
     if (id === 's-clear') return clearDataModal();
     if (id === 's-data') return api.openData();
     if (id === 's-pass') return openPasswords();
+    if (id === 's-bk-setup') return backupSetupModal();
+    if (id === 's-bk-menu') return backupMenu(e.target.closest('button'));
     if (id === 's-dldir') {
       const dir = await api.data.chooseFolder(S.downloadsDir).catch(() => null);
       if (dir) { quietUntil = Date.now() + 600; S.settings = await api.settings.save({ downloadDir: dir }); S.downloadsDir = await api.downloads.dir(); sync(); }
@@ -1119,6 +1123,7 @@ function settingsPage() {
 
   build();
   refreshDefault();
+  refreshBackup();
   return { name: 'ajustes', el, refresh: () => sync() };
 }
 
@@ -1275,6 +1280,130 @@ function onWindowFocus() {
   refreshDefault().then(() => { if (dfltWaiting) setTimeout(refreshDefault, 1200); });
 }
 
+/* ══ Respaldo de la bóveda ═══════════════════════════════════════════════════
+   La bóveda se abre solo con esta cuenta de Windows: si se rompe el disco, no
+   hay copia. El respaldo (src/backup.cjs) es otro archivo, con una clave que
+   elige la persona, en la carpeta que elija. La fila cambia de forma solo si
+   cambia el estado (apagado, prendido, con error); la hora del último se
+   releva en su lugar, sin rehacer la fila con cada contraseña guardada. */
+const backupKey = () => { const b = S.backup; return b?.on ? `on|${b.dir}|${b.error || ''}` : 'off'; };
+const backupWhen = () => (S.backup?.lastAt ? fmtDate(S.backup.lastAt, { withTime: true }) : 'todavía no');
+
+function backupHTML() {
+  const b = S.backup;
+  if (!b?.on) {
+    return `<div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Respaldo</div>
+        <div class="pr-opt__hint">Tus contraseñas y tarjetas viven solo en esta compu: si se rompe el disco, se pierden. El respaldo guarda una copia cifrada con una clave tuya en la carpeta que elijas, y la pone al día sola con cada cambio.</div></div>
+        <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-bk-setup">${Icons.svg('lock')} Configurar…</button></div></div>`;
+  }
+  const estado = b.error
+    ? `<div class="pr-opt__hint pr-opt__hint--error">No se pudo escribir la última copia: ${esc(b.error)}. Se vuelve a intentar con el próximo cambio.</div>`
+    : `<div class="pr-opt__hint">Última copia: <span class="pr-bk__when">${esc(backupWhen())}</span>. Se pone al día sola con cada cambio y guarda los últimos 10 días.</div>`;
+  return `<div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Respaldo</div>
+      <div class="pr-opt__path">${esc(b.dir)}</div>${estado}</div>
+      <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-bk-menu">${Icons.svg('more')} Opciones</button></div></div>`;
+}
+
+function relayBackup(row) {
+  if (!row) return;
+  if (row.dataset.key !== backupKey()) {
+    row.dataset.key = backupKey();
+    swap(row, backupHTML(), { size: true });
+    return;
+  }
+  const all = row.querySelectorAll('.pr-bk__when');
+  const when = all[all.length - 1];
+  if (when) swapText(when, backupWhen());
+}
+const relayAllBackup = () => document.querySelectorAll('.pr-bk').forEach(relayBackup);
+
+function refreshBackup() {
+  return api.pass.backup.state().then((b) => { S.backup = b; relayAllBackup(); }).catch((err) => console.error('[respaldo]', err));
+}
+
+/** Prender el respaldo, o cambiarle la clave: carpeta y clave (dos veces). */
+async function backupSetupModal() {
+  const cambia = !!S.backup?.on;
+  let dir = S.backup?.dir || '';
+  const body = document.createElement('div');
+  body.className = 'op-col';
+  body.style.gap = '14px';
+  body.innerHTML = `
+    <div class="op-field"><label class="op-field__label">Carpeta</label>
+      <div class="op-row" style="gap:10px"><div class="pr-opt__path op-grow" id="bk-dir" style="max-width:none"></div>
+        <button class="op-btn op-btn--secondary op-btn--sm" id="bk-pick"><i data-icon="folder"></i> Elegir…</button></div>
+      <div class="op-field__hint">Mejor fuera de este disco: uno externo, o una carpeta que se sincronice sola.</div></div>
+    <div class="op-field"><label class="op-field__label">${cambia ? 'Clave nueva del respaldo' : 'Clave del respaldo'}</label>
+      <input class="op-input" id="bk-p1" type="password" spellcheck="false" autocomplete="new-password"></div>
+    <div class="op-field"><label class="op-field__label">Otra vez</label>
+      <input class="op-input" id="bk-p2" type="password" spellcheck="false" autocomplete="new-password">
+      <div class="op-field__hint" id="bk-msg"></div></div>`;
+  const NOTA = 'Hace falta para restaurar en otra compu o después de reinstalar Windows. Prism no la guarda ni la puede recuperar: si la perdés, el respaldo no se abre.';
+  const dirEl = body.querySelector('#bk-dir');
+  const msg = body.querySelector('#bk-msg');
+  const showDir = (first) => (first ? (dirEl.textContent = dir || 'Ninguna todavía') : swapText(dirEl, dir || 'Ninguna todavía'));
+  showDir(true);
+  msg.textContent = NOTA;
+  const avisar = (texto, error) => { msg.classList.toggle('op-field__hint--error', !!error); swapText(msg, texto, { size: true }); };
+  // Apenas se corrige algo, el error se va: no queda acusando lo que ya se arregló.
+  const calmar = () => { if (msg.classList.contains('op-field__hint--error')) avisar(NOTA, false); };
+  body.addEventListener('input', calmar);
+  body.querySelector('#bk-pick').addEventListener('click', async () => {
+    const d = await api.pass.backup.folder(dir).catch(() => null);
+    if (d) { dir = d; showDir(false); calmar(); }
+  });
+  let hecho = null;
+  const ok = await modal({
+    title: cambia ? 'Cambiar la clave del respaldo' : 'Respaldo de contraseñas y tarjetas',
+    sub: cambia ? 'Las copias de los días anteriores siguen abriéndose con la clave vieja.' : 'Una copia cifrada, en la carpeta que elijas, que se pone al día sola.',
+    body,
+    width: 480,
+    actions: [{ label: 'Cancelar', value: false }, {
+      label: cambia ? 'Cambiar' : 'Prender el respaldo',
+      value: true,
+      variant: 'primary',
+      guard: async () => {
+        const p1 = body.querySelector('#bk-p1').value;
+        const p2 = body.querySelector('#bk-p2').value;
+        if (!dir) { avisar('Elegí una carpeta para el respaldo.', true); return false; }
+        if (p1.length < 8) { avisar('La clave tiene que tener al menos 8 caracteres.', true); return false; }
+        if (p1 !== p2) { avisar('Las dos claves no coinciden.', true); return false; }
+        try {
+          hecho = await api.pass.backup.setup(dir, p1);
+          return true;
+        } catch (err) {
+          avisar(err.message, true);
+          return false;
+        }
+      },
+    }],
+  });
+  if (!ok || !hecho) return;
+  S.backup = hecho;
+  relayAllBackup();
+  say(cambia ? 'Clave del respaldo cambiada' : 'Respaldo prendido: la primera copia ya está en la carpeta', { icon: 'check', ms: 6000 });
+}
+
+function backupMenu(btn) {
+  const fallo = (err) => say(err.message, { icon: 'alert', tone: 'error', ms: 8000 });
+  const al = (p, texto) => p.then((b) => { if (b && typeof b === 'object') { S.backup = b; relayAllBackup(); } if (texto) say(texto, { icon: 'check' }); }).catch(fallo);
+  menu(btn, [
+    { label: 'Respaldar ahora', icon: 'reload', onSelect: () => al(api.pass.backup.now(), 'Respaldo al día') },
+    { label: 'Abrir la carpeta', icon: 'folderOpen', onSelect: () => api.pass.backup.open().catch(fallo) },
+    { sep: true },
+    { label: 'Cambiar de carpeta…', icon: 'folder', onSelect: async () => {
+      const d = await api.pass.backup.folder(S.backup?.dir).catch(() => null);
+      if (d && d !== S.backup?.dir) al(api.pass.backup.move(d), 'El respaldo ahora va a la carpeta nueva');
+    } },
+    { label: 'Cambiar la clave…', icon: 'lock', onSelect: () => backupSetupModal() },
+    { sep: true },
+    { label: 'Apagar el respaldo', icon: 'close', danger: true, onSelect: async () => {
+      const si = await confirm({ title: '¿Apagar el respaldo?', sub: 'Prism deja de actualizarlo. Las copias que ya están en la carpeta no se borran.', confirmLabel: 'Apagar', danger: true });
+      if (si) al(api.pass.backup.off(), 'Respaldo apagado');
+    } },
+  ], { align: 'end' });
+}
+
 /* La fila de actualizaciones de "Acerca de". Se pone al día EN SU LUGAR
    (relayUpdate): el texto y el botón se relevan cuando cambia la fase, y el
    porcentaje de la descarga corre en vez de saltar de un número al otro. */
@@ -1390,6 +1519,7 @@ export function init() {
     for (const p of parked.values()) p.stale = true;
   });
   on('update', relayAllUpdate);
+  api.pass.backup.onChange((b) => { S.backup = b; relayAllBackup(); });
   render();
   refreshDefault();
   refreshAutostart();

@@ -179,7 +179,7 @@ function publicItem(it) {
 
 /* ── La bóveda ───────────────────────────────────────────────────────────── */
 
-function createVault({ doc, seal, unseal, now = () => Date.now() }) {
+function createVault({ doc, seal, unseal, now = () => Date.now(), onPersist = null }) {
   let items = [];
   /* Si el archivo existe pero no se pudo leer (tomado por otro programa, sin
      permiso) o descifrar (otra cuenta de Windows, un archivo roto), NO se
@@ -220,6 +220,8 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
     if (broken) return Promise.reject(new Error('La bóveda no se pudo abrir: no se guarda nada para no pisarla.'));
     const blob = seal(JSON.stringify({ items })).toString('base64');
     chain = chain.then(() => doc.write({ v: 1, blob }), () => doc.write({ v: 1, blob }));
+    // Lo que quedó en disco es lo que se respalda (src/backup.cjs).
+    if (onPersist) chain.then(() => onPersist(), () => {});
     return chain;
   }
 
@@ -321,6 +323,8 @@ function createVault({ doc, seal, unseal, now = () => Date.now() }) {
     cards,
     markUsed,
     importItems,
+    /** La bóveda entera, con lo secreto: solo para respaldarla (src/backup.cjs). */
+    dump: () => structuredClone(items),
   };
 }
 

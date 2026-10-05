@@ -477,7 +477,10 @@ const Modal = (() => {
 
   /**
    * Modal.show({ title, sub, body, actions, width, dismissible, signal, arm })
-   * actions: [{ label, value, variant, autofocus }]  → resuelve con `value`.
+   * actions: [{ label, value, variant, autofocus, guard }]  → resuelve con `value`.
+   * `guard` (puede ser asíncrona): si no devuelve true, el diálogo se queda
+   * abierto con lo tipeado. Es para validar un formulario o guardar antes de
+   * cerrar; mientras corre, el botón no toma otro click.
    * body puede ser string HTML o un Node.
    * Con otro abierto, espera su turno. `signal` (de un AbortController) lo
    * retira: si todavía espera, sale de la fila sin verse; si ya se ve, se
@@ -549,7 +552,16 @@ const Modal = (() => {
       const b = document.createElement('button');
       b.className = `op-btn op-flashable op-btn--${a.variant || 'ghost'}`;
       b.textContent = a.label;
-      b.addEventListener('click', mine(() => close(a.value)));
+      b.addEventListener('click', mine(async () => {
+        if (a.guard) {
+          if (b.disabled) return;
+          b.disabled = true;
+          const pasa = await Promise.resolve().then(() => a.guard(b)).catch(() => false);
+          b.disabled = false;
+          if (pasa !== true || open?.anim !== anim) return;
+        }
+        close(a.value);
+      }));
       foot.appendChild(b);
       if (a.variant === 'primary' && !primary) primary = b;
       if (a.autofocus && !auto) auto = b;

@@ -1062,6 +1062,8 @@ app.whenReady().then(async () => {
   ok('bookmarks:add tampoco', r2?.ok === false && !ctx.library.listBookmarks().some((b) => b.url === 'https://malo.example/'), JSON.stringify(r2));
   const r3 = await desde(`__ipc.invoke('pass:list')`);
   ok('ni la lista de contraseñas', r3?.ok === false && !r3.data, JSON.stringify(r3));
+  const r3b = await desde(`__ipc.invoke('pass:backup-setup', 'C:/', 'una clave larga')`);
+  ok('ni prender un respaldo de la bóveda con su propia clave', r3b?.ok === false && ctx.passwords.backup.state().on === false, JSON.stringify(r3b));
   const rt = await desde(`__ipc.invoke('pay:query').then((l) => __ipc.invoke('pay:fill', l[0]?.id).then((r) => ({ n: l.length, r })))`);
   ok('una página puede ver qué tarjetas hay, pero no completarlas sin un clic de la persona', rt?.n === 1 && rt.r === false, JSON.stringify(rt));
   const r4 = await desde(`__ipc.invoke('update:state')`);
@@ -1658,6 +1660,106 @@ app.whenReady().then(async () => {
   ok('sin un alto a mano que quede pegado', await until(() => js(`document.querySelector('.pr-dflt').style.height === ''`)));
   ok('y la statusbar lo confirma', await until(() => js(`document.getElementById('status-left').textContent.includes('predeterminado')`)));
   Object.assign(ctx.defaultBrowser, real);
+
+  console.log('\n12c. Respaldo de la bóveda');
+  /* La bóveda se abre solo con esta cuenta de Windows: el respaldo es otro
+     archivo, con su clave, en la carpeta que se elija (src/backup.cjs). Acá
+     se prende desde Ajustes, se mira que se ponga al día solo, y se restaura
+     por Importar: el de acá sin preguntar, y uno ajeno pidiendo su clave. */
+  const B = require(path.join(__dirname, '..', 'src', 'backup.cjs'));
+  const RESP = path.join(TMP, 'respaldos');
+  const aj = vista('ajustes');
+  const abrirCon = async (archivo, gesto) => {
+    const antes = dialog.showOpenDialog;
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [archivo] });
+    await gesto();
+    await sleep(250);
+    dialog.showOpenDialog = antes;
+  };
+  ok('en Ajustes arranca apagado, y dice qué se arriesga', await until(() => js(`!!${aj}.querySelector('#s-bk-setup') && ${aj}.querySelector('.pr-bk').textContent.includes('solo en esta compu')`)));
+  await js(`${aj}.querySelector('#s-bk-setup').click()`);
+  ok('Configurar abre el diálogo, con el foco en la clave', await until(() => js(`document.activeElement?.id === 'bk-p1'`)));
+  const btnPrender = `[...document.querySelectorAll('.op-modal__foot .op-btn')].pop()`;
+  const avisoResp = (t) => until(() => js(`document.querySelector('#bk-msg').textContent.includes(${JSON.stringify(t)}) && document.querySelector('#bk-msg').classList.contains('op-field__hint--error') && !!document.querySelector('.op-modal')`), 3000);
+  await js(`${btnPrender}.click()`);
+  ok('sin carpeta no prende: el diálogo se queda y dice qué falta', await avisoResp('Elegí una carpeta'));
+  await abrirCon(RESP, () => js(`document.querySelector('#bk-pick').click()`));
+  ok('la carpeta elegida queda a la vista', await until(() => js(`document.querySelector('#bk-dir').textContent.includes('respaldos')`)));
+  await js(`document.querySelector('#bk-p1').value = 'corta'; ${btnPrender}.click()`);
+  ok('una clave corta no pasa', await avisoResp('al menos 8'));
+  await js(`document.querySelector('#bk-p1').value = 'clave de prueba'; document.querySelector('#bk-p2').value = 'clave de pruebo'; ${btnPrender}.click()`);
+  ok('dos claves distintas tampoco', await avisoResp('no coinciden'));
+  ok('y nada quedó prendido todavía', ctx.passwords.backup.state().on === false && !fs.existsSync(RESP));
+  await js(`document.querySelector('#bk-p2').value = 'clave de prueba'; ${btnPrender}.click()`);
+  ok('con todo bien, el diálogo se cierra', await until(() => js(`!document.querySelector('.op-modal')`)));
+  const hoyResp = path.join(RESP, B.fileName());
+  const enRespaldo = async (clave = 'clave de prueba') => (await B.openBackup(fs.readFileSync(hoyResp, 'utf8'), { passphrase: clave })).items;
+  ok('la primera copia ya está en la carpeta', fs.existsSync(hoyResp));
+  ok('cifrada: ni el sitio ni el usuario a la vista', !/Prueba|fran|127\.0\.0\.1/.test(fs.readFileSync(hoyResp, 'utf8')));
+  ok('y se abre con la clave elegida', (await enRespaldo()).some((it) => it.title === 'Prueba'));
+  ok('la fila pasa a mostrar la carpeta y la última copia', await until(() => js(`(() => { const f = ${aj}.querySelector('.pr-bk'); return !!f.querySelector('#s-bk-menu') && f.textContent.includes('respaldos') && f.textContent.includes('Última copia'); })()`)));
+  ok('una sola fila, sin la de antes colgada', await until(() => js(`${aj}.querySelectorAll('.pr-bk .pr-opt').length === 1`)));
+  ok('lo que queda en la compu no es la clave', !fs.readFileSync(path.join(process.env.PRISM_DATA, 'backup.json'), 'utf8').includes('clave de prueba'));
+
+  const paraRespaldar = await V.save({ title: 'Para respaldar', username: 'r', password: 'respaldada', urls: ['https://respaldo.test'] });
+  ok('guardar una contraseña pone el respaldo al día solo', await until(async () => (await enRespaldo()).some((it) => it.title === 'Para respaldar' && it.password === 'respaldada'), 9000));
+
+  await js(`${aj}.querySelector('#s-bk-menu').click()`);
+  const opcionResp = (t) => `[...document.querySelectorAll('.op-menu:not([data-state="closing"]) .op-menuitem')].find((b) => b.textContent.includes(${JSON.stringify(t)}))`;
+  ok('Opciones ofrece respaldar ahora, la carpeta, la clave y apagar', await until(() => js(`['Respaldar ahora', 'Abrir la carpeta', 'Cambiar de carpeta', 'Cambiar la clave', 'Apagar el respaldo'].every((t) => [...document.querySelectorAll('.op-menu .op-menuitem')].some((b) => b.textContent.includes(t)))`)));
+  await js(`${opcionResp('Respaldar ahora')}.click()`);
+  ok('respaldar ahora lo confirma en la statusbar', await until(() => js(`document.getElementById('status-left').textContent.includes('Respaldo al día')`)));
+  /* La hora se releva adentro de la frase. El relevo es una grilla: sin
+     ponerla en línea, la hora bajaba a un renglón propio y la frase se partía
+     en tres. */
+  await sleep(500);
+  ok('la hora de la última copia se releva sin partir la frase en renglones', await js(`(() => { const w = [...${aj}.querySelectorAll('.pr-bk .pr-bk__when')].pop(); const h = w.closest('.pr-opt__hint'); return w.classList.contains('op-swap') && h.getClientRects().length === 1 && h.offsetHeight < 24; })()`), await js(`String([...${aj}.querySelectorAll('.pr-bk .pr-bk__when')].pop()?.closest('.pr-opt__hint').offsetHeight)`));
+
+  /* Restaurar. A la bóveda le falta una contraseña que el respaldo tiene. */
+  await V.remove(paraRespaldar.id);
+  await until(() => ctx.passwords.backup.flush().then(() => true));
+  await js(`document.getElementById('btn-pass').click()`);
+  ok('la bóveda abre sin la que se borró', await until(() => js(`!!document.querySelector('.pr-pass') && ![...document.querySelectorAll('.pr-pass__rowtitle')].some((r) => r.textContent === 'Para respaldar')`)));
+  // El respaldo de ayer (el de hoy ya se puso al día sin ella): es de esta misma configuración.
+  const respAyer = path.join(TMP, 'Prism-boveda-ayer.prismvault');
+  const cfgResp = JSON.parse(fs.readFileSync(path.join(process.env.PRISM_DATA, 'backup.json'), 'utf8'));
+  const salAca = Buffer.from(cfgResp.salt, 'base64');
+  fs.writeFileSync(respAyer, B.sealBackup([{ kind: 'login', title: 'Para respaldar', username: 'r', password: 'respaldada', urls: ['https://respaldo.test'] }], { key: await B.deriveKey('clave de prueba', salAca), salt: salAca }));
+  await abrirCon(respAyer, () => js(`document.getElementById('pp-import').click()`));
+  ok('un respaldo de acá se restaura sin pedir la clave', await until(() => js(`document.querySelector('.pr-pass__banner')?.textContent.includes('Se restauró 1 contraseña') && [...document.querySelectorAll('.pr-pass__rowtitle')].some((r) => r.textContent === 'Para respaldar')`)));
+  ok('y no ofrece borrar el archivo: está cifrado', await js(`!document.querySelector('.pr-pass__banner [data-a=forget-import]') && !!document.querySelector('.pr-pass__banner [data-a=banner-close]')`));
+  ok('el respaldo sigue en su lugar', fs.existsSync(respAyer));
+  ok('lo restaurado trae su contraseña', V.get(V.list().find((it) => it.title === 'Para respaldar').id).password === 'respaldada');
+
+  // Uno de otra compu (otra sal, otra clave): hace falta la clave.
+  const respAjeno = path.join(TMP, 'de-otra-compu.prismvault');
+  const salAjena = Buffer.from('fedcba9876543210');
+  fs.writeFileSync(respAjeno, B.sealBackup([{ kind: 'login', title: 'De la otra compu', username: 'o', password: 'ajena', urls: ['https://otra.test'] }], { key: await B.deriveKey('la clave de la otra', salAjena), salt: salAjena }));
+  await abrirCon(respAjeno, () => js(`document.getElementById('pp-import').click()`));
+  ok('uno de otra compu pide su clave, adentro del panel', await until(() => js(`!!document.querySelector('.pr-pass #pp-restore [name=key]') && document.querySelector('#pp-restore').textContent.includes('de-otra-compu.prismvault')`)));
+  ok('con el foco en el campo', await until(() => js(`document.activeElement?.name === 'key'`)));
+  await js(`document.querySelector('#pp-restore [name=key]').value = 'no es esta'; document.querySelector('#pp-restore').requestSubmit()`);
+  ok('con una clave que no es, lo dice y deja probar de nuevo', await until(() => js(`document.querySelector('#pp-restore-msg')?.textContent.includes('no es la clave') && !document.querySelector('#pp-restore [type=submit]').disabled`)));
+  ok('y no entró nada', !V.list().some((it) => it.title === 'De la otra compu'));
+  await js(`document.querySelector('#pp-restore [name=key]').value = 'la clave de la otra'; document.querySelector('#pp-restore').requestSubmit()`);
+  ok('con la clave, se suma lo que faltaba', await until(() => js(`document.querySelector('.pr-pass__banner')?.textContent.includes('Se restauró 1 contraseña') && [...document.querySelectorAll('.pr-pass__rowtitle')].some((r) => r.textContent === 'De la otra compu')`)));
+  ok('sin pisar lo que ya estaba', V.list().some((it) => it.title === 'Prueba') && V.list().some((it) => it.title === 'Para respaldar'));
+  await abrirCon(respAjeno, () => js(`document.getElementById('pp-import').click()`));
+  await until(() => js(`!!document.querySelector('#pp-restore [name=key]')`));
+  await js(`document.querySelector('#pp-restore [name=key]').value = 'la clave de la otra'; document.querySelector('#pp-restore').requestSubmit()`);
+  ok('restaurar dos veces lo mismo no duplica', await until(() => js(`document.querySelector('.pr-pass__banner')?.textContent.includes('No había nada nuevo para restaurar')`)) && V.list().filter((it) => it.title === 'De la otra compu').length === 1);
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!document.querySelector('.pr-pass')`));
+
+  await js(`${aj}.querySelector('#s-bk-menu').click()`);
+  await until(() => js(`!!${opcionResp('Apagar el respaldo')}`));
+  await js(`${opcionResp('Apagar el respaldo')}.click()`);
+  ok('apagar pregunta antes', await until(() => js(`document.querySelector('.op-modal__title')?.textContent.includes('Apagar el respaldo')`)));
+  await js(`[...document.querySelectorAll('.op-modal__foot .op-btn')].pop().click()`);
+  ok('apagado: la fila vuelve a ofrecer configurarlo', await until(() => js(`!!${aj}.querySelector('.pr-bk #s-bk-setup:not([data-state="closing"])') && !document.querySelector('.op-modal')`)));
+  ok('la clave se olvida y las copias quedan', !fs.existsSync(path.join(process.env.PRISM_DATA, 'backup.json')) && fs.existsSync(hoyResp));
+  // Como estaba: las contraseñas de esta sección se van.
+  for (const t of ['Para respaldar', 'De la otra compu']) { const it = V.list().find((x) => x.title === t); if (it) await V.remove(it.id); }
 
   console.log('\n13. Actualizaciones');
   ctx.send('update:state', { phase: 'available', version: '9.9.9', name: 'Prism 9.9.9', bytes: 1e8, pct: 0 });

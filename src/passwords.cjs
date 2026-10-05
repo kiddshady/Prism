@@ -35,6 +35,13 @@
    Los checkouts ponen el campo en un iframe chiquito: la lista no entra ahí.
    Se dibuja en el documento principal, y el iframe le pasa por acá las
    flechas, el Enter y el "me fui" (pay:key, pay:blur).
+
+   ── Respaldo ───────────────────────────────────────────────────────────────
+   Como la bóveda solo se abre con esta cuenta de Windows, el respaldo es otro
+   archivo con su propia clave (src/backup.cjs): se escribe solo después de
+   cada cambio, en la carpeta que la persona eligió. Se restaura por
+   "Importar", que suma lo que falta y no pisa nada. La frase del respaldo
+   pasa por acá una vez, al prenderlo o al restaurar, y no se guarda.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { ipcMain, safeStorage, clipboard, dialog, shell } = require('electron');
@@ -42,6 +49,7 @@ const fs = require('fs/promises');
 const path = require('path');
 const store = require('./store.cjs');
 const V = require('./vault.cjs');
+const B = require('./backup.cjs');
 const windows = require('./windows.cjs');
 
 /** Cuánto vive una contraseña copiada en el portapapeles. */
@@ -70,13 +78,26 @@ function securePay(url) {
 }
 
 function createPasswords(ctx) {
+  const seal = (s) => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('El cifrado de Windows no está disponible: no se guarda nada.');
+    return safeStorage.encryptString(s);
+  };
+  const unseal = (b) => safeStorage.decryptString(b);
+  let backup = null;
   const vault = V.createVault({
     doc: store.doc('vault', null),
-    seal: (s) => {
-      if (!safeStorage.isEncryptionAvailable()) throw new Error('El cifrado de Windows no está disponible: no se guarda nada.');
-      return safeStorage.encryptString(s);
-    },
-    unseal: (b) => safeStorage.decryptString(b),
+    seal,
+    unseal,
+    onPersist: () => backup?.schedule(),
+  });
+  backup = B.createBackup({
+    doc: store.doc('backup', null),
+    // Una bóveda que no se pudo abrir está vacía en memoria: eso no se respalda.
+    items: () => { if (vault.broken) throw new Error('la bóveda no se pudo abrir'); return vault.dump(); },
+    seal,
+    unseal,
+    fs,
+    onChange: () => windows.broadcast('pass:backup', backup.state()),
   });
 
   const enabled = () => ctx.settings.passwords !== false;
@@ -355,16 +376,34 @@ function createPasswords(ctx) {
   });
 
   let lastImport = null;
+  /** El respaldo elegido en "Importar" que está esperando su clave. */
+  let pendingRestore = null;
+  /* Restaurar suma lo que falta, como importar: lo que ya está igual se
+     saltea y nada se pisa. No es una exportación en texto plano: no se
+     ofrece borrarlo (lastImport no se toca). */
+  async function restore(opened, file) {
+    const res = await vault.importItems(opened.items);
+    changed();
+    return { ...res, skipped: 0, file: path.basename(file), backup: true, when: opened.when };
+  }
   chrome('pass:import', async () => {
     const r = await dialog.showOpenDialog(ctx.win, {
       title: 'Importar contraseñas y tarjetas',
       buttonLabel: 'Importar',
-      filters: [{ name: 'Exportación de Proton Pass', extensions: ['zip', 'csv', 'json'] }],
+      filters: [{ name: 'Proton Pass o un respaldo de Prism', extensions: ['zip', 'csv', 'json', B.EXT.slice(1)] }],
       properties: ['openFile'],
     });
     if (r.canceled || !r.filePaths[0]) return null;
     const file = r.filePaths[0];
-    const parsed = V.parseExport(path.basename(file), await fs.readFile(file));
+    const buf = await fs.readFile(file);
+    if (B.isBackup(path.basename(file), buf)) {
+      // El de esta misma configuración se abre con la clave de acá; cualquier otro pide la suya.
+      const opened = await backup.open(buf.toString('utf8'));
+      if (opened) return restore(opened, file);
+      pendingRestore = file;
+      return { needsKey: true, file: path.basename(file) };
+    }
+    const parsed = V.parseExport(path.basename(file), buf);
     const res = await vault.importItems(parsed.items);
     lastImport = file;
     changed();
@@ -385,6 +424,32 @@ function createPasswords(ctx) {
     lastImport = null;
     return true;
   });
+
+  /* La clave del respaldo que se eligió recién. Si no es, el archivo sigue
+     esperando: se puede probar de nuevo sin volver a elegirlo. */
+  chrome('pass:restore', async (passphrase) => {
+    if (!pendingRestore) return null;
+    const file = pendingRestore;
+    const opened = await backup.open(await fs.readFile(file, 'utf8'), String(passphrase ?? ''));
+    pendingRestore = null;
+    return restore(opened, file);
+  });
+
+  chrome('pass:backup-state', () => backup.state());
+  chrome('pass:backup-folder', async (current) => {
+    const r = await dialog.showOpenDialog(ctx.win, {
+      title: 'Carpeta del respaldo',
+      buttonLabel: 'Elegir',
+      defaultPath: String(current || '').slice(0, 1000) || undefined,
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return r.canceled ? null : r.filePaths[0];
+  });
+  chrome('pass:backup-setup', (dir, passphrase) => backup.setup(String(dir || '').slice(0, 1000), String(passphrase ?? '').slice(0, 1000)));
+  chrome('pass:backup-move', (dir) => backup.move(String(dir || '').slice(0, 1000)));
+  chrome('pass:backup-now', async () => { await backup.run(); return backup.state(); });
+  chrome('pass:backup-off', () => backup.off());
+  chrome('pass:backup-open', () => { const { dir } = backup.state(); if (dir) shell.openPath(dir); return !!dir; });
 
   chrome('pass:answer', async (id, action, patch = {}) => {
     if (!offer || offer.id !== Number(id)) return false;
@@ -421,12 +486,15 @@ function createPasswords(ctx) {
       await vault.load();
       if (vault.broken) console.error('[pass] la bóveda no se pudo abrir:', vault.broken);
       setEnabled(enabled());
+      await backup.load();
+      backup.catchUp();
     },
     setEnabled,
     addSession,
     forgetSession: (session) => sessions.delete(session),
     forgetTab: (wcId) => steps.delete(wcId),
     vault,
+    backup,
   };
 }
 

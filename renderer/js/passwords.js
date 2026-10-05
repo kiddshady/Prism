@@ -35,7 +35,8 @@ const P = {
   selBy: {},             // lo elegido en cada lado, para volver a encontrarlo
   q: '',
   sel: null,
-  mode: 'view',          // view · edit · new
+  mode: 'view',          // view · edit · new · restore
+  restore: null,         // { file }: el respaldo elegido en Importar que espera su clave
   revealed: null,        // { id, values: { campo: valor } } mientras se ve algo secreto
   confirmDel: false,
   banner: null,          // resultado de una importación
@@ -199,7 +200,8 @@ function paintMain() {
   if (P.broken) html += `<div class="pr-pass__warn">${Icons.svg('alert')}<div>No se pudo abrir la bóveda guardada (${esc(P.broken)}). Para no pisarla, Prism no guarda cambios hasta que se resuelva.</div></div>`;
 
   const card = P.kind === 'card';
-  if (P.mode === 'new' || (P.mode === 'edit' && it)) html += (card ? cardFormHTML : formHTML)(P.mode === 'edit' ? it : null);
+  if (P.mode === 'restore' && P.restore) html += restoreHTML();
+  else if (P.mode === 'new' || (P.mode === 'edit' && it)) html += (card ? cardFormHTML : formHTML)(P.mode === 'edit' ? it : null);
   else if (!ofKind().length) html += welcomeHTML();
   else if (it) html += (card ? cardHTML : detailHTML)(it);
   else html += `<div class="pr-pass__empty"><i data-icon="${card ? 'card' : 'passKey'}"></i><div>Elegí un elemento de la lista.</div></div>`;
@@ -242,12 +244,16 @@ function bannerHTML() {
   const parts = [logins && plural(logins, 'contraseña', 'contraseñas'), b.cards && plural(b.cards, 'tarjeta', 'tarjetas')].filter(Boolean);
   return `
     <div class="pr-pass__banner">
-      <div class="pr-pass__bannerhead">${Icons.svg('check')}<span>${b.added ? `Se importaron ${parts.join(' y ')}` : 'No había nada nuevo para importar'}${b.repeated ? ` · ${plural(b.repeated, 'ya estaba', 'ya estaban')}` : ''}</span></div>
-      <div class="pr-pass__bannertext">El archivo <b>${esc(b.file)}</b> tiene tus datos sin cifrar. Ya no hace falta: conviene borrarlo.</div>
+      <div class="pr-pass__bannerhead">${Icons.svg('check')}<span>${b.added ? `Se ${b.backup ? (b.added === 1 ? 'restauró' : 'restauraron') : (b.added === 1 ? 'importó' : 'importaron')} ${parts.join(' y ')}` : `No había nada nuevo para ${b.backup ? 'restaurar' : 'importar'}`}${b.repeated ? ` · ${plural(b.repeated, 'ya estaba', 'ya estaban')}` : ''}</span></div>
+      ${b.backup
+    /* Un respaldo está cifrado: no hay nada que borrar. */
+    ? `<div class="pr-pass__bannertext">Del respaldo <b>${esc(b.file)}</b>. Sigue cifrado en su carpeta: no hace falta borrarlo.</div>
+      <div class="pr-pass__banneractions"><button class="op-btn op-btn--ghost op-btn--sm" data-a="banner-close">Entendido</button></div>`
+    : `<div class="pr-pass__bannertext">El archivo <b>${esc(b.file)}</b> tiene tus datos sin cifrar. Ya no hace falta: conviene borrarlo.</div>
       <div class="pr-pass__banneractions">
         <button class="op-btn op-btn--ghost op-btn--sm" data-a="banner-close">Lo borro yo</button>
         <button class="op-btn op-btn--secondary op-btn--sm" data-a="forget-import"><i data-icon="trash"></i> Borrar el archivo</button>
-      </div>
+      </div>`}
     </div>`;
 }
 
@@ -380,6 +386,21 @@ const formActions = `
     <button type="submit" class="op-btn op-btn--primary op-btn--sm"><i data-icon="check"></i> Guardar</button>
   </div>`;
 
+/** La clave de un respaldo que se eligió en Importar. */
+function restoreHTML() {
+  return `
+    <form class="pr-pass__form" id="pp-restore" autocomplete="off">
+      <div class="pr-pass__formtitle">Restaurar un respaldo</div>
+      <label class="op-field"><span class="op-field__label">Clave del respaldo</span>
+        <input class="op-input" name="key" type="password" spellcheck="false" autocomplete="off">
+        <span class="op-field__hint" id="pp-restore-msg">La que elegiste al prender el respaldo, para <b>${esc(P.restore.file)}</b>. Se suma lo que falte: nada de lo que ya tenés se pisa.</span></label>
+      <div class="pr-pass__formactions">
+        <button type="button" class="op-btn op-btn--ghost op-btn--sm" data-a="cancel">Cancelar</button>
+        <button type="submit" class="op-btn op-btn--primary op-btn--sm"><i data-icon="check"></i> Restaurar</button>
+      </div>
+    </form>`;
+}
+
 function formHTML(it) {
   const v = (k) => esc(it?.[k] || '');
   return `
@@ -495,6 +516,18 @@ async function doImport() {
     return;
   }
   if (!r) return;
+  /* Un respaldo de Prism que no es el de acá: hace falta su clave. Se pide en
+     el panel mismo (un modal lo cerraría), y sigue en submitRestore(). */
+  if (r.needsKey) {
+    P.restore = { file: r.file };
+    P.mode = 'restore';
+    return paintMain();
+  }
+  await imported(r);
+}
+
+/** Lo que entró (de una exportación o de un respaldo), a la vista. */
+async function imported(r) {
   P.banner = r;
   await load();
   // Si lo único que entró fueron tarjetas, se muestran las tarjetas.
@@ -503,6 +536,26 @@ async function doImport() {
   P.mode = 'view';
   paintList();
   paintMain();
+}
+
+async function submitRestore(form) {
+  const input = form.querySelector('[name=key]');
+  const btn = form.querySelector('[type=submit]');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    const r = await api.pass.restore(input.value);
+    P.restore = null;
+    if (r) await imported(r);
+    else { P.mode = 'view'; paintMain(); }
+  } catch (err) {
+    // La clave no era: el archivo sigue elegido, se prueba de nuevo.
+    btn.disabled = false;
+    const msg = form.querySelector('#pp-restore-msg');
+    msg.classList.add('op-field__hint--error');
+    swapText(msg, err.message, { size: true });
+    input.select();
+  }
 }
 
 async function submitForm(form) {
@@ -578,7 +631,7 @@ function wire(el) {
   });
 
   const main = el.querySelector('#pp-main');
-  main.addEventListener('submit', (e) => { e.preventDefault(); submitForm(e.target); });
+  main.addEventListener('submit', (e) => { e.preventDefault(); if (e.target.id === 'pp-restore') submitRestore(e.target); else submitForm(e.target); });
   main.addEventListener('click', async (e) => {
     const cp = e.target.closest('[data-copy]');
     if (cp) return copyField(cp.dataset.copy, cp);

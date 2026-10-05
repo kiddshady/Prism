@@ -387,6 +387,8 @@ Toast.show({ title, text, icon, tone, duration });
 Toast.error(title, text);
 Menu.show(anchorEl, items, { align: 'end' });
 await Modal.show({ title, sub, body, actions, width, dismissible, signal });
+// actions: [{ label, value, variant, autofocus, guard }]. `guard` (sync o async) frena
+// el cierre si no devuelve true: para validar un formulario o guardar antes de cerrar.
 await Modal.confirm({ title, sub, confirmLabel, danger });
 ```
 
