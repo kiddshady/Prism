@@ -399,11 +399,24 @@ if (IS_TOP) {
     // Pasar a otro iframe no la cierra: si era de un iframe, la cierra su pay:blur.
     else if (anchor && !(anchor.remote && /^i?frame$/i.test(e.target?.tagName || ''))) close();
   }, true);
-  /* El campo perdió el foco. Puede ser un click en la lista de Prism, que es
-     otra vista y se lleva el foco: Prism espera un momento antes de cerrarla
-     (src/fill.cjs). */
+  /* El campo perdió el foco. Si fue un click en la página que no enfoca nada
+     (el fondo, un texto), se cierra acá: para Prism la pestaña sigue con el
+     teclado y no se enteraría. Si la página entera lo perdió, puede ser un
+     click en la lista de Prism, que es otra vista y se lleva el foco: Prism
+     espera un momento antes de cerrarla (src/fill.cjs). Pasar a otro campo
+     lo resuelve el focusin de arriba. */
+  function lostFocus() {
+    const seq = shownSeq;
+    // En la tarea siguiente: recién ahí se sabe adónde fue el foco.
+    setTimeout(() => {
+      if (!anchor || seq !== shownSeq) return;
+      const at = document.activeElement;
+      if (!document.hasFocus()) ipcRenderer.send('fill:blur', { seq });
+      else if (!at || at === document.body || at === document.documentElement) close();
+    }, 0);
+  }
   document.addEventListener('focusout', (e) => {
-    if (anchor?.el && e.target === anchor.el) ipcRenderer.send('fill:blur', { seq: shownSeq });
+    if (anchor?.el && e.target === anchor.el) lostFocus();
   }, true);
   // Un clic en el campo que ya tenía el foco (y cuya lista se cerró) la vuelve a abrir.
   document.addEventListener('pointerdown', (e) => {
@@ -423,7 +436,7 @@ if (IS_TOP) {
   }, true);
   ipcRenderer.on('pay:key', (_e, key) => { if (isOpen() && anchor.remote) onKey(key); });
   // El iframe perdió el foco: como el focusout de arriba, Prism decide si fue un click en la lista.
-  ipcRenderer.on('pay:blur', () => { if (anchor?.remote) ipcRenderer.send('fill:blur', { seq: shownSeq }); });
+  ipcRenderer.on('pay:blur', () => { if (anchor?.remote) lostFocus(); });
   addEventListener('scroll', () => { if (anchor?.remote) close(); else if (anchor) schedule(); }, true);
   addEventListener('resize', () => { if (anchor?.remote) close(); else if (anchor) schedule(); });
 

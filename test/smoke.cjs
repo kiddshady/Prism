@@ -940,6 +940,14 @@ app.whenReady().then(async () => {
     const v = ctx.win.contentView.children.find((c) => c.webContents === ctx.fill.webContents)?.getBounds();
     return !!f && !!v && Math.abs(v.x + f.x - (b.x + r.x)) <= 2 && Math.abs(v.y + f.y - (b.y + r.y + 4)) <= 2;
   })());
+  /* Un click en el fondo de la página no enfoca nada: la pestaña sigue con el
+     teclado y Prism no se enteraba, así que la lista quedaba colgada. */
+  lwc.focus();
+  for (const type of ['mouseDown', 'mouseUp']) lwc.sendInputEvent({ type, x: 500, y: 300, button: 'left', clickCount: 1 });
+  ok('un click en el fondo de la página la cierra', await until(() => !listaAbierta()));
+  await click('#u');
+  ok('y clickear el campo de nuevo la vuelve a abrir', await until(listaAbierta));
+  await sleep(250);
   // Una flecha inventada por la página no elige nada (la de la persona sí, abajo).
   await lwc.executeJavaScript(`document.getElementById('u').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })); true`);
   await sleep(150);
