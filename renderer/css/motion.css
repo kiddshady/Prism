@@ -172,6 +172,12 @@
 .op-swap--truncate > .op-swap__item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Un rótulo con ícono (un botón) sigue siendo una fila adentro de su celda. */
 .op-swap--row > .op-swap__item { display: inline-flex; align-items: center; gap: inherit; }
+/* Si la celda es un envoltorio adentro del botón, le pasa el espacio del
+   botón: `gap` no se hereda solo, y el ícono quedaba pegado al texto (0 px
+   contra los 8 de cualquier otro botón). Y antes del primer relevo ya es una
+   fila con ese espacio, o el rótulo se correría al relevarse por primera vez. */
+.op-btn > .op-swap--row { gap: inherit; }
+.op-btn > .op-swap--row:not(.op-swap) { display: inline-flex; align-items: center; }
 .op-swap > .op-swap__item[data-dir='up']   { animation-name: op-swap-up-in; }
 .op-swap > .op-swap__item[data-dir='down'] { animation-name: op-swap-down-in; }
 .op-swap > .op-swap__item.is-after { animation-delay: 60ms; }

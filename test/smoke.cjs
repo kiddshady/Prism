@@ -1662,6 +1662,21 @@ app.whenReady().then(async () => {
   console.log('\n13. Actualizaciones');
   ctx.send('update:state', { phase: 'available', version: '9.9.9', name: 'Prism 9.9.9', bytes: 1e8, pct: 0 });
   ok('el menú muestra un punto', await until(() => js(`document.getElementById('btn-menu').classList.contains('has-update')`)));
+  /* El ícono del botón de Ajustes va separado del texto como en cualquier
+     otro botón. Su rótulo se releva adentro de un envoltorio, que no heredaba
+     el espacio del botón: quedaban pegados (0 px). */
+  const aire = () => js(`(() => {
+    const b = [...document.querySelectorAll('#s-update')].find((x) => x.getClientRects().length);
+    const item = b && [...b.querySelectorAll('.op-swap__item')].find((x) => x.dataset.state !== 'closing');
+    const svg = item?.querySelector('svg');
+    const t = svg?.nextSibling;
+    if (!t || t.nodeType !== 3) return null;
+    const r = document.createRange();
+    const i = t.textContent.search(/\\S/);
+    r.setStart(t, i); r.setEnd(t, i + 1);
+    return { texto: t.textContent.trim(), px: Math.round(r.getBoundingClientRect().left - svg.getBoundingClientRect().right) };
+  })()`);
+  ok('en Ajustes, el ícono del botón de actualizar va separado del texto (8 px, como los demás)', await until(async () => { const a = await aire(); return a?.texto === 'Descargar' && a.px === 8; }, 3000), JSON.stringify(await aire()));
   await js(`document.getElementById('btn-menu').click()`);
   ok('y ofrece descargarla arriba de todo', await until(() => js(`!!document.querySelector('.op-menu .op-menuitem')?.textContent.includes('9.9.9')`)));
   ok('con "Salir de Prism" al final', await js(`[...document.querySelectorAll('.op-menu .op-menuitem')].pop().textContent.includes('Salir de Prism')`));
