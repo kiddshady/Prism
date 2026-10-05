@@ -49,16 +49,46 @@ function usable(v) {
 
 const videos = () => document.getElementsByTagName('video');
 
+/** Lo que se ve de un elemento: su rectángulo, recortado por la ventana y por
+    los que lo contienen sin dejarlo asomar (overflow). Un carrusel (los
+    posteos de varios videos de Instagram) esconde así los de los costados:
+    siguen ahí, al lado, pero no se ven. null si no se ve nada. */
+function shownRect(el) {
+  const r = el.getBoundingClientRect();
+  let left = Math.max(r.left, 0);
+  let top = Math.max(r.top, 0);
+  let right = Math.min(r.right, innerWidth);
+  let bottom = Math.min(r.bottom, innerHeight);
+  for (let a = el.parentElement || el.getRootNode()?.host; a && a !== document.body && a !== document.documentElement; a = a.parentElement || a.getRootNode()?.host) {
+    const cs = getComputedStyle(a);
+    if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+    const ar = a.getBoundingClientRect();
+    if (cs.overflowX !== 'visible') {
+      left = Math.max(left, ar.left + a.clientLeft);
+      right = Math.min(right, ar.left + a.clientLeft + a.clientWidth);
+    }
+    if (cs.overflowY !== 'visible') {
+      top = Math.max(top, ar.top + a.clientTop);
+      bottom = Math.min(bottom, ar.top + a.clientTop + a.clientHeight);
+    }
+    if (right <= left || bottom <= top) return null;
+  }
+  return right > left && bottom > top ? { left, top, right, bottom, width: right - left, height: bottom - top } : null;
+}
+
 /* Los reproductores suelen tapar el video con una capa transparente (la de
    sus controles): el que está "debajo del mouse" se busca por rectángulo,
-   no por el elemento que recibe el evento. */
+   no por el elemento que recibe el evento. Por lo que se ve de él: uno
+   escondido en un carrusel no está debajo del mouse aunque su caja sí. */
 function videoAt(x, y) {
   let best = null;
   let area = 0;
   for (const v of videos()) {
     const r = v.getBoundingClientRect();
     if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
-    if (r.width * r.height > area && usable(v)) { best = v; area = r.width * r.height; }
+    const s = shownRect(v);
+    if (!s || x < s.left || x > s.right || y < s.top || y > s.bottom) continue;
+    if (s.width * s.height > area && usable(v)) { best = v; area = s.width * s.height; }
   }
   return best;
 }
@@ -70,9 +100,8 @@ function bestVideo() {
   let score = 0;
   for (const v of videos()) {
     if (!usable(v)) continue;
-    const r = v.getBoundingClientRect();
-    const seen = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0))
-      * Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+    const shown = shownRect(v);
+    const seen = shown ? shown.width * shown.height : 0;
     const s = (!v.paused && !v.ended ? 4e8 : 0) + (v.currentTime > 0 ? 2e8 : 0) + seen + 1;
     if (s > score) { best = v; score = s; }
   }
@@ -140,10 +169,10 @@ function ensureButton() {
 
 function placeButton() {
   if (!shownFor || !btn) return;
-  if (!usable(shownFor)) { hideButton(); return; }
-  const r = shownFor.getBoundingClientRect();
-  const right = Math.max(8, Math.round(innerWidth - Math.min(r.right, innerWidth) + 10));
-  const top = Math.round(Math.max(r.top, 0) + (Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / 2 - 15);
+  const r = usable(shownFor) && shownRect(shownFor);
+  if (!r) { hideButton(); return; }
+  const right = Math.max(8, Math.round(innerWidth - r.right + 10));
+  const top = Math.round(r.top + r.height / 2 - 15);
   btn.style.right = `${right}px`;
   btn.style.top = `${Math.max(8, Math.min(innerHeight - 38, top))}px`;
 }

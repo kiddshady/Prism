@@ -166,6 +166,13 @@ const PAGES = {
       setInterval(() => { x.fillStyle = 'hsl(' + (n++ * 11 % 360) + ',60%,40%)'; x.fillRect(0, 0, 400, 300); }, 40);
       document.getElementById('e').srcObject = c.captureStream(25);
     </script></body>`,
+  /* Un posteo de varios videos, como en Instagram: el segundo está a la
+     derecha del primero, escondido por la caja del carrusel. */
+  '/carrusel': `<title>Carrusel</title><body style="margin:0"><div style="width:400px;overflow:hidden;margin:40px">
+    <div style="display:flex;width:800px"><video id="a" muted playsinline style="width:400px;height:300px;flex:none"></video><video id="b" muted playsinline style="width:400px;height:300px;flex:none"></video></div></div>
+    <script>
+      for (const v of document.querySelectorAll('video')) { const c = document.createElement('canvas'); c.width = 400; c.height = 300; c.getContext('2d').fillRect(0, 0, 400, 300); v.srcObject = c.captureStream(5); }
+    </script></body>`,
   /* Como Moodle 4 con sesión: el documento no scrollea, scrollea una caja. */
   '/caja': `<title>Caja</title><style>html,body{height:100%;margin:0;overflow:hidden}
     #page{height:calc(100vh - 50px);margin-top:50px;overflow-y:auto}</style>
@@ -1626,6 +1633,20 @@ app.whenReady().then(async () => {
   console.log('\n11e. La ventanita');
   const { BaseWindow } = require('electron');
   const pipWin = () => BaseWindow.getAllWindows().find((w) => w.getTitle() === 'Prism · Ventanita') || null;
+  /* En un carrusel, el botón es del video que se ve y va en su borde: con el
+     mouse sobre el escondido (a la derecha del posteo, donde no hay nada)
+     aparecía afuera, colgado de él. */
+  ctx.tabs.create({ url: `${BASE}/carrusel` });
+  await until(() => ctx.tabs.active.title === 'Carrusel' && !ctx.tabs.active.loading);
+  const cwc2 = ctx.tabs.active.view.webContents;
+  await until(() => cwc2.executeJavaScript(`[...document.querySelectorAll('video')].every((v) => v.readyState > 0)`));
+  const botonEn = (x, y) => cwc2.executeJavaScript(`document.elementFromPoint(${x}, ${y})?.tagName === 'PRISM-PIP'`);
+  cwc2.sendInputEvent({ type: 'mouseMove', x: 640, y: 190 });
+  await sleep(400);
+  ok('sobre el video escondido de un carrusel no aparece el botón', !(await botonEn(840 - 26, 190)) && !(await botonEn(440 - 26, 190)));
+  cwc2.sendInputEvent({ type: 'mouseMove', x: 240, y: 190 });
+  ok('sobre el que se ve, aparece en su borde', await until(() => botonEn(440 - 26, 190)));
+  ctx.tabs.close(ctx.tabs.active.id);
   ctx.tabs.create({ url: `${BASE}/video` });
   await until(() => ctx.tabs.active.title === 'Video');
   const vt = ctx.tabs.active;
