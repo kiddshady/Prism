@@ -1723,9 +1723,13 @@ app.whenReady().then(async () => {
   for (const type of ['keyDown', 'keyUp']) pui2.sendInputEvent({ type, keyCode: 'P', modifiers: ['control', 'shift'] });
   ok('Ctrl+Mayús+P con el teclado en la ventanita la trae de vuelta', await until(() => !ctx.pip.current && !pipWin() && win.contentView.children.includes(vt.view), 5000));
 
-  await vwc.executeJavaScript(`document.getElementById('v').play()`);
+  /* TikTok tiene transparente el video que pasa (se ve otra cosa en su
+     lugar), y visible el de abajo, cargado y quieto: sale el que suena. */
+  await marco.executeJavaScript(`document.getElementById('e').pause()`, true);
+  await vwc.executeJavaScript(`(() => { const v = document.getElementById('v'); v.style.opacity = '0'; return v.play(); })()`);
   ctx.command('page:pip');
   await until(() => ctx.pip.current && pipWin()?.getOpacity() > 0.99 && pipWin().getBounds().x > -10000, 5000);
+  ok('el que suena sale aunque el sitio lo tenga transparente', await vwc.executeJavaScript(`document.fullscreenElement?.id === 'v' && getComputedStyle(document.getElementById('v')).opacity === '1'`));
   ctx.tabs.close(vt.id);
   ok('cerrar la pestaña se lleva la ventanita', await until(() => !ctx.pip.current && !pipWin()));
 

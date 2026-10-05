@@ -35,6 +35,7 @@ let target = null;     // el video que está en la ventanita
 let hovered = null;    // el video bajo el mouse (el del botón)
 let picked = null;     // el que se eligió con el botón
 let fromContext = null;
+let found = null;      // el que más convenía al preguntar (pip:find)
 
 function usable(v) {
   if (!(v instanceof HTMLVideoElement) || !v.isConnected) return false;
@@ -44,7 +45,11 @@ function usable(v) {
   const r = v.getBoundingClientRect();
   if (r.width < MIN_W || r.height < MIN_H) return false;
   const cs = getComputedStyle(v);
-  return cs.visibility !== 'hidden' && cs.display !== 'none' && Number(cs.opacity) > 0.05;
+  if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+  /* Transparente y quieto es un resto escondido. Transparente y sonando es el
+     que se está mirando: TikTok tiene así el que pasa (el de abajo, cargado
+     para cuando bajes, sí se ve), y la ventanita sacaba ese otro. */
+  return Number(cs.opacity) > 0.05 || (!v.paused && !v.ended);
 }
 
 const videos = () => document.getElementsByTagName('video');
@@ -52,15 +57,25 @@ const videos = () => document.getElementsByTagName('video');
 /** Lo que se ve de un elemento: su rectángulo, recortado por la ventana y por
     los que lo contienen sin dejarlo asomar (overflow). Un carrusel (los
     posteos de varios videos de Instagram) esconde así los de los costados:
-    siguen ahí, al lado, pero no se ven. null si no se ve nada. */
+    siguen ahí, al lado, pero no se ven. null si no se ve nada.
+    Recorta solo quien contiene: algo absoluto asoma por encima de las cajas
+    que no están posicionadas, y algo fijo, de todas (salvo las que tienen un
+    transform o un filtro). TikTok arma así el video que se está viendo: con
+    cualquier caja de por medio recortando, parecía que no se veía. */
+const holdsFixed = (cs) => cs.transform !== 'none' || cs.filter !== 'none' || cs.perspective !== 'none' || /paint|layout|strict|content/.test(cs.contain);
 function shownRect(el) {
   const r = el.getBoundingClientRect();
   let left = Math.max(r.left, 0);
   let top = Math.max(r.top, 0);
   let right = Math.min(r.right, innerWidth);
   let bottom = Math.min(r.bottom, innerHeight);
+  // Cómo está ubicado el último que se miró: dice quién lo puede recortar.
+  let pos = getComputedStyle(el).position;
   for (let a = el.parentElement || el.getRootNode()?.host; a && a !== document.body && a !== document.documentElement; a = a.parentElement || a.getRootNode()?.host) {
     const cs = getComputedStyle(a);
+    if (pos === 'fixed' && !holdsFixed(cs)) continue;
+    if (pos === 'absolute' && cs.position === 'static' && !holdsFixed(cs)) continue;
+    pos = cs.position;
     if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
     const ar = a.getBoundingClientRect();
     if (cs.overflowX !== 'visible') {
@@ -276,12 +291,13 @@ function onFullscreenChange() {
 }
 
 async function enter(pick) {
-  const v = pick === 'picked' ? picked : pick === 'context' ? fromContext : bestVideo().video;
+  const v = pick === 'picked' ? picked : pick === 'context' ? fromContext : found?.isConnected ? found : bestVideo().video;
   picked = null;
+  found = null;
   if (!usable(v)) return { ok: false, error: 'none' };
   hideButton();
   // Los controles propios de Chromium no aparecen: los de la ventanita son de Prism.
-  cssKey = webFrame.insertCSS('video::-webkit-media-controls { display: none !important; } video:fullscreen { cursor: default !important; }');
+  cssKey = webFrame.insertCSS('video::-webkit-media-controls { display: none !important; } video:fullscreen { cursor: default !important; opacity: 1 !important; }');
   try {
     await v.requestFullscreen({ navigationUI: 'hide' });
   } catch (err) {
@@ -351,8 +367,14 @@ function command(op, arg) {
   push();
 }
 
+/* El que más conviene se elige al preguntar, con la página todavía en su
+   pestaña: al mudarse a la ventanita queda oculta un instante, y TikTok pausa
+   el que suena. Elegido después, ya no sonaba ninguno y salía el de abajo
+   (el que tiene cargado para cuando bajes). */
 ipcRenderer.on('pip:find', (_e, nonce) => {
-  ipcRenderer.send('pip:found', nonce, bestVideo().score);
+  const best = bestVideo();
+  found = best.video;
+  ipcRenderer.send('pip:found', nonce, best.score);
 });
 ipcRenderer.on('pip:enter', async (_e, nonce, pick) => {
   ipcRenderer.send('pip:reply', nonce, await enter(pick));
