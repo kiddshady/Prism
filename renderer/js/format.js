@@ -40,6 +40,13 @@ function nf(min, max = min) {
 /** Un número con exactamente `d` decimales. Es el reemplazo de toFixed(d). */
 const dec = (n, d) => nf(d).format(n);
 
+/* Con un decimal debajo de 10 y sin decimales desde 10, decidido con el valor
+   YA redondeado: 9,96 redondeado a un decimal es «10,0», y eso va «10». */
+const short = (v) => {
+  const one = Math.round(v * 10) / 10;
+  return Math.abs(one) < 10 ? dec(one, 1) : dec(Math.round(v), 0);
+};
+
 /** Duración legible: 840ms · 2,4s · 3m 07s · 1h 12m */
 export function fmtDur(ms) {
   if (ms == null) return '—';
@@ -58,7 +65,8 @@ export function fmtNum(n) {
   // Menos de mil va entero, pero igual por el formateador: un 12.5 tiene que
   // salir "12,5" como todo lo demás.
   if (abs < 1000) return nf(0, 20).format(n);
-  if (abs < 1_000_000) return `${dec(n / 1000, abs < 10_000 ? 1 : 0)}k`;
+  // La unidad también se elige con el valor ya redondeado: 999.999 son «1000k», que es 1M.
+  if (Math.round(abs / 1000) < 1000) return `${short(n / 1000)}k`;
   return `${dec(n / 1_000_000, 1)}M`;
 }
 
@@ -66,9 +74,11 @@ export function fmtNum(n) {
 export function fmtBytes(n) {
   if (!n) return '0 B';
   const u = ['B', 'kB', 'MB', 'GB', 'TB'];
-  const i = Math.min(u.length - 1, Math.floor(Math.log(Math.abs(n)) / Math.log(1024)));
+  let i = Math.min(u.length - 1, Math.floor(Math.log(Math.abs(n)) / Math.log(1024)));
+  // Con el valor ya redondeado: 1.048.575 B son «1024 kB», que es 1,0 MB.
+  if (i < u.length - 1 && Math.round(Math.abs(n) / 1024 ** i) >= 1024) i++;
   const v = n / 1024 ** i;
-  return `${dec(v, i === 0 ? 0 : v < 10 ? 1 : 0)} ${u[i]}`;
+  return i === 0 ? `${dec(v, 0)} ${u[i]}` : `${short(v)} ${u[i]}`;
 }
 
 /**

@@ -66,5 +66,19 @@ try {
    locale, así que un caché mal armado dejaría la app pegada al idioma anterior. */
 es('vuelve a es-AR', fmtBytes(2202009), '2,1 MB');
 
+console.log('\n6. Los bordes: la unidad y los decimales con el valor ya redondeado');
+/* Elegían la unidad con el número sin redondear y después redondeaban: justo
+   debajo de un límite, el valor subía sin cambiar de sufijo. En Prism se ve
+   en las descargas: «1024 kB» un instante antes de «1,0 MB». */
+es('fmtNum(999999) no dice 1000k', fmtNum(999999), '1,0M');
+es('fmtNum(9999) no dice 10,0k', fmtNum(9999), '10k');
+es('fmtNum(9940) sigue con un decimal', fmtNum(9940), '9,9k');
+es('fmtNum(10000)', fmtNum(10000), '10k');
+es('fmtNum(999499) todavía es k', fmtNum(999499), '999k');
+es('fmtBytes(1048575) no dice 1024 kB', fmtBytes(1048575), '1,0 MB');
+es('fmtBytes(10239) no dice 10,0 kB', fmtBytes(10239), '10 kB');
+es('fmtBytes(1023) sigue en bytes', fmtBytes(1023), '1023 B');
+es('fmtBytes(1023.6) redondea a 1,0 kB', fmtBytes(1023.6), '1,0 kB');
+
 console.log(`\n═══ ${pass} ok · ${fail} fallas ═══\n`);
 process.exit(fail ? 1 : 0);

@@ -255,6 +255,10 @@ el instalador le saca a `file://` el privilegio de leer otros archivos.
 - **Un menú recién creado ya está animando.** Medido con
   `getBoundingClientRect` sale achicado por la escala de su entrada, y se
   ubicaba como si fuera más chico: el tamaño va con `offsetWidth`.
+- **Elegir la unidad antes de redondear.** Justo debajo de un límite, el
+  número subía sin cambiar de sufijo: una descarga decía «1024 kB» un
+  instante antes de «1,0 MB», y un contador, «1000k». La unidad y los
+  decimales se eligen con el valor ya redondeado (format.js).
 - **El anillo de foco con `box-shadow` lo pisa cualquier control con sombra
   propia.** Primario, secundario, switches, checks y selects quedaban sin
   ninguna marca de foco con el teclado. Es un `outline` (docs/sistema.md).
