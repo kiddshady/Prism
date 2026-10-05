@@ -51,6 +51,13 @@ const { keepAlive } = require('./src/recover.cjs');
    literal solo cubre los primeros milisegundos. `npm test` vigila que coincida. */
 const BG = '#0a0a0a';
 
+/* El ícono de las ventanas. En Windows, el .ico: cada tamaño tiene su cuadro,
+   dibujado a ese tamaño (tools/icons.mjs), y Windows elige el que le sirve.
+   Con el PNG de 256 px la ventana le daba ese para todo, y la barra de tareas
+   lo achicaba a 24: el prisma salía más chico y con las caras pegadas, distinto
+   del ícono del acceso directo, que sí sale del .ico del ejecutable. */
+const ICON = path.join(__dirname, 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+
 const DEFAULT_W = 1360;
 const DEFAULT_H = 880;
 const MIN_W = 720;
@@ -305,7 +312,7 @@ function createWindow(w, state) {
     paintWhenInitiallyHidden: true,
     backgroundColor: BG,
     title: main ? 'Prism' : 'Prism · Incógnito',
-    icon: path.join(__dirname, 'build', 'icon.png'),
+    icon: ICON,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -671,7 +678,7 @@ app.whenReady().then(async () => {
   ctx.card = createCard(ctx);
   ctx.fill = createFill(ctx);
   // Una sola ventanita para todas las ventanas (la de incógnito la hereda).
-  ctx.pip = createPip({ store, icon: path.join(__dirname, 'build', 'icon.png') });
+  ctx.pip = createPip({ store, icon: ICON });
   ctx.defaultBrowser = createDefaultBrowser({ app, shell });
   ctx.autostart = createAutostart({ app });
 

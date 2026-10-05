@@ -170,6 +170,26 @@ function lockFile(file) {
   });
 }
 
+/** Los tamaños de los íconos que una ventana le da a Windows: «grande chico», en px.
+    Se le pregunta a la ventana (WM_GETICON) desde afuera, sin trabar este proceso:
+    tiene que seguir atendiendo mensajes para contestar. */
+function iconosDeLaVentana(win) {
+  const hwnd = win.getNativeWindowHandle().readBigUInt64LE(0).toString();
+  const ps = `
+    Add-Type -AssemblyName System.Drawing
+    Add-Type 'using System; using System.Runtime.InteropServices; public static class W { [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeout(IntPtr h, uint m, IntPtr w, IntPtr l, uint f, uint ms, out IntPtr r); }'
+    $out = foreach ($cual in 1, 0) {
+      $r = [IntPtr]::Zero
+      [void][W]::SendMessageTimeout([IntPtr]${hwnd}, 0x7F, [IntPtr]$cual, [IntPtr]::Zero, 2, 3000, [ref]$r)
+      if ($r -eq [IntPtr]::Zero) { 0 } else { [System.Drawing.Icon]::FromHandle($r).Width }
+    }
+    $out -join ' '`;
+  return new Promise((resolve) => {
+    require('child_process').execFile('powershell', ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')],
+      (err, out) => resolve(err ? `error: ${err.message}` : out.trim()));
+  });
+}
+
 /** Cuántas veces se pidió cada dirección (para saber si una página se recargó). */
 const hits = {};
 const server = http.createServer((req, res) => {
@@ -220,6 +240,11 @@ app.whenReady().then(async () => {
 
   console.log('\n1. Arranque');
   ok('el splash se fue', await js(`!document.getElementById('boot-splash')`));
+  /* El ícono de la ventana sale del .ico, cada cuadro a su tamaño. Con el PNG
+     de 256 px la ventana le daba ese para todo y la barra de tareas lo
+     achicaba: el prisma salía más chico y con las caras pegadas. */
+  const iconos = await iconosDeLaVentana(win);
+  ok('la ventana le da a Windows los cuadros del .ico (32 y 16 px), no el de 256 achicado', iconos === '32 16', iconos);
   ok('los <i data-icon> se reemplazaron', !(await js(`!!document.querySelector('i[data-icon]')`)));
   ok('arranca con una nueva pestaña', ctx.tabs.list.length === 1 && ctx.tabs.active.internal === 'nueva');
   ok('la nueva pestaña se dibuja', await until(() => js(`!!document.querySelector('.pr-view[data-page="nueva"] .pr-fakebox')`)));
