@@ -222,10 +222,20 @@ function push() {
   });
 }
 
+/* Mientras hay un video en la ventanita, la página entera está tapada por
+   él: otro video suyo que arranca no se ve, solo se oye. Un feed (Instagram)
+   pone a andar el que cree que está a la vista y pausa el resto; acá se
+   queda callado el otro. */
+function hush(e) {
+  const m = e.target;
+  if (target && m !== target && m instanceof HTMLMediaElement) m.pause();
+}
+
 function release() {
   if (!target) return;
   for (const t of EVENTS) target.removeEventListener(t, push);
   document.removeEventListener('fullscreenchange', onFullscreenChange);
+  document.removeEventListener('play', hush, true);
   if (cssKey) { try { webFrame.removeInsertedCSS(cssKey); } catch { /* ya no estaba */ } cssKey = null; }
   target = null;
 }
@@ -254,6 +264,9 @@ async function enter(pick) {
   leaving = false;
   for (const t of EVENTS) v.addEventListener(t, push);
   document.addEventListener('fullscreenchange', onFullscreenChange);
+  // Los eventos de un video no burbujean, pero pasan por el documento en la captura.
+  document.addEventListener('play', hush, true);
+  for (const m of document.querySelectorAll('video, audio')) if (m !== v && !m.paused) m.pause();
   return { ok: true, ...state() };
 }
 

@@ -192,8 +192,29 @@ function createPip({ store, icon = null }) {
     if (!cur || cur.win.isDestroyed()) return;
     const [width, height] = cur.win.getContentSize();
     const r = { x: 0, y: 0, width, height };
-    if (!cur.closing) cur.t.view?.setBounds(r);
+    if (!cur.closing) { cur.t.view?.setBounds(r); emulate(width); }
     cur.ui.setBounds(r);
+  }
+
+  /* La página no se entera de que la achicaron: sigue con el ancho que tenía
+     en su pestaña, y se dibuja en escala adentro de la ventanita. Achicada de
+     verdad, un sitio como Instagram pasa a su diseño de celular, rearma la
+     página y tira el video que estaba afuera: ponía otro (se oía ese) y los
+     controles quedaban hablándole a uno que ya no existía. Solo el alto sigue
+     la forma del video, para que su pantalla completa llene la ventanita. */
+  function emulate(width) {
+    const { t, base, aspect } = cur;
+    if (!t.view || !base) return;
+    try {
+      t.view.webContents.enableDeviceEmulation({
+        screenPosition: 'desktop',
+        viewSize: { width: base.width, height: Math.round(base.width / aspect) },
+        scale: width / base.width,
+      });
+    } catch { /* la página se fue */ }
+  }
+  function unemulate(t) {
+    try { t.view?.webContents.disableDeviceEmulation(); } catch { /* la página se fue */ }
   }
 
   /** Otra proporción: se conserva el ancho y cambia el alto. */
@@ -324,7 +345,10 @@ function createPip({ store, icon = null }) {
     ui.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     const uiReady = ui.webContents.loadURL(uiUrl('pip.html')).catch(() => {});
 
-    cur = { w, t, frame, win, ui, aspect: 16 / 9, state: null, closing: false, ready: false };
+    // El ancho que la página tiene en su pestaña: en la ventanita lo conserva (emulate).
+    const home = w.tabs.rectFor(t);
+    const base = home?.width > 0 ? { width: home.width, height: home.height } : null;
+    cur = { w, t, frame, win, ui, aspect: 16 / 9, base, state: null, closing: false, ready: false };
     const c = cur;
 
     /* Primero una foto de la página tapa su hoja, y abajo aparece el aviso de
@@ -396,6 +420,7 @@ function createPip({ store, icon = null }) {
        grande (sigue en la ventanita, invisible): así no se ve un cuadro con
        el tamaño viejo. */
     const home = w.tabs && w.win && !w.win.isDestroyed();
+    unemulate(t);
     if (t.view && home) t.view.setBounds(w.tabs.rectFor(t));
     // La página contesta cuando ya quedó quieta (pip-preload.cjs → settled).
     if (alive(frame)) await ask(frame, 'pip:leave', mode === 'close', 1600);
@@ -434,6 +459,7 @@ function createPip({ store, icon = null }) {
     t.away = false;
     const view = t.view;
     try { view?.webContents.setAudioMuted(true); } catch { /* nada */ }
+    unemulate(t);
     return (async () => {
       if (!c.win.isDestroyed()) await fade(c.win, c.win.getOpacity(), 0, FADE_OUT);
       try { if (!c.win.isDestroyed() && view) c.win.contentView.removeChildView(view); } catch { /* nada */ }

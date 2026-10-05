@@ -1610,6 +1610,7 @@ app.whenReady().then(async () => {
   // El botón: con el mouse sobre el video aparece en su borde derecho, y tocarlo lo saca.
   const vr = await vwc.executeJavaScript(`(() => { const r = document.getElementById('v').getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })()`);
   const vy = Math.round((vr[1] + vr[3]) / 2);
+  const anchoEnLaPestana = await vwc.executeJavaScript('innerWidth');
   vwc.sendInputEvent({ type: 'mouseMove', x: Math.round((vr[0] + vr[2]) / 2), y: vy });
   await sleep(250);
   const bx2 = Math.round(vr[2] - 26);
@@ -1627,6 +1628,10 @@ app.whenReady().then(async () => {
   ok('la ventanita tiene la forma del video', Math.abs(pcw / pch - 16 / 9) < 0.02, `${pcw}x${pch}`);
   ok('el video la llena (pantalla completa adentro de su página)', await vwc.executeJavaScript(`document.fullscreenElement?.id === 'v'`));
   ok('la ventana grande no se pone en pantalla completa', !win.isFullScreen() && !ctx.tabs.fullscreen);
+  /* Achicada de verdad, Instagram pasaba a su diseño de celular, tiraba el
+     video y ponía otro: la página sigue con su ancho, dibujada en escala. */
+  const anchoEnLaVentanita = await vwc.executeJavaScript('innerWidth');
+  ok('la página conserva el ancho que tenía en su pestaña', anchoEnLaVentanita === anchoEnLaPestana, `${anchoEnLaPestana} → ${anchoEnLaVentanita}`);
   ok('la hoja de la pestaña dice que está en la ventanita', await until(() => js(`!!document.querySelector('#internal .pr-view[data-page="pip"]:not([data-state="closing"])')`)));
   ok('y la pestaña no se duerme mientras tanto', vt.pip === true);
   const pui = pw.contentView.children[1].webContents;
