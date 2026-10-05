@@ -1702,8 +1702,11 @@ app.whenReady().then(async () => {
   const enMarco = await marco.executeJavaScript(`document.fullscreenElement?.id || null`);
   ok('Ctrl+Mayús+P saca el video que está sonando, aunque esté en un iframe', abrio && enMarco === 'e',
     JSON.stringify({ abrio, enMarco, cur: ctx.pip.current, arriba: await vwc.executeJavaScript(`document.fullscreenElement?.id || null`) }));
+  // Abierta con el teclado, el teclado se queda en ella: el mismo atajo, otra vez, sin tocarla.
+  ok('abierta con el atajo, el teclado queda en la ventanita', await until(() => pipWin()?.isFocused() && pipWin().contentView.children[1].webContents.isFocused(), 3000));
   ctx.command('page:pip');
   ok('y otra vez lo trae de vuelta', await until(() => !ctx.pip.current && !pipWin() && win.contentView.children.includes(vt.view), 5000));
+  ok('con el teclado en la página, para sacarlo de nuevo', await until(() => vt.view.webContents.isFocused(), 3000));
 
   // Mientras se mira afuera, uno está en otra pestaña: el atajo igual lo trae.
   ctx.command('page:pip');

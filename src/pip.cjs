@@ -284,7 +284,7 @@ function createPip({ store, icon = null }) {
     });
   }
 
-  async function doOpen(w, t, { frame = null, pick = 'best' } = {}) {
+  async function doOpen(w, t, { frame = null, pick = 'best', focus = false } = {}) {
     if (!w?.tabs || !t) return false;
     if (cur?.t === t) return true;
     if (!t.view || t.internal || t.error || t.crashed) { fail(w, 'none'); return false; }
@@ -399,6 +399,9 @@ function createPip({ store, icon = null }) {
     win.on('close', (e) => { if (cur === c && !c.closing) { e.preventDefault(); close('close'); } });
     win.on('closed', () => { if (cur === c) drop(t); });
     await fade(win, 0, 1, FADE_IN);
+    /* Abierta con el teclado, el teclado se queda en ella: el mismo atajo la
+       vuelve a traer, sin tener que tocarla antes (los controles lo atajan). */
+    if (focus && cur === c) { win.focus(); ui.webContents.focus(); }
     return true;
   }
 
@@ -442,6 +445,8 @@ function createPip({ store, icon = null }) {
     t.pip = false;
     if (home) {
       w.tabs.setAway(t, false);
+      // Activada mientras seguía afuera, nadie le había dado el teclado: otra vez el atajo la vuelve a sacar.
+      if (mode === 'back' && w.tabs.active === t) w.tabs.focusPage();
       if (photo) setTimeout(() => w.tabs.hidePhoto(t), 90);
     }
     destroy(win, ui);
@@ -479,10 +484,10 @@ function createPip({ store, icon = null }) {
     /** Ctrl+Mayús+P y el menú: con la ventanita abierta la trae de vuelta,
         desde la pestaña que sea (mientras mirás el video afuera, estás en
         otra); si no, saca el video de la pestaña activa. */
-    toggle(w) {
+    toggle(w, { focus = false } = {}) {
       if (cur) return close('back');
       const t = w.tabs?.active;
-      return t ? open(w, t) : null;
+      return t ? open(w, t, { focus }) : null;
     },
     /** El menú del clic derecho, sobre un video. */
     fromContext(w, t, frame) { return open(w, t, { frame, pick: 'context' }); },

@@ -223,7 +223,7 @@ function command(w, name) {
   if (name === 'page:hard-reload') return T.reload(true);
   if (name === 'page:print') return T.contextAction('print');
   if (name === 'page:capture-full') return w.capture.run('full');
-  if (name === 'page:pip') return ctx.pip.toggle(w);
+  if (name === 'page:pip') return ctx.pip.toggle(w, { focus: true });
   if (name === 'page:source') return T.contextAction('source');
   if (name === 'page:devtools') return T.devtools();
   if (name.startsWith('zoom:')) return T.zoom(name.slice(5));
