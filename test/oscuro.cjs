@@ -14,10 +14,12 @@
 
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const http = require('http');
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-oscuro-'));
+const { tempDir } = require('./temporal.cjs');
+
+// Se borra sola cuando el humo termina, aunque se aborte (temporal.cjs).
+const TMP = tempDir('prism-oscuro-');
 process.env.PRISM_SHOTS = '1';
 process.env.PRISM_PROFILE = path.join(TMP, 'perfil');
 process.env.PRISM_DATA = path.join(TMP, 'datos');

@@ -7,10 +7,12 @@
 
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const http = require('http');
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-adblock-'));
+const { tempDir } = require('./temporal.cjs');
+
+// Se borra sola cuando el humo termina, aunque se aborte (temporal.cjs).
+const TMP = tempDir('prism-adblock-');
 const { app, session, BrowserWindow } = require('electron');
 app.setPath('userData', path.join(TMP, 'perfil'));
 const { createAdblock } = require(path.join(__dirname, '..', 'src', 'adblock.cjs'));

@@ -12,10 +12,12 @@
 
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const http = require('http');
 
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'prism-smoke-'));
+const { tempDir } = require('./temporal.cjs');
+
+// Se borra sola cuando el humo termina, aunque se aborte (temporal.cjs).
+const TMP = tempDir('prism-smoke-');
 const DL = path.join(TMP, 'descargas');
 fs.mkdirSync(DL, { recursive: true });
 process.env.PRISM_SHOTS = '1';

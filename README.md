@@ -11,7 +11,9 @@ npm run dev     # con la consola del cromo en la terminal
 npm start
 npm test        # lógica pura: omnibox, cuentas, historial, atajos, tokens, disco, registro de Windows
 npm run smoke   # levanta Prism de verdad contra un servidor local y lo recorre
-                # (después, con «Oscurecer todo» prendido, y el bloqueador sin red)
+                # (después, con «Oscurecer todo» prendido, y el bloqueador sin red).
+                # Cada humo usa una carpeta propia en %TEMP% que se borra sola al
+                # terminar, aunque se aborte; PRISM_SMOKE_KEEP=1 la deja.
 npm run icons   # regenera build/icon.ico, icon.png y tray.ico desde el código
 npm run build   # instalador en dist/, sin publicar
 npm run release # publica en GitHub (ver abajo)
