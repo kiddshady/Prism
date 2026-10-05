@@ -45,6 +45,7 @@
 
 const { WebContentsView, clipboard, nativeImage, screen, shell } = require('electron');
 const omni = require('./omni.cjs');
+const textlink = require('./textlink.cjs');
 
 const BG = '#0a0a0a';
 const RADIUS = 10;
@@ -495,6 +496,8 @@ function createTabs(ctx) {
         mediaType: p.mediaType,
         hasImageContents: p.hasImageContents,
         selectionText: p.selectionText,
+        // Un enlace a un texto solo sirve en el documento principal (textlink.cjs).
+        inMainFrame: !p.frame || !p.frame.parent,
         isEditable: p.isEditable,
         editFlags: p.editFlags,
         misspelledWord: p.misspelledWord,
@@ -1182,6 +1185,7 @@ function createTabs(ctx) {
         const url = omni.engine(ctx.settings.searchEngine).search.replace('%s', encodeURIComponent(q));
         return create({ url, index: indexOf(activeId) + 1, openerId: activeId });
       }
+      case 'text-link': return wc && !t.internal && copyTextLink(wc, p.text);
       case 'spell': return p.word && wc?.replaceMisspelling(p.word);
       case 'spell-add': return p.word && ctx.web.addWordToSpellCheckerDictionary(p.word);
       case 'inspect': return wc && (wc.inspectElement(Math.round(p.x), Math.round(p.y)), wc.isDevToolsOpened() || wc.openDevTools({ mode: 'detach' }));
@@ -1190,6 +1194,25 @@ function createTabs(ctx) {
       case 'print': if (!wc || t.internal) return null; ctx.focusChrome?.(); return ctx.send('cmd', 'print:open');
       default: return null;
     }
+  }
+
+  /* «Copiar enlace al texto»: la dirección con un fragmento que lleva a lo
+     elegido (src/textlink.cjs). Lo elegido se le pide a la página en un mundo
+     aislado, así su código no lo puede torcer; si no contesta, alcanza con el
+     texto que trajo el clic derecho (sin contexto: cae en la primera vez). */
+  async function copyTextLink(wc, fallback) {
+    let found = null;
+    try {
+      found = textlink.clean(await wc.executeJavaScriptInIsolatedWorld(PRISM_WORLD, [{ code: `(${textlink.collect.toString()})()` }]));
+    } catch { /* una página que no deja correr nada */ }
+    const link = textlink.linkFor(wc.getURL(), textlink.terms(found || { text: fallback }));
+    if (!link) {
+      ctx.send('status:msg', { text: 'No se pudo armar un enlace a ese texto', icon: 'alert', tone: 'error' });
+      return null;
+    }
+    await clipboard.writeText(link).catch(() => {});
+    ctx.send('status:msg', { text: 'Enlace al texto copiado', icon: 'link' });
+    return link;
   }
 
   function devtools() {

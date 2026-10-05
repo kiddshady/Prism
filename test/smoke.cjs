@@ -64,6 +64,16 @@ async function until(fn, ms = 6000) {
 const PAGES = {
   '/': '<title>Inicio de prueba</title><body style="font:16px sans-serif"><h1>Hola Prism</h1><p>fiebre fiebre fiebre</p><a id="l" href="/dos">dos</a></body>',
   '/dos': '<title>Página dos</title><body><h1>Dos</h1></body>',
+  /* Para «Copiar enlace al texto»: la misma frase dos veces, lejos una de otra,
+     un título seguido de su párrafo, y un texto con guion. */
+  '/texto': `<title>Texto</title><body style="font:16px sans-serif;margin:20px">
+    <p id="a">La absorción oral es lenta en ayunas.</p>
+    <div style="height:3000px"></div>
+    <h2 id="h">Farmacocinética en niños</h2>
+    <p id="b">Sin embargo, en niños la absorción oral es más rápida que en adultos, y la semivida es menor.</p>
+    <div style="height:3000px"></div>
+    <p id="c">Un párrafo final con un inhibidor anti-inflamatorio no esteroide de uso común.</p>
+    <div style="height:1500px"></div></body>`,
   /* Un sonido de un instante, como el final de un tema. */
   '/tono': `<title>Tono</title><body><script>
     const c = new AudioContext(); const o = c.createOscillator(); const g = c.createGain();
@@ -788,6 +798,72 @@ app.whenReady().then(async () => {
   ok('trae app, csi y loadTimes', JSON.stringify(wch.keys) === '["app","csi","loadTimes"]', JSON.stringify(wch));
   ok('con la forma de Chrome', wch.installed === false && wch.state === 'cannot_run' && wch.lt && wch.csi, JSON.stringify(wch));
   ctx.tabs.close(ctx.tabs.active.id);
+
+  console.log('\n8d. Copiar enlace al texto');
+  /* El enlace lleva un fragmento `#:~:text=…` (src/textlink.cjs). Lo que se
+     prueba es lo que importa: que quien lo abre CAE en lo elegido, no en la
+     primera vez que aparece esa frase. El portapapeles de verdad no se toca. */
+  const { clipboard } = require('electron');
+  const escribirReal = clipboard.writeText;
+  let copiadoTexto = null;
+  clipboard.writeText = async (t) => { copiadoTexto = t; };
+  ctx.tabs.create({ url: `${BASE}/texto` });
+  ok('carga la página de texto', await until(() => ctx.tabs.active.title === 'Texto' && !ctx.tabs.active.loading && ctx.tabs.active.view));
+  const idTexto = ctx.tabs.active.id;
+  const twc = () => ctx.tabs.active.view.webContents;
+  /** Elige en la página lo que arme `rango` (sobre un Range llamado r). */
+  const seleccionar = (rango) => twc().executeJavaScript(`(() => { const r = document.createRange(); ${rango}; const s = getSelection(); s.removeAllRanges(); s.addRange(r); return s.toString(); })()`);
+  /** Abre un enlace en otra pestaña y dice si cayó con ese elemento a la vista. */
+  const caeEn = async (link, id) => {
+    ctx.tabs.create({ url: link });
+    await until(() => ctx.tabs.active.id !== idTexto && ctx.tabs.active.title === 'Texto' && !ctx.tabs.active.loading && ctx.tabs.active.view);
+    const donde = () => twc().executeJavaScript(`(() => { const r = document.getElementById('${id}').getBoundingClientRect(); return { y: Math.round(scrollY), top: Math.round(r.top), alto: innerHeight }; })()`);
+    const bien = await until(async () => { const d = await donde(); return d.y > 1000 && d.top >= 0 && d.top < d.alto; }, 4000);
+    const d = await donde();
+    ctx.tabs.close(ctx.tabs.active.id);
+    ctx.tabs.activate(idTexto);
+    await until(() => ctx.tabs.active.id === idTexto);
+    return bien ? '' : JSON.stringify(d);
+  };
+
+  // «a absorción ora», a mitad de palabra, en el SEGUNDO párrafo que lo dice.
+  await seleccionar(`const n = document.getElementById('b').firstChild; const i = n.data.indexOf('a absorción ora'); r.setStart(n, i); r.setEnd(n, i + 15)`);
+  const l1 = await ctx.tabs.contextAction('text-link', { text: 'a absorción ora' });
+  ok('lo elegido a mitad de palabra se estira a palabras enteras, y como la frase está más arriba lleva contexto', l1 === `${BASE}/texto#:~:text=embargo%2C%20en%20ni%C3%B1os-,la%20absorci%C3%B3n%20oral,-es%20m%C3%A1s%20r%C3%A1pida`, String(l1));
+  ok('queda en el portapapeles', copiadoTexto === l1);
+  ok('y lo avisa en la statusbar', await until(() => js(`document.getElementById('status-left').textContent.includes('Enlace al texto copiado')`)));
+  let malCae = await caeEn(l1, 'b');
+  ok('quien lo abre cae en ESE párrafo, no en el primero que dice lo mismo', !malCae, malCae);
+  malCae = await caeEn(`${BASE}/texto#:~:text=la%20absorci%C3%B3n%20oral`, 'a');
+  ok('(sin el contexto caería arriba: la prueba distingue)', !!malCae, malCae);
+
+  // Del título al párrafo: dos bloques.
+  await seleccionar(`r.setStart(document.getElementById('h').firstChild, 0); const n = document.getElementById('b').firstChild; r.setEnd(n, n.data.length)`);
+  const l2 = await ctx.tabs.contextAction('text-link', { text: '' });
+  ok('lo que cruza de un bloque a otro va con inicio y fin', l2 === `${BASE}/texto#:~:text=Farmacocin%C3%A9tica%20en%20ni%C3%B1os,y%20la%20semivida%20es%20menor.`, String(l2));
+  malCae = await caeEn(l2, 'h');
+  ok('y cae en el título donde empieza', !malCae, malCae);
+
+  // Un guion adentro: es el separador del contexto, va escapado.
+  await seleccionar(`const n = document.getElementById('c').firstChild; const i = n.data.indexOf('anti-inflamatorio'); r.setStart(n, i); r.setEnd(n, i + 'anti-inflamatorio no esteroide'.length)`);
+  const l3 = await ctx.tabs.contextAction('text-link', { text: '' });
+  ok('un guion adentro del texto va escapado', l3 === `${BASE}/texto#:~:text=anti%2Dinflamatorio%20no%20esteroide`, String(l3));
+  malCae = await caeEn(l3, 'c');
+  ok('y el enlace cae en su párrafo', !malCae, malCae);
+
+  // El clic derecho de verdad sobre lo elegido.
+  const ptTexto = await twc().executeJavaScript(`(() => { scrollTo(0, 0); const n = document.getElementById('a').firstChild; const r = document.createRange(); r.setStart(n, 3); r.setEnd(n, 17); const s = getSelection(); s.removeAllRanges(); s.addRange(r); const b = r.getBoundingClientRect(); return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2) }; })()`);
+  twc().focus();
+  for (const type of ['mouseDown', 'mouseUp']) twc().sendInputEvent({ type, x: ptTexto.x, y: ptTexto.y, button: 'right', clickCount: 1 });
+  ok('el clic derecho sobre un texto elegido lo ofrece, debajo de Copiar', await until(() => js(`(() => { const it = [...document.querySelectorAll('.op-menu:not([data-state="closing"]) .op-menuitem')].map((b) => b.textContent.trim()); const i = it.findIndex((t) => t.startsWith('Copiar enlace al texto')); return i > 0 && it[i - 1].startsWith('Copiar'); })()`), 4000));
+  await js(`[...document.querySelectorAll('.op-menu .op-menuitem')].find((b) => b.textContent.includes('Copiar enlace al texto')).click()`);
+  ok('y elegirlo copia el enlace a ese texto', await until(() => copiadoTexto === `${BASE}/texto#:~:text=La-,absorci%C3%B3n%20oral,-es%20lenta%20en`), String(copiadoTexto));
+  await until(() => js(`!document.querySelector('.op-menu')`));
+
+  // En una página propia de Prism no hay a dónde enlazar.
+  ok('una página que no es http ni un archivo no arma enlace', (await (async () => { const antes = copiadoTexto; ctx.tabs.openInternal('historial'); await until(() => ctx.tabs.active.internal === 'historial'); const r = await ctx.tabs.contextAction('text-link', { text: 'algo' }); ctx.tabs.close(ctx.tabs.active.id); return !r && copiadoTexto === antes; })()));
+  clipboard.writeText = escribirReal;
+  ctx.tabs.close(idTexto);
 
   console.log('\n9. Descargas');
   ctx.tabs.contextAction('link-save', { url: `${BASE}/archivo.bin` });

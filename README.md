@@ -71,6 +71,10 @@ npm run release # publica en GitHub (ver abajo)
   la carpeta que elijas: se pone al día sola con cada cambio y guarda los
   últimos 10 días. Se restaura desde "Importar", que suma lo que falta sin
   pisar nada.
+- **Copiar enlace al texto** (clic derecho sobre algo elegido): la dirección
+  de la página con el fragmento que hace que quien la abra caiga en ese
+  párrafo, resaltado. Si la frase está más de una vez, el enlace lleva el
+  contexto para caer en la que elegiste.
 - **Capturas**: lo visible, o la página entera de punta a punta (Ctrl+Mayús+S)
   sin mover el scroll, también en las que scrollean una caja adentro (Moodle).
   Van a Imágenes\Prism y quedan copiadas; una tarjeta en la esquina avisa, con
@@ -301,6 +305,7 @@ src/
   card.cjs            La tarjeta de la esquina: un aviso que flota sobre la página.
   fill.cjs            La lista de contraseñas y tarjetas: una vista propia sobre el campo.
   backup.cjs          El respaldo de la bóveda: su cifrado, las copias por día. Pura, con tests.
+  textlink.cjs        El enlace a un texto (#:~:text=…). Pura, con tests.
   ui-protocol.cjs     prism-ui://app: la interfaz por su propio esquema, no como file://.
   print.cjs           Imprimir: la vista previa (un PDF), a la impresora o a un PDF.
   print-preload.cjs   En cada página: su window.print() abre la pantalla de Prism.

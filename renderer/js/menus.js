@@ -131,6 +131,8 @@ export function pageMenu(p) {
     const engine = S.info?.engines?.[S.settings.searchEngine] || 'Google';
     items.push(
       { label: 'Copiar', icon: 'copy', key: 'Ctrl+C', onSelect: act('copy') },
+      // Quien abra ese enlace cae en este texto, resaltado. Solo en páginas de verdad y en su documento principal.
+      ...(p.inMainFrame && /^(https?|file):/i.test(p.pageURL || '') ? [{ label: 'Copiar enlace al texto', icon: 'link', onSelect: act('text-link', { text: sel }) }] : []),
       { label: `Buscar «${ellipsis(sel)}» en ${engine}`, icon: 'search', onSelect: act('search', { text: sel }) },
       { sep: true },
     );
