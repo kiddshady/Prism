@@ -85,6 +85,13 @@ misma especificidad, y la sombra del anillo perdía. Lo que marca el foco a su
 manera (un campo que se hunde) lo apaga con `outline: none`, nunca con
 `box-shadow: none`.
 
+El anillo sale **3,5 px por fuera** del control (1,5 px de outline a 2 px de
+distancia). Donde no hay ese aire hasta el canto de lo que lo contiene, va
+**hacia adentro** con un `outline-offset` negativo: así lo lleva el
+`.op-segmented__opt`, que tiene 2 px de carril. `npm run smoke` lo mide en
+Ajustes y en la bóveda (13c): si una pieza pega su anillo contra un canto, o
+con Tab no muestra nada, falla ahí.
+
 **La ley de Opal:** el acento nunca rellena un plano. Vive en cantos, líneas y
 puntos — el rim del primario, el fill de 3px del meter y el slider, el halo de
 `running`, el subrayado del tab. El énfasis se **talla**: `--op-deep` /

@@ -358,9 +358,12 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-weight: var(--op-w-medium);
   white-space: nowrap;
   cursor: default;
-  /* El anillo de foco también: si no, al soltar el foco desaparecía de golpe. */
-  transition: color var(--op-t-2) var(--op-ease-soft), box-shadow var(--op-t-1) var(--op-ease-soft);
+  transition: color var(--op-t-2) var(--op-ease-soft);
 }
+/* El anillo va hacia adentro, con las esquinas de la cápsula: el de base.css
+   sale 3,5 px por fuera y acá hay 2 px de carril, así que se montaba sobre el
+   canto del control y sobre la opción vecina. */
+.op-segmented__opt:focus-visible { outline-offset: -1.5px; border-radius: var(--op-r-xs); }
 .op-segmented__opt:hover { color: var(--op-text-2); }
 .op-segmented__opt.is-active { color: var(--op-text); }
 .op-segmented__opt .op-icon { width: 12px; height: 12px; }

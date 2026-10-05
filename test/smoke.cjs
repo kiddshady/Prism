@@ -1662,6 +1662,108 @@ app.whenReady().then(async () => {
   }
   await js(`document.getElementById('anillos-de-prueba').remove(); true`);
 
+  console.log('\n13c. Ningún anillo de foco se corta');
+  /* El anillo sale 3,5 px por fuera del control. Donde no hay ese aire (el
+     segmentado tiene 2 px de carril) se montaba sobre el canto del control y
+     sobre la opción vecina. Cada control se enfoca como con el teclado y se
+     mide su anillo real contra lo que lo recorta y contra el canto de la
+     superficie que lo contiene; y además, que el foco se note. Es el 9-bis
+     del humo de Opal. */
+  const AUDITAR_ANILLOS = (scope) => `((scope) => {
+    if (!document.getElementById('aud-notr')) document.head.insertAdjacentHTML('beforeend', '<style id="aud-notr">*,*::before{transition:none!important}</style>');
+    const look = (el) => {
+      const s = getComputedStyle(el);
+      const ring = s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0 && !/rgba\\(0, 0, 0, 0\\)/.test(s.outlineColor);
+      return [ring, s.boxShadow, s.backgroundColor, s.borderColor, getComputedStyle(el, '::before').boxShadow].join('|');
+    };
+    let marked = true;
+    const extent = (el) => {
+      const before = look(el);
+      el.focus({ focusVisible: true, preventScroll: true });
+      marked = !el.matches(':focus') || look(el) !== before;
+      const s = getComputedStyle(el);
+      let m = 0;
+      for (const part of s.boxShadow.split(/,(?![^(]*\\))/)) {
+        if (part.includes('inset') || part.trim() === 'none') continue;
+        const nums = part.replace(/rgba?\\([^)]*\\)|oklch\\([^)]*\\)/g, '').match(/-?[\\d.]+px/g) || [];
+        const [x = 0, y = 0, blur = 0, spread = 0] = nums.map(parseFloat);
+        if (blur > 0) continue;
+        m = Math.max(m, spread + Math.max(Math.abs(x), Math.abs(y)));
+      }
+      if (s.outlineStyle !== 'none' && !/rgba\\(0, 0, 0, 0\\)/.test(s.outlineColor)) m = Math.max(m, parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset));
+      el.blur();
+      return m;
+    };
+    const SEL = 'a[href],button:not([disabled]):not([tabindex="-1"]),input:not([disabled]):not([type=hidden]),select,textarea,[tabindex]:not([tabindex="-1"]),[contenteditable="true"]';
+    const name = (el) => {
+      const id = el.id ? '#' + el.id : '';
+      const cls = [...el.classList].slice(0, 2).map((c) => '.' + c).join('');
+      const txt = (el.getAttribute('aria-label') || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 24);
+      return el.tagName.toLowerCase() + id + cls + (txt ? ' «' + txt + '»' : '');
+    };
+    const out = [];
+    for (const el of scope.querySelectorAll(SEL)) {
+      if (el.closest('[inert],[hidden],[aria-hidden="true"]')) continue;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+      el.scrollIntoView({ block: 'center', inline: 'center' });
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      const R = extent(el);
+      if (!marked) { out.push(name(el) + '  no marca el foco'); continue; }
+      if (R <= 0.5) continue;
+      const boxes = [{ who: 'ventana', l: 0, t: 0, r: innerWidth, b: innerHeight }];
+      for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+        const s = getComputedStyle(a);
+        if (s.overflowX !== 'visible' || s.overflowY !== 'visible' || s.clipPath !== 'none' || /paint|strict|content/.test(s.contain)) {
+          const ar = a.getBoundingClientRect();
+          const l = ar.left + a.clientLeft; const t = ar.top + a.clientTop;
+          boxes.push({ who: name(a), l, t, r: l + a.clientWidth, b: t + a.clientHeight });
+        }
+      }
+      const e = 0.5;
+      for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+        const s = getComputedStyle(a);
+        const surf = (s.backgroundColor !== 'rgba(0, 0, 0, 0)' || s.boxShadow !== 'none') && parseFloat(s.borderTopLeftRadius) > 0;
+        if (!surf) continue;
+        const ar = a.getBoundingClientRect();
+        const g = [r.left - ar.left, r.top - ar.top, ar.right - r.right, ar.bottom - r.bottom];
+        if (g.some((x) => x < -e)) continue;
+        const det = g.map((x, i) => ['izq', 'arriba', 'der', 'abajo'][i] + ' ' + x.toFixed(1)).filter((_, i) => g[i] < R - e);
+        if (det.length) { out.push(name(el) + '  roza ' + name(a) + '  [' + det.join(', ') + ']'); break; }
+      }
+      for (const bx of boxes) {
+        const inside = r.left >= bx.l - e && r.top >= bx.t - e && r.right <= bx.r + e && r.bottom <= bx.b + e;
+        if (!inside) break;
+        const lados = [];
+        if (r.left - R < bx.l - e) lados.push('izq ' + (r.left - bx.l).toFixed(1));
+        if (r.top - R < bx.t - e) lados.push('arriba ' + (r.top - bx.t).toFixed(1));
+        if (r.right + R > bx.r + e) lados.push('der ' + (bx.r - r.right).toFixed(1));
+        if (r.bottom + R > bx.b + e) lados.push('abajo ' + (bx.b - r.bottom).toFixed(1));
+        if (lados.length) { out.push(name(el) + '  ← ' + bx.who + '  [' + lados.join(', ') + ']'); break; }
+      }
+    }
+    return out;
+  })(${scope})`;
+  ctx.tabs.openInternal('ajustes');
+  await until(() => js(`!!document.querySelector('.pr-view[data-page="ajustes"]:not(.is-parked):not([data-state="closing"]) .pr-head__title')`));
+  await sleep(500);
+  const enfocada = () => until(async () => { win.focus(); win.webContents.focus(); return js('document.hasFocus()'); }, 3000);
+  ok('la ventana tiene el foco (si no, no hay anillos que medir)', await enfocada());
+  let cortes = await js(AUDITAR_ANILLOS(`document.querySelector('.pr-view[data-page="ajustes"]:not(.is-parked):not([data-state="closing"])')`));
+  ok('Ajustes: todo control marca el foco, y ningún anillo se corta ni roza un canto', cortes.length === 0, '\n      ' + cortes.join('\n      '));
+  await js(`document.querySelector('.pr-view[data-page="ajustes"] .pr-view__scroll').scrollTop = 0; true`);
+  await js(`document.getElementById('btn-pass').click()`);
+  await until(() => js(`document.querySelectorAll('.pr-pass__row').length >= 1`));
+  await sleep(400);
+  await enfocada();
+  cortes = await js(AUDITAR_ANILLOS(`document.querySelector('.pr-pass')`));
+  ok('la bóveda: todo control marca el foco, y ningún anillo se corta ni roza un canto', cortes.length === 0, '\n      ' + cortes.join('\n      '));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!document.querySelector('.pr-pass')`));
+  await js(`document.getElementById('aud-notr')?.remove(); true`);
+  ctx.tabs.close(ctx.tabs.active.id);
+
   console.log('\n14. Sin errores en la consola del cromo');
   ok('ninguno', errores.length === 0, errores.slice(0, 3).join(' | '));
 
