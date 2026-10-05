@@ -977,7 +977,7 @@ function settingsPage() {
           <dt>Datos</dt><dd>${esc(S.info?.dataDir || '')}</dd>
         </dl>
         ${updateRow()}
-        <div class="pr-opt" style="min-height:0;padding-top:0"><div class="pr-opt__text"><div class="pr-opt__hint">Kidd Shady · Umbrovex Systems</div></div>
+        <div class="pr-opt pr-opt--foot"><div class="pr-opt__text"><div class="pr-opt__hint">Kidd Shady · Umbrovex Systems</div></div>
           <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" id="s-data"><i data-icon="folderOpen"></i> Abrir la carpeta de datos</button></div></div>
       </section>`;
     Icons.mount(col);

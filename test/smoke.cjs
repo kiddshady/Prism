@@ -1831,6 +1831,20 @@ app.whenReady().then(async () => {
   ok('la barra de favoritos queda fuera del Tab', barra.every((b) => b.tab === -1), JSON.stringify(barra));
   ok('y su anillo va por dentro: la barra ya no le come el canto', barra.every((b) => b.prendido && b.sale <= 0.5), JSON.stringify(barra));
 
+  console.log('\n13c3. El pie de Ajustes');
+  ctx.tabs.openInternal('ajustes');
+  await until(() => js(`!!document.getElementById('s-data')`));
+  const pie = await js(`(() => {
+    const btn = document.getElementById('s-data');
+    const fila = btn.closest('.pr-opt');
+    const sc = fila.closest('.pr-view__scroll'); sc.scrollTop = sc.scrollHeight;
+    const rf = fila.getBoundingClientRect(); const rb = btn.getBoundingClientRect();
+    const raya = getComputedStyle(fila).boxShadow !== 'none';
+    return { raya, arriba: Math.round(rb.top - rf.top), abajo: Math.round(rf.bottom - rb.bottom) };
+  })()`);
+  ok('la raya de arriba no queda pegada al botón ni a la firma', pie.raya && pie.arriba >= 8 && Math.abs(pie.arriba - pie.abajo) <= 2, JSON.stringify(pie));
+  ctx.tabs.close(ctx.tabs.active.id);
+
   console.log('\n13d. Detalles: toast, tooltip, modal, campos y botones');
   /* Lo que vino de Opal en su tanda 7. Una página web activa: la estrella
      solo está con un sitio, y la que tarda en cargar deja ver «detener». */
