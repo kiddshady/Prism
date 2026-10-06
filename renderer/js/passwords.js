@@ -51,6 +51,19 @@ const P = {
 
 let root = null;         // el .pr-pass del panel abierto
 
+/* Lo que hace el panel mismo (borrar, deshacer, guardar, leer un QR,
+   importar) también avisa "cambió la bóveda" a todas las ventanas, y ese
+   aviso llega ANTES que la respuesta. Atendido, repintaba en el medio: al
+   borrar, el elemento ya no estaba y se pintaba un instante el vacío, que
+   quedaba como un segundo calco esfumándose junto al primero (entre los dos
+   tapaban el 75 % del siguiente: un pestañeo). Mientras corre algo propio,
+   el aviso se ignora: lo propio repinta solo, una vez. */
+let localOps = 0;
+const local = (fn) => async (...args) => {
+  localOps++;
+  try { return await fn(...args); } finally { localOps--; }
+};
+
 /* ── Formato ─────────────────────────────────────────────────────────────── */
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -711,7 +724,7 @@ function setKind(kind) {
   paintMain();
 }
 
-async function doImport() {
+const doImport = local(async () => {
   let r;
   try {
     r = await api.pass.import();
@@ -728,7 +741,7 @@ async function doImport() {
     return paintMain();
   }
   await imported(r);
-}
+});
 
 /** Lo que entró (de una exportación o de un respaldo), a la vista. */
 async function imported(r) {
@@ -746,7 +759,7 @@ async function imported(r) {
 /* Un QR del portapapeles o de una imagen. El de un sitio entra en el acto y
    queda a la vista; el de Google Authenticator trae varios y es una
    importación, con su aviso. */
-async function readQr(source, b) {
+const readQr = local(async (source, b) => {
   if (b?.disabled) return;
   if (b) b.disabled = true;
   // Mirar todas las ventanas puede tardar un par de segundos: que se sepa que está buscando.
@@ -771,9 +784,9 @@ async function readQr(source, b) {
   markSelected();
   paintMain();
   say(r.existed ? 'Ese código ya estaba guardado' : `Código de ${r.item.title} agregado`, { icon: 'check' });
-}
+});
 
-async function submitRestore(form) {
+const submitRestore = local(async (form) => {
   const input = form.querySelector('[name=key]');
   const btn = form.querySelector('[type=submit]');
   if (btn.disabled) return;
@@ -791,9 +804,9 @@ async function submitRestore(form) {
     swapText(msg, err.message, { size: true });
     input.select();
   }
-}
+});
 
-async function submitForm(form) {
+const submitForm = local(async (form) => {
   const f = new FormData(form);
   const it = P.mode === 'edit' ? selected() : null;
   const card = P.kind === 'card';
@@ -835,7 +848,7 @@ async function submitForm(form) {
   } catch (err) {
     say(err.message, { icon: 'alert', tone: 'error', ms: 8000 });
   }
-}
+});
 
 function wire(el) {
   const q = el.querySelector('#pp-q');
@@ -971,7 +984,7 @@ function endUndo() {
   paintFoot();
 }
 
-async function removeItem(it) {
+const removeItem = local(async (it) => {
   const list = filtered();
   const i = list.findIndex((x) => x.id === it.id);
   if (!(await api.pass.remove(it.id).catch(() => false))) return;
@@ -986,9 +999,9 @@ async function removeItem(it) {
   markSelected();
   paintMain();
   paintFoot();
-}
+});
 
-async function undoRemove() {
+const undoRemove = local(async () => {
   const it = await api.pass.undoRemove().catch(() => null);
   clearTimeout(P.undo?.timer);
   P.undo = null;
@@ -1002,7 +1015,7 @@ async function undoRemove() {
   markSelected();
   paintMain();
   paintFoot();
-}
+});
 
 /* ── "¿Guardar la contraseña?" ───────────────────────────────────────────── */
 
@@ -1064,8 +1077,9 @@ export function init() {
   // Algo cambió afuera del panel (se guardó un login, se completó uno): la
   // lista abierta se pone al día sin perder lo que se está mirando.
   api.pass.onChanged(async () => {
-    if (!root) return;
+    if (!root || localOps) return;
     await load();
+    if (!root || localOps) return;
     paintList();
     if (P.mode === 'view') paintMain();
   });

@@ -1239,8 +1239,26 @@ app.whenReady().then(async () => {
 
   /* El tacho borra sin preguntar; el pie dice qué se fue y ofrece deshacer. */
   const borrado = await js(`document.querySelector('.pr-otp').dataset.id`);
-  await js(`document.querySelector('#pp-main [data-a=delete]').click()`);
+  /* Mientras borra, un solo calco: el aviso "cambió la bóveda" llega antes
+     que la respuesta, y atendido pintaba un instante el vacío, que quedaba
+     como un segundo calco y apagaba el detalle a mitad del fundido. */
+  await js(`(() => {
+    window.__borrar = { calcos: 0, vacio: false };
+    const main = document.getElementById('pp-main');
+    const mirar = () => {
+      window.__borrar.calcos = Math.max(window.__borrar.calcos, main.querySelectorAll('.pr-pass__view[data-state=closing]').length);
+      if (main.querySelector('.pr-pass__empty')) window.__borrar.vacio = true;
+    };
+    const mo = new MutationObserver(mirar);
+    mo.observe(main, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state'] });
+    setTimeout(() => mo.disconnect(), 1500);
+    document.querySelector('#pp-main [data-a=delete]').click();
+    return true;
+  })()`);
   ok('el tacho borra sin preguntar', await until(() => !V.get(borrado) && js(`document.querySelectorAll('.pr-pass__row').length === 1`)));
+  await sleep(400);
+  const alBorrar = await js('window.__borrar');
+  ok('y pasa al siguiente con un solo fundido, sin pintar el vacío en el medio', alBorrar.calcos === 1 && !alBorrar.vacio, JSON.stringify(alBorrar));
   ok('y el pie ofrece deshacer', await until(() => js(`document.getElementById('pp-count').textContent.includes('eliminado') && document.getElementById('pp-import').textContent.includes('Deshacer')`)));
   await js(`document.getElementById('pp-import').click()`);
   ok('deshacer lo trae de vuelta, con su clave, y a la vista', await until(() => V.get(borrado)?.secret?.length > 0 && js(`document.querySelector('.pr-otp')?.dataset.id === ${JSON.stringify(borrado)}`)));
