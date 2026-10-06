@@ -646,6 +646,13 @@ function createTabs(ctx) {
     });
   }
 
+  /** Archivos soltados sobre la ventana: cada uno en su pestaña, en orden, a
+      la derecha de `from` (la activa si no se dice). La primera queda a la vista. */
+  function openFiles(urls, from = activeId) {
+    const base = get(from) ? indexOf(from) + 1 : tabs.length;
+    urls.forEach((url, i) => create({ url, active: i === 0, index: base + i }));
+  }
+
   function countOpenedBy(id) {
     // Los links que abre una pestaña se encolan a su derecha, en orden, como
     // en Chrome: abrir tres resultados de búsqueda los deja 1-2-3, no 3-2-1.
@@ -1255,7 +1262,7 @@ function createTabs(ctx) {
     whenThawed, create, close, reopen, closeOthers, closeRight, move, duplicate, mute, pin, sleep, sweep, navigate,
     split, unsplit, swapSplit, setSplitRatio,
     activate: activateTab, back, forward, reload, stop, zoom, find, stopFind, devtools,
-    contextAction, snapshotPage, hold, focusPage, setInsets, layout, pageBounds, restore, writeSession, writeSessionSync,
+    contextAction, snapshotPage, hold, focusPage, setInsets, layout, pageBounds, restore, writeSession, writeSessionSync, openFiles,
     setAway, rectFor: (t) => rectOf(t), showPhoto, hidePhoto,
     photoReady: (n) => photoWaiters.get(Number(n))?.(true),
     closeIfDownloadOnly, countBlocked,

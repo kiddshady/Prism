@@ -249,6 +249,11 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
      vista previa, en vez del diálogo de Windows (src/print-preload.cjs). */
   web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'print-preload.cjs') });
 
+  /* ── Archivos soltados ─────────────────────────────────────────────────────
+     Un PDF soltado sobre una página se abre en su pestaña, si la página no lo
+     tomó como adjunto (src/drop-preload.cjs). */
+  web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'drop-preload.cjs') });
+
   /* ── Compartir pantalla ────────────────────────────────────────────────────
      Sin este manejador, getDisplayMedia falla directo: Meet dice que no se
      puede presentar. El selector es propio, con miniaturas de cada pantalla y

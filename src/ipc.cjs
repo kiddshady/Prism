@@ -26,6 +26,7 @@ const { TABLE } = require('./shortcuts.cjs');
 const windows = require('./windows.cjs');
 const importer = require('./bookmarks-import.cjs');
 const calc = require('./calc.cjs');
+const { fileTargets } = require('./default-browser.cjs');
 
 /** La ventana que habla, si es una ventana de Prism (y no una página). */
 const fromChrome = (e) => windows.ofSender(e);
@@ -67,6 +68,11 @@ function register() {
   /* ── Pestañas ──────────────────────────────────────────────────────────── */
   handle('tabs:state', (ctx) => ctx.tabs.snapshot());
   on('tabs:new', (ctx, url, opts = {}) => ctx.tabs.create({ url: str(url), active: opts.active !== false, index: Number.isInteger(opts.index) ? opts.index : undefined }));
+  // Archivos soltados sobre la barra o las pestañas (rutas de webUtils, en el preload).
+  on('files:open', (ctx, paths) => {
+    const urls = fileTargets(Array.isArray(paths) ? paths.slice(0, 20).map((p) => str(p, 1024)) : []);
+    if (urls.length) ctx.tabs.openFiles(urls);
+  });
   on('tabs:close', (ctx, id) => ctx.tabs.close(num(id)));
   on('tabs:activate', (ctx, id) => ctx.tabs.activate(num(id)));
   on('tabs:move', (ctx, id, to) => ctx.tabs.move(num(id), num(to)));
@@ -104,6 +110,14 @@ function register() {
     hit.w.tabs.activate(hit.tab.id);
     hit.w.focusChrome?.();
     hit.w.send('cmd', 'print:page');
+  });
+  /* Archivos soltados sobre una página que no los tomó (src/drop-preload.cjs):
+     a la derecha de esa pestaña, en su ventana. Un popup no tiene pestañas. */
+  ipcMain.on('page:drop-files', (e, paths) => {
+    const hit = windows.tabOf(e.sender.id);
+    if (!hit) return;
+    const urls = fileTargets(Array.isArray(paths) ? paths.slice(0, 20).map((p) => str(p, 1024)) : []);
+    if (urls.length) hit.w.tabs.openFiles(urls, hit.tab.id);
   });
   on('page:capture', (ctx, kind) => ctx.capture.run(kind === 'full' ? 'full' : 'visible'));
   on('page:pip', (ctx) => ctx.pip.toggle(ctx));

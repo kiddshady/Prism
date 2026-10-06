@@ -117,6 +117,20 @@ console.log('\n4. Lo que llega por la línea de comandos');
   same('un .html y un link juntos, en orden', T([EXE, '--', 'C:\\a.html', 'https://b.com'], { exists: yes }), ['file:///C:/a.html', 'https://b.com']);
 }
 
+console.log('\n4b. Archivos soltados sobre la ventana');
+{
+  const yes = () => true;
+  const F = (paths, exists = yes) => db.fileTargets(paths, { exists });
+  const same = (n, got, want) => ok(n, JSON.stringify(got) === JSON.stringify(want), JSON.stringify(got));
+  same('un PDF con # y espacios, como file:///', F(['C:\\Users\\francisco\\Documents\\Apuntes #3 de Tecnia.pdf']),
+    ['file:///C:/Users/francisco/Documents/Apuntes%20%233%20de%20Tecnia.pdf']);
+  same('varios, en orden', F(['C:\\a.pdf', 'C:\\b.html']), ['file:///C:/a.pdf', 'file:///C:/b.html']);
+  same('un .docx o un .exe, no', F(['C:\\a.docx', 'C:\\Windows\\System32\\calc.exe']), []);
+  same('una ruta relativa, no', F(['a.pdf']), []);
+  same('uno que no existe, no', F(['C:\\a.pdf'], () => false), []);
+  same('cualquier otra cosa, nada', F('C:\\a.pdf'), []);
+}
+
 console.log('\n5. ¿Es este Prism? (la ruta que devuelve el shell contra la propia)');
 {
   const os = await import('os');

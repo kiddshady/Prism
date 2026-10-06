@@ -9,7 +9,7 @@
    Regla heredada de Opal: exponé funciones, nunca objetos de Electron.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 /** Desenvuelve {ok,data|error} y convierte el error en una excepción real. */
 const call = async (channel, ...args) => {
@@ -71,6 +71,14 @@ contextBridge.exposeInMainWorld('prism', {
     closeOthers: (id) => send('tabs:close-others', id),
     closeRight: (id) => send('tabs:close-right', id),
     navigate: (id, input) => call('tabs:navigate', id, input),
+  },
+
+  files: {
+    /** Archivos soltados sobre la ventana (los File de un drop): se abren en
+        pestañas. La ruta sale acá; la interfaz no la ve. */
+    open: (files) => send('files:open', Array.from(files || [])
+      .map((f) => { try { return webUtils.getPathForFile(f); } catch { return ''; } })
+      .filter(Boolean)),
   },
 
   nav: {

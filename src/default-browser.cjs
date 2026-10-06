@@ -160,6 +160,19 @@ function targetsFromArgv(argv, { cwd = process.cwd(), exists = fs.existsSync } =
   return out;
 }
 
+/** Los archivos soltados sobre la ventana: los mismos que abre por línea de
+    comandos, como file:///. Solo rutas absolutas que existen; el resto se
+    ignora (un .docx soltado no tiene en qué abrirse). */
+function fileTargets(paths, { exists = fs.existsSync } = {}) {
+  const out = [];
+  for (const p of Array.isArray(paths) ? paths : []) {
+    const file = String(p ?? '');
+    if (!file || !path.isAbsolute(file) || !OPENABLE.test(file) || !exists(file)) continue;
+    out.push(pathToFileURL(file).href);
+  }
+  return out;
+}
+
 /* ── Con Electron ─────────────────────────────────────────────────────────── */
 
 /* La ruta larga. Prism lanzado con la corta (C:\Users\FRANCI~1\…, como sale
@@ -235,5 +248,5 @@ function createDefaultBrowser({ app, shell, exe: rawExe = process.execPath } = {
 
 module.exports = {
   NAME, PROG_ID, FILE_TYPES, URL_TYPES, SETTINGS_URL, ROOT,
-  command, layout, removal, regText, targetsFromArgv, samePath, createDefaultBrowser,
+  command, layout, removal, regText, targetsFromArgv, fileTargets, samePath, createDefaultBrowser,
 };

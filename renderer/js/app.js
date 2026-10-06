@@ -166,6 +166,21 @@ async function boot() {
     e.preventDefault();
     fieldMenu(field, e.clientX, e.clientY);
   });
+  /* Un PDF soltado sobre la barra, las pestañas o una página propia de Prism
+     se abre en su pestaña (sobre una página web lo toma src/drop-preload.cjs).
+     Solo archivos: un texto soltado en la barra de direcciones sigue siendo
+     del campo. */
+  const withFiles = (e) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  document.addEventListener('dragover', (e) => {
+    if (!withFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  document.addEventListener('drop', (e) => {
+    if (!withFiles(e)) return;
+    e.preventDefault();
+    api.files.open([...e.dataTransfer.files]);
+  });
   api.page.onFullscreen((on) => document.getElementById('app').classList.toggle('is-fullscreen', on));
   api.onCommand(onCommand);
   api.update.onState(onUpdate);
