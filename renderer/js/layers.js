@@ -147,11 +147,15 @@ export async function popover(anchor, build, { width = 340, align = 'end', onClo
      de escribir): los íconos se montan cuando ya escribió. Montados antes,
      caían sobre el contenido VIEJO, que en un refresco mostraba un instante
      el ícono del estado anterior. */
+  /* El scroll se devuelve solo si el panel se rehízo (el scroller es otro
+     nodo). Los que se ponen al día en su lugar lo manejan solos: devolverlo
+     ahí pisaba el de reconcile(), que al cambiar la lista entera vuelve arriba. */
   const render = () => {
-    const keepScroll = el.querySelector('.op-scroll')?.scrollTop || 0;
+    const scroller = el.querySelector('.op-scroll');
+    const keepScroll = scroller?.scrollTop || 0;
     const settle = () => {
       Icons.mount(el);
-      el.querySelectorAll('.op-scroll').forEach((s) => { scrollFade(s); s.scrollTop = keepScroll; });
+      el.querySelectorAll('.op-scroll').forEach((s) => { scrollFade(s); if (s !== scroller) s.scrollTop = keepScroll; });
     };
     const built = build(el, ctl);
     if (built && typeof built.then === 'function') return built.then(settle, settle);

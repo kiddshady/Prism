@@ -320,12 +320,17 @@ export function roll(el, to, paint, { duration = 420, from: start0 } = {}) {
    Un elemento que cambió de tamaño va del que tenía (`from`, medido antes del
    cambio) al de ahora, en vez de saltar. Se anima el tamaño y no un transform
    porque lo que está al lado tiene que acompañarlo; es breve y en cosas
-   chicas. `ignore` son hijos que se están yendo: no cuentan para el destino. */
+   chicas. `ignore` son hijos que se están yendo: no cuentan para el destino.
+   Para medir sin ellos se sacan del flujo un instante, sin esconderlos:
+   apagar y prender `display` les reinicia las animaciones de CSS, y las filas
+   que se iban de una lista (limpiar las descargas) volvían a correr su
+   entrada: bajaban 8 px y subían mientras se esfumaban. */
 export function glideSize(el, from, { ignore = [], width = true, height = true } = {}) {
   if (!el || !from) return;
-  ignore.forEach((o) => { o.style.display = 'none'; });
+  const pos = ignore.map((o) => o.style.position);
+  ignore.forEach((o) => { o.style.position = 'absolute'; });
   const to = { w: el.offsetWidth, h: el.offsetHeight };
-  ignore.forEach((o) => { o.style.display = ''; });
+  ignore.forEach((o, i) => { o.style.position = pos[i]; });
   const dw = width && Math.abs(to.w - from.w) >= 1;
   const dh = height && Math.abs(to.h - from.h) >= 1;
   if (!dw && !dh) return;
@@ -427,13 +432,23 @@ export function reconcile(box, items, { update, created, height = false, enter =
   for (const el of box.children) if (el.dataset.state !== 'closing') first.set(el, el.getBoundingClientRect());
   for (const el of was.values()) { el.__move?.cancel(); el.__move = null; }
 
+  /* El scroll, también antes: cada fila que sale del flujo achica el
+     contenido, y leído adentro del bucle ya venía recortado. En una lista
+     scrolleada (limpiar las descargas con 200 px bajados) las que se iban
+     caían amontonadas unas sobre otras, más abajo de donde estaban.
+     Si no sigue ninguna (la lista entera cambia por otra, o por el vacío),
+     el scroll vuelve arriba ya, y las que se van quedan donde se veían: lo
+     nuevo nace arriba, y con el scroll bajado entraba fuera de la vista y
+     aparecía de golpe, casi entero, cuando las viejas se terminaban de ir. */
+  const replaced = leaving.length > 0 && ![...was.keys()].some((k) => keep.has(k));
+  const sx = replaced ? 0 : box.scrollLeft; const sy = replaced ? 0 : box.scrollTop;
   if (leaving.length && getComputedStyle(box).position === 'static') box.style.position = 'relative';
   for (const el of leaving) {
     const r = first.get(el);
     Object.assign(el.style, {
       position: 'absolute', margin: '0', boxSizing: 'border-box', pointerEvents: 'none', zIndex: '0',
-      top: `${r.top - box0.top - box.clientTop + box.scrollTop}px`,
-      left: `${r.left - box0.left - box.clientLeft + box.scrollLeft}px`,
+      top: `${r.top - box0.top - box.clientTop + sy}px`,
+      left: `${r.left - box0.left - box.clientLeft + sx}px`,
       width: `${r.width}px`, height: `${r.height}px`,
     });
     el.dataset.state = 'closing';
@@ -441,6 +456,7 @@ export function reconcile(box, items, { update, created, height = false, enter =
     const anim = el.animate([{ opacity: op }, { opacity: 0 }], { duration: T.out, easing: EASE_BOTH, fill: 'forwards' });
     settled(anim, T.out + 200, () => el.remove());
   }
+  if (replaced) { box.scrollTop = 0; box.scrollLeft = 0; }
 
   const fresh = [];
   let prev = null;
