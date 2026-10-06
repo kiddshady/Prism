@@ -190,6 +190,7 @@ function downloadsPanel() {
       el.innerHTML = `
         <div class="pr-pop__head">
           <div class="op-grow"><div class="pr-pop__title">Descargas</div></div>
+          <button class="op-iconbtn op-iconbtn--sm" data-a="clear" data-tip="Limpiar la lista"><i data-icon="archive"></i></button>
           <button class="op-iconbtn op-iconbtn--sm" data-a="folder" data-tip="Abrir la carpeta"><i data-icon="folderOpen"></i></button>
         </div>
         <div class="pr-pop__body op-scroll pr-dlpop__list"></div>
@@ -203,6 +204,8 @@ function downloadsPanel() {
       ? list.map((d) => dlItem(d, true))
       : [{ key: '__empty', html: '<div class="pr-pop__empty">Todavía no bajaste nada.</div>' }], { update: dlUpdate, created: dlCreated, height: true });
     swapText(el.querySelector('.pr-dlpop__dir'), S.downloadsDir || '');
+    // Como en la página: las que siguen bajando no se limpian.
+    el.querySelector('[data-a="clear"]').disabled = !S.downloads.some((d) => d.state !== 'progressing');
     el.onclick = async (e) => {
       const b = e.target.closest('[data-a]');
       const row = e.target.closest('.pr-dlrow');
@@ -213,6 +216,7 @@ function downloadsPanel() {
       }
       const a = b.dataset.a;
       if (a === 'folder') return api.downloads.folder();
+      if (a === 'clear') return api.downloads.clear();
       if (a === 'all') { ctl.close(); return openPage('descargas'); }
       const id = Number(row?.dataset.id);
       if (id) await api.downloads[a](id).catch(() => null);
