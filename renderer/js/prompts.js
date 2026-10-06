@@ -15,6 +15,7 @@ import { Icons } from './icons.js';
 import { Modal } from './overlays.js';
 import { esc } from './ui.js';
 import { modal } from './layers.js';
+import { swapText } from './motion.js';
 
 let queue = Promise.resolve();
 /** La que está preguntando ahora, con lo que retira SU diálogo. */
@@ -64,29 +65,56 @@ async function askPermission(req, signal) {
   return { allow: v === 'allow', remember: check.classList.contains('is-on') };
 }
 
+/* Qué se comparte de sonido según lo elegido. Una pestaña lleva el suyo (y
+   arranca prendido, como en Chrome); una pantalla, el de toda la compu; una
+   ventana suelta no tiene (Windows no lo separa), y la fila se apaga. */
+const kindOf = (id) => (id?.startsWith('tab:') ? 'tab' : id?.startsWith('screen') ? 'screen' : 'window');
+const AUDIO_LABEL = { tab: 'Compartir también el sonido de la pestaña', screen: 'Compartir también el sonido de la compu', window: 'Compartir también el sonido de la compu' };
+
 async function askDisplay(req, signal) {
+  const tabs = req.sources.filter((s) => s.kind === 'tab');
   const screens = req.sources.filter((s) => s.kind === 'screen');
   const windows = req.sources.filter((s) => s.kind === 'window');
-  let pick = screens[0]?.id || windows[0]?.id || null;
+  // Presentar desde Prism casi siempre es mostrar otra pestaña: va primero.
+  let pick = tabs[0]?.id || screens[0]?.id || windows[0]?.id || null;
 
   const body = document.createElement('div');
+  const fallback = (s) => Icons.svg(s.kind === 'tab' ? 'globe' : s.kind === 'screen' ? 'screen' : 'window', 'op-icon--sm');
   const card = (s) => `
-    <button class="pr-source${s.id === pick ? ' is-selected' : ''}" data-id="${esc(s.id)}">
+    <button class="pr-source${s.id === pick ? ' is-selected' : ''}" data-id="${esc(s.id)}" data-kind="${s.kind}">
       ${s.thumb ? `<img class="pr-source__thumb" src="${esc(s.thumb)}" alt="">` : '<div class="pr-source__thumb"></div>'}
-      <span class="pr-source__name">${s.icon ? `<img src="${esc(s.icon)}" alt="">` : Icons.svg(s.kind === 'screen' ? 'screen' : 'window', 'op-icon--sm')}<span>${esc(s.name)}</span></span>
+      <span class="pr-source__name">${s.icon ? `<img src="${esc(s.icon)}" alt="" referrerpolicy="no-referrer">` : fallback(s)}<span>${esc(s.name)}</span></span>
     </button>`;
+  const section = (title, list, first) => (list.length
+    ? `<div class="op-eyebrow" style="margin:${first ? 4 : 18}px 0 8px">${title}</div><div class="pr-sources">${list.map(card).join('')}</div>` : '');
   body.innerHTML = `
     <div class="pr-ask__text" style="margin-bottom:14px"><span class="pr-ask__origin">${esc(pretty(req.origin))}</span> quiere ver tu pantalla. Elegí qué compartir.</div>
-    ${screens.length ? `<div class="op-eyebrow" style="margin:4px 0 8px">Pantallas</div><div class="pr-sources">${screens.map(card).join('')}</div>` : ''}
-    ${windows.length ? `<div class="op-eyebrow" style="margin:18px 0 8px">Ventanas</div><div class="pr-sources">${windows.map(card).join('')}</div>` : ''}
-    <label class="pr-remember" id="d-audio-row"><button class="op-check" id="d-audio" aria-label="Audio">${Icons.svg('check')}</button> Compartir también el sonido de la compu</label>`;
+    ${section('Pestañas de Prism', tabs, true)}
+    ${section('Pantallas', screens, !tabs.length)}
+    ${section('Ventanas', windows, !tabs.length && !screens.length)}
+    <label class="pr-remember" id="d-audio-row"><button class="op-check" id="d-audio" aria-label="Audio">${Icons.svg('check')}</button> <span class="op-swap--row" id="d-audio-label">${AUDIO_LABEL[kindOf(pick)]}</span></label>`;
+
+  // El favicon de un sitio que no carga se cambia por el globo.
+  body.querySelectorAll('.pr-source__name img').forEach((img) => img.addEventListener('error', () => {
+    img.outerHTML = fallback({ kind: img.closest('.pr-source').dataset.kind });
+  }, { once: true }));
 
   const audioRow = body.querySelector('#d-audio-row');
-  const syncAudio = () => { audioRow.classList.toggle('is-dim', !pick?.startsWith('screen')); };
+  const audioBox = body.querySelector('#d-audio');
+  // Mientras la persona no lo toque, el sonido sigue a lo elegido: prendido para una pestaña.
+  let touched = false;
+  const syncAudio = () => {
+    const kind = kindOf(pick);
+    audioRow.classList.toggle('is-dim', kind === 'window');
+    swapText(body.querySelector('#d-audio-label'), AUDIO_LABEL[kind]);
+    if (!touched) audioBox.classList.toggle('is-on', kind === 'tab');
+  };
   syncAudio();
   audioRow.addEventListener('click', (e) => {
     e.preventDefault();
-    if (pick?.startsWith('screen')) body.querySelector('#d-audio').classList.toggle('is-on');
+    if (kindOf(pick) === 'window') return;
+    touched = true;
+    audioBox.classList.toggle('is-on');
   });
   body.addEventListener('click', (e) => {
     const b = e.target.closest('.pr-source');
@@ -113,7 +141,7 @@ async function askDisplay(req, signal) {
     ],
   });
   if (v !== 'share' || !pick) return null;
-  return { id: pick, audio: pick.startsWith('screen') && body.querySelector('#d-audio').classList.contains('is-on') };
+  return { id: pick, audio: kindOf(pick) !== 'window' && audioBox.classList.contains('is-on') };
 }
 
 /* La pide la persona (salir, reiniciar): sin armado, y el foco en la salida

@@ -62,6 +62,10 @@ const PRISM_WORLD = 1001;
 const GAP = 8;
 /** Cuánto dura un gesto de la persona para abrir ventanas: lo mismo que la activación de Chromium. */
 const ACTIVATION_MS = 5000;
+/** Cada cuánto se mira si una pestaña compartida sigue capturada. */
+const SHARE_POLL = 1500;
+/** Lo que tarda en pintar una pestaña de atrás pegada para sacarle la miniatura. */
+const PEEK_WAIT = 160;
 const OPENS_ON_INPUT = new Set(['mouseDown', 'mouseUp', 'rawKeyDown', 'keyDown', 'gestureTap', 'touchEnd']);
 const clampRatio = (r) => Math.max(0.2, Math.min(0.8, Number(r) || 0.5));
 
@@ -275,7 +279,7 @@ function createTabs(ctx) {
     const rects = slotRects();
     for (const [view, slot] of attached) {
       const b = { ...(rects[slot] || rects[0]) };
-      if (frozen && !fullscreen) b.x = -(b.width + 20000);
+      if ((frozen && !fullscreen) || slot === SHARED_SLOT) b.x = -(b.width + 20000);
       view.setBounds(b);
       view.setBorderRadius(fullscreen ? 0 : RADIUS);
     }
@@ -288,6 +292,56 @@ function createTabs(ctx) {
     layout();
   }
 
+  /* ── Pestañas compartidas ────────────────────────────────────────────────
+     Una pestaña compartida en un Meet se captura de su página, y una vista
+     sacada de la ventana no produce cuadros: la captura ni arrancaba
+     ("Timeout starting video source"). Mientras alguien la captura se queda
+     en la ventana aunque no se vea, corrida afuera y con el tamaño de la
+     página. Cuando la captura termina (dejan de presentar, se cierra el Meet)
+     vuelve a salir como cualquier pestaña de atrás. */
+  const SHARED_SLOT = -1;
+  const sharing = new Set();
+  let shareTimer = null;
+
+  function markShared(wcId) {
+    const t = byWc.get(wcId);
+    if (!t) return;
+    sharing.add(t.id);
+    syncAttached();
+    if (shareTimer) return;
+    shareTimer = setInterval(() => {
+      let changed = false;
+      for (const id of sharing) {
+        const wc = get(id)?.view?.webContents;
+        if (!wc || wc.isDestroyed() || !wc.isBeingCaptured()) { sharing.delete(id); changed = true; }
+      }
+      if (changed) syncAttached();
+      if (!sharing.size) { clearInterval(shareTimer); shareTimer = null; }
+    }, SHARE_POLL);
+  }
+
+  /* La miniatura de cada pestaña para el selector de compartir. Las de
+     atrás no están en la ventana y no hay de dónde sacarles una foto: se
+     pegan un instante afuera de la vista, como las compartidas, y se van. */
+  const peeking = new Set();
+
+  async function thumbnails(ids, { width = 320 } = {}) {
+    const list = ids.map(get).filter((t) => t?.view && !t.away && !t.view.webContents.isDestroyed());
+    const hidden = list.filter((t) => !attached.has(t.view));
+    hidden.forEach((t) => peeking.add(t.id));
+    if (hidden.length) { syncAttached(); await new Promise((r) => setTimeout(r, PEEK_WAIT)); }
+    try {
+      return new Map(await Promise.all(list.map(async (t) => {
+        const shot = t.view?.webContents.capturePage().catch(() => null);
+        const img = await Promise.race([shot, new Promise((r) => setTimeout(() => r(null), 600))]);
+        return [t.id, img && !img.isEmpty() ? img.resize({ width, quality: 'good' }).toDataURL() : null];
+      })));
+    } finally {
+      hidden.forEach((t) => peeking.delete(t.id));
+      if (hidden.length) syncAttached();
+    }
+  }
+
   /** Qué vistas tienen que estar en la ventana ahora (una, o las dos de un par), y solo esas. */
   function syncAttached() {
     if (!ctx.win || ctx.win.isDestroyed()) return;
@@ -295,6 +349,15 @@ function createTabs(ctx) {
     visible().forEach((t, slot) => {
       if (t && t.view && t.shown && !t.error && !t.crashed && !t.away) want.set(t.view, slot);
     });
+    for (const id of sharing) {
+      const t = get(id);
+      if (!t?.view || t.away || t.view.webContents.isDestroyed()) { sharing.delete(id); continue; }
+      if (!want.has(t.view)) want.set(t.view, SHARED_SLOT);
+    }
+    for (const id of peeking) {
+      const t = get(id);
+      if (t?.view && !t.away && !want.has(t.view)) want.set(t.view, SHARED_SLOT);
+    }
     for (const view of [...attached.keys()]) {
       if (want.has(view)) continue;
       try { ctx.win.contentView.removeChildView(view); } catch { /* ya no estaba */ }
@@ -1270,6 +1333,8 @@ function createTabs(ctx) {
     byWebContents: (id) => byWc.get(id) || null,
     /** La pestaña recibió cámara, micrófono o pantalla (web.cjs): no se duerme. */
     markMedia(wcId) { const t = byWc.get(wcId); if (t) t.usesMedia = true; },
+    /** La pestaña se comparte en un Meet (web.cjs): sigue pintando aunque no se vea. */
+    markShared, thumbnails,
     get active() { return active(); },
     get list() { return tabs; },
     get fullscreen() { return fullscreen; },

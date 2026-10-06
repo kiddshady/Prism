@@ -254,34 +254,61 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
      tomó como adjunto (src/drop-preload.cjs). */
   web.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'drop-preload.cjs') });
 
+  /* Las pestañas que se pueden compartir: las que tienen una página viva, sin
+     la que pide (compartirse a sí misma es un espejo infinito), cada una con
+     su miniatura (tabs.cjs, thumbnails). */
+  async function shareableTabs(requester) {
+    const list = (ctx.tabs?.list || []).filter((t) => t.view && t.shown && !t.internal && !t.crashed && !t.error
+      && !t.view.webContents.isDestroyed() && t.view.webContents !== requester);
+    const thumbs = await ctx.tabs.thumbnails(list.map((t) => t.id)).catch(() => new Map());
+    return list.map((t) => ({ t, thumb: thumbs.get(t.id) || null }));
+  }
+
   /* ── Compartir pantalla ────────────────────────────────────────────────────
      Sin este manejador, getDisplayMedia falla directo: Meet dice que no se
-     puede presentar. El selector es propio, con miniaturas de cada pantalla y
-     ventana, y el audio del sistema solo se ofrece para pantalla completa
-     (Windows no captura el audio de una ventana suelta). */
+     puede presentar. El selector es propio, con miniaturas de cada pestaña de
+     Prism, pantalla y ventana. El audio del sistema solo se ofrece para
+     pantalla completa (Windows no captura el audio de una ventana suelta);
+     el de una pestaña, siempre. */
   web.setDisplayMediaRequestHandler(async (request, callback) => {
     try {
-      const sources = await desktopCapturer.getSources({
-        types: ['screen', 'window'],
-        thumbnailSize: { width: 320, height: 180 },
-        fetchWindowIcons: true,
-      });
+      const wc = request.frame && webContents.fromFrame(request.frame);
+      const [sources, tabs] = await Promise.all([
+        desktopCapturer.getSources({
+          types: ['screen', 'window'],
+          thumbnailSize: { width: 320, height: 180 },
+          fetchWindowIcons: true,
+        }),
+        shareableTabs(wc),
+      ]);
       const origin = omni.originOf(request.securityOrigin || request.frame?.url) || '';
       const pick = await ctx.prompts.pickSource({
         origin,
-        sources: sources.map((s) => ({
-          id: s.id,
-          name: s.name,
-          kind: s.id.startsWith('screen') ? 'screen' : 'window',
-          thumb: s.thumbnail.isEmpty() ? null : s.thumbnail.toDataURL(),
-          icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : null,
-        })),
+        sources: [
+          ...tabs.map(({ t, thumb }) => ({ id: `tab:${t.id}`, name: t.title || omni.bareHost(t.url) || t.url, kind: 'tab', thumb, icon: t.favicon || null })),
+          ...sources.map((s) => ({
+            id: s.id,
+            name: s.name,
+            kind: s.id.startsWith('screen') ? 'screen' : 'window',
+            thumb: s.thumbnail.isEmpty() ? null : s.thumbnail.toDataURL(),
+            icon: s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : null,
+          })),
+        ],
       });
+      // Presentando: la pestaña no se duerme (tabs.cjs, canSleep).
+      if (wc) ctx.tabs?.markMedia(wc.id);
+      /* Una pestaña de Prism: se captura su página, no un rectángulo de la
+         pantalla, así que sigue viéndose aunque estés en otra pestaña (o en
+         la del Meet). Su sonido viaja con ella y se sigue oyendo acá. */
+      const shared = pick?.id?.startsWith('tab:') && ctx.tabs?.list.find((t) => `tab:${t.id}` === pick.id);
+      const sharedWc = shared?.view?.webContents;
+      if (sharedWc && !sharedWc.isDestroyed()) {
+        // Antes de responder: la captura arranca recién con la vista en la ventana.
+        ctx.tabs.markShared(sharedWc.id);
+        return callback({ video: sharedWc.mainFrame, ...(pick.audio ? { audio: sharedWc.mainFrame, enableLocalEcho: true } : {}) });
+      }
       const src = pick && sources.find((s) => s.id === pick.id);
       if (!src) return callback({});
-      // Presentando: la pestaña no se duerme (tabs.cjs, canSleep).
-      const wc = request.frame && webContents.fromFrame(request.frame);
-      if (wc) ctx.tabs?.markMedia(wc.id);
       callback({ video: src, ...(pick.audio && src.id.startsWith('screen') ? { audio: 'loopback' } : {}) });
     } catch (err) {
       console.error('[display-media]', err.message);

@@ -367,7 +367,7 @@
 .pr-ask__text { font-size: var(--op-fs-13); color: var(--op-text-2); line-height: var(--op-lh-loose); }
 .pr-ask__origin { font-family: var(--op-mono); font-size: 12px; color: var(--op-text); user-select: text; }
 .pr-remember { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: var(--op-fs-12); color: var(--op-text-3); transition: opacity var(--op-t-2) var(--op-ease-soft); }
-/* El sonido solo se comparte con una pantalla: con una ventana, la fila se apaga (sin saltar). */
+/* El sonido se comparte con una pestaña o una pantalla: con una ventana, la fila se apaga (sin saltar). */
 .pr-remember.is-dim { opacity: .4; }
 
 .pr-sources { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
