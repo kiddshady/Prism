@@ -1097,6 +1097,13 @@
 .pr-dlrow .op-meter { margin-top: 2px; }
 .pr-dlrow__actions.op-swap { justify-items: end; }
 .pr-dlrow__actions { display: flex; gap: 2px; flex: 0 0 auto; }
+/* El panel se despliega con overflow: hidden (glideSize) y la barra de
+   scroll aparecía recién al terminar: las acciones se corrían 10 px a la
+   izquierda. El lugar de la barra queda reservado desde el primer cuadro;
+   2 px de relleno + 6 de barra son los 8 del otro lado. */
+.pr-dlpop__list { padding-right: 2px; scrollbar-gutter: stable; }
+.pr-dlpop__list::-webkit-scrollbar { width: 6px; }
+.pr-dlpop__list::-webkit-scrollbar-thumb { border-width: 3px 1px; }
 
 /* ── Contraseñas ─────────────────────────────────────────────────────────────
    Una hoja ancha en dos columnas. La columna de la lista es un escalón más
