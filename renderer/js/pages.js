@@ -319,7 +319,7 @@ function ntpPage(t) {
       <div class="pr-ntp__mark">${Icons.svg('prism')}</div>
       <label class="pr-fakebox" id="fakebox">${Icons.svg('search')}
         <input class="pr-fakebox__input" id="ntp-input" type="text" spellcheck="false" autocomplete="off"
-               placeholder="Buscá o escribí una dirección" aria-label="Buscar o ir a una dirección"></label>
+               placeholder="Buscar o escribir una URL" aria-label="Buscar o ir a una dirección"></label>
       ${priv ? incognitoHTML() : '<div class="pr-ntp__tiles" id="ntp-tiles"></div>'}
     </div>`, 'nueva');
 
