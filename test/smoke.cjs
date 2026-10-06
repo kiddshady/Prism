@@ -64,6 +64,9 @@ async function until(fn, ms = 6000) {
 const PAGES = {
   '/': '<title>Inicio de prueba</title><body style="font:16px sans-serif"><h1>Hola Prism</h1><p>fiebre fiebre fiebre</p><a id="l" href="/dos">dos</a></body>',
   '/dos': '<title>Página dos</title><body><h1>Dos</h1></body>',
+  /* Activar el doble factor: el QR a la derecha, donde cae el panel de la llave. */
+  '/qr': `<title>Activar 2FA</title><body style="font:16px sans-serif;background:#fff;padding:40px"><h1>Escaneá este código</h1>
+    <img src="data:image/png;base64,${fs.readFileSync(path.join(__dirname, 'qr-otpauth.png')).toString('base64')}" style="margin-left:420px"></body>`,
   /* Para «Copiar enlace al texto»: la misma frase dos veces, lejos una de otra,
      un título seguido de su párrafo, y un texto con guion. */
   '/texto': `<title>Texto</title><body style="font:16px sans-serif;margin:20px">
@@ -1173,6 +1176,44 @@ app.whenReady().then(async () => {
   ok('las flechas y el Enter desde el iframe eligen y completan', await until(async () => (await enMismo()) === '4242424242424242|08 / 29|123'), await enMismo());
   ctx.tabs.close(ctx.tabs.active.id);
 
+  console.log('\n9b3. Códigos de doble factor');
+  /* Escanear la pantalla con el QR en la pestaña, y el panel de la llave
+     justo encima: se lee de la foto de la página, que el panel no tapa.
+     Entra en el acto y queda a la vista con su código. La clave no llega
+     nunca al cromo: el código se calcula en el proceso principal. */
+  ctx.tabs.create({ url: `${BASE}/qr` });
+  await until(() => ctx.tabs.active.title === 'Activar 2FA' && !ctx.tabs.active.loading);
+  await sleep(500);
+  await js(`document.getElementById('btn-pass').click()`);
+  await until(() => js(`!!document.querySelector('.pr-pass')`));
+  await js(`document.querySelector('#pp-kind [data-value=totp]').click()`);
+  ok('el lado de códigos vacío ofrece escanear la pantalla', await until(() => js(`!!document.querySelector('#pp-main [data-a=qr-screen]')`)));
+  await js(`document.querySelector('#pp-main [data-a=qr-screen]').click()`);
+  ok('escanear la pantalla lo encuentra en la pestaña, aunque el panel la tape', await until(() => js(`!!document.querySelector('.pr-otp') && document.querySelector('#pp-main').innerText.includes('kiddshady')`)));
+  const realOpenQr = dialog.showOpenDialog;
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path.join(__dirname, 'qr-otpauth.png')] });
+  const otp = V.list().find((it) => it.kind === 'totp');
+  const enVista = () => js(`document.querySelector('#pp-code .op-swap__item:not([data-state=closing])')?.textContent.replace(/\\s/g, '') ?? document.getElementById('pp-code').textContent.replace(/\\s/g, '')`);
+  ok('el código a la vista es el de la bóveda', await until(async () => (await enVista()) === V.code(otp.id).code), await enVista());
+  ok('la clave no viaja al cromo', !(await js(`document.querySelector('.pr-pass').innerHTML`)).includes('JBSWY3DPEHPK3PXP'));
+  ok('ni queda a la vista en disco', !fs.readFileSync(path.join(process.env.PRISM_DATA, 'vault.json'), 'utf8').includes('JBSWY3DP'));
+  ok('un código no se ofrece en las páginas', V.findFor('https://github.com/').every((it) => it.kind !== 'totp'));
+  await js(`document.getElementById('pp-new').click()`);
+  await until(() => js(`!!document.querySelector('#pp-form [data-a=qr-file]')`));
+  await js(`document.querySelector('#pp-form [data-a=qr-file]').click()`);
+  ok('el mismo QR otra vez, desde una imagen, no lo duplica',await until(() => js(`document.getElementById('status-left').textContent.includes('ya estaba')`)) && V.list().filter((it) => it.kind === 'totp').length === 1);
+  dialog.showOpenDialog = realOpenQr;
+  await until(() => js(`!!document.querySelector('.pr-otp')`));
+  await js(`document.getElementById('pp-q').focus()`);
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
+  ok('Enter en el buscador copia el código', await until(async () => (await clipboard.readText()) === V.code(otp.id).code));
+  // De vuelta a las contraseñas: lo que sigue abre el panel y espera verlas.
+  await js(`document.querySelector('#pp-kind [data-value=login]').click()`);
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!document.querySelector('.pr-pass')`));
+  await V.remove(otp.id);
+  ctx.tabs.close(ctx.tabs.active.id);
+
   console.log('\n9c. El IPC del cromo no atiende a las páginas');
   /* Un preload SOLO de prueba le pasa ipcRenderer al mundo de la página: es
      lo que tendría un renderer comprometido. Los pedidos salen de verdad
@@ -2268,9 +2309,9 @@ app.whenReady().then(async () => {
       await wait(300);
       return { foco, visto, seFue: !document.querySelector('.op-tooltip:not([data-state="closing"])') };
     })()`);
-    return tipTeclado.foco && tipTeclado.visto === 'Contraseñas y tarjetas' && tipTeclado.seFue;
+    return tipTeclado.foco && tipTeclado.visto === 'Contraseñas, tarjetas y códigos' && tipTeclado.seFue;
   }, 8000);
-  ok('el tooltip aparece también al llegar con Tab, y se va al salir', tipTeclado.visto === 'Contraseñas y tarjetas' && tipTeclado.seFue, JSON.stringify(tipTeclado));
+  ok('el tooltip aparece también al llegar con Tab, y se va al salir', tipTeclado.visto === 'Contraseñas, tarjetas y códigos' && tipTeclado.seFue, JSON.stringify(tipTeclado));
 
   const conEnter = await js(`(async () => {
     const { Modal } = await import('./js/overlays.js');

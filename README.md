@@ -65,9 +65,20 @@ npm run release # publica en GitHub (ver abajo)
   propia sesión en memoria, nueva cada vez. No anota historial, no recuerda
   permisos ni ofrece guardar contraseñas, y al cerrarla se borra todo. Los
   favoritos, los ajustes y el bloqueador son los mismos.
-- **Respaldo de contraseñas y tarjetas**: la bóveda se cifra con la cuenta de
+- **Códigos de doble factor**, como Tessera pero adentro de la llave: el
+  tercer lado de la bóveda, al lado de Contraseñas y Tarjetas. Cada código
+  con su anillo que se vacía y un botón (o Enter en el buscador) que lo copia.
+  Entran por el QR del sitio: **Escanear la pantalla** lo busca en la pestaña
+  (aunque el panel la tape), en cada pantalla y en las otras ventanas, aunque
+  estén tapadas, sin esconder Prism. También entran por una captura en el
+  portapapeles, una imagen, a mano (la clave, o el enlace `otpauth://`
+  entero) o importados: el respaldo
+  de Tessera, el QR de «Transferir cuentas» de Google Authenticator y los
+  códigos que Proton Pass guarda adentro de cada login. La clave nunca llega a
+  la interfaz: el código se calcula en el proceso principal.
+- **Respaldo de contraseñas, tarjetas y códigos**: la bóveda se cifra con la cuenta de
   Windows, así que su archivo no se abre en otra compu. El respaldo (Ajustes →
-  Contraseñas y tarjetas) es una copia aparte, cifrada con una clave tuya, en
+  Contraseñas, tarjetas y códigos) es una copia aparte, cifrada con una clave tuya, en
   la carpeta que elijas: se pone al día sola con cada cambio y guarda los
   últimos 10 días. Se restaura desde "Importar", que suma lo que falta sin
   pisar nada.
@@ -305,6 +316,8 @@ src/
   card.cjs            La tarjeta de la esquina: un aviso que flota sobre la página.
   fill.cjs            La lista de contraseñas y tarjetas: una vista propia sobre el campo.
   backup.cjs          El respaldo de la bóveda: su cifrado, las copias por día. Pura, con tests.
+  totp.cjs            Los códigos de doble factor: TOTP, otpauth:// y el QR de Google. Pura, con tests.
+  qr.cjs              Leer un QR de una imagen o del portapapeles (jsQR).
   textlink.cjs        El enlace a un texto (#:~:text=…). Pura, con tests.
   ui-protocol.cjs     prism-ui://app: la interfaz por su propio esquema, no como file://.
   print.cjs           Imprimir: la vista previa (un PDF), a la impresora o a un PDF.

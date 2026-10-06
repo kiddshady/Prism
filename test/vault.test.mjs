@@ -182,5 +182,74 @@ const ri2 = await vc.importItems(jc.items);
 ok('importar cuenta las tarjetas aparte', ri1.added === 2 && ri1.cards === 1, JSON.stringify(ri1));
 ok('y la misma tarjeta no entra dos veces', ri2.added === 0 && ri2.repeated === 2 && vc.cards().length === 2);
 
+console.log('\n8. Códigos de doble factor');
+const T = require('../src/totp.cjs');
+const b32 = (ascii) => T.base32Encode(Buffer.from(ascii));
+// Los vectores del RFC 6238 (apéndice B): una clave por algoritmo, 8 dígitos.
+const RFC = {
+  SHA1: b32('12345678901234567890'),
+  SHA256: b32('12345678901234567890123456789012'),
+  SHA512: b32('1234567890123456789012345678901234567890123456789012345678901234'),
+};
+for (const [t, want] of [[59, ['94287082', '46119246', '90693936']], [1111111109, ['07081804', '68084774', '25091201']], [20000000000, ['65353130', '77737706', '47863826']]]) {
+  const got = ['SHA1', 'SHA256', 'SHA512'].map((a) => T.totp(RFC[a], { digits: 8, algorithm: a, now: t * 1000 }).code);
+  ok(`RFC 6238 en t=${t}`, got.join() === want.join(), got.join());
+}
+ok('base32 ida y vuelta', T.base32Decode(T.base32Encode(Buffer.from('hola mundo'))).toString() === 'hola mundo');
+ok('la clave se acepta con espacios y en minúsculas', T.isValidSecret('jbsw y3dp ehpk 3pxp') && !T.isValidSecret('JBSW1') && !T.isValidSecret(''));
+ok('cuánto le queda al código', T.msLeft(61_000, 30) === 29_000);
+
+const u = T.parseOtpauth('otpauth://totp/GitHub:kiddshady?secret=JBSWY3DPEHPK3PXP&issuer=GitHub');
+ok('un enlace otpauth trae emisor, cuenta y clave', u.issuer === 'GitHub' && u.account === 'kiddshady' && u.secret === 'JBSWY3DPEHPK3PXP' && u.digits === 6 && u.period === 30 && u.algorithm === 'SHA1');
+const u2 = T.parseOtpauth('otpauth://totp/Proton%3Afran%40proton.me?secret=jbswy3dpehpk3pxp&digits=8&period=60&algorithm=SHA256');
+ok('el emisor puede venir solo en la etiqueta, y con sus opciones', u2.issuer === 'Proton' && u2.account === 'fran@proton.me' && u2.digits === 8 && u2.period === 60 && u2.algorithm === 'SHA256');
+ok('ida y vuelta por buildOtpauth', JSON.stringify(T.parseOtpauth(T.buildOtpauth(u2))) === JSON.stringify(u2));
+const tira = (fn) => { try { fn(); return ''; } catch (err) { return err.message; } };
+ok('un HOTP se rechaza diciendo por qué', /HOTP/.test(tira(() => T.parseOtpauth('otpauth://hotp/x?secret=JBSWY3DP&counter=1'))));
+ok('sin clave válida, también', /base32/.test(tira(() => T.parseOtpauth('otpauth://totp/x?secret=hola!'))));
+
+// Un QR de "Transferir cuentas" de Google Authenticator, armado a mano.
+const varint = (n) => { const o = []; do { let b = n & 0x7f; n >>>= 7; if (n) b |= 0x80; o.push(b); } while (n); return o; };
+const fld = (f, v) => (typeof v === 'number' ? [...varint(f * 8), ...varint(v)] : [...varint(f * 8 + 2), ...varint(v.length), ...v]);
+const param = (o) => Buffer.from([...fld(1, [...Buffer.from(o.secret)]), ...fld(2, [...Buffer.from(o.name)]), ...fld(3, [...Buffer.from(o.issuer)]), ...fld(4, o.alg), ...fld(5, o.dig), ...fld(6, o.type)]);
+const payload = Buffer.from([
+  ...fld(1, [...param({ secret: 'Hello!\xde\xad', name: 'fran@gmail.com', issuer: 'Google', alg: 1, dig: 1, type: 2 })]),
+  ...fld(1, [...param({ secret: 'otra-clave', name: 'Steam:fran', issuer: '', alg: 1, dig: 2, type: 2 })]),
+  ...fld(1, [...param({ secret: 'contador', name: 'viejo', issuer: 'Banco', alg: 1, dig: 1, type: 1 })]),
+  ...fld(2, 1), ...fld(3, 2), ...fld(4, 1),
+]);
+const mig = T.parseMigration(`otpauth-migration://offline?data=${encodeURIComponent(payload.toString('base64'))}`);
+ok('el QR de Google trae las cuentas por tiempo', mig.accounts.length === 2 && mig.accounts[0].issuer === 'Google' && mig.accounts[0].account === 'fran@gmail.com', JSON.stringify(mig.accounts));
+ok('con la clave intacta y los 8 dígitos', T.base32Decode(mig.accounts[1].secret).toString() === 'otra-clave' && mig.accounts[1].digits === 8 && mig.accounts[1].issuer === 'Steam' && mig.accounts[1].account === 'fran');
+ok('saltea la de contador y dice de qué lote es', mig.skipped.length === 1 && /contador/.test(mig.skipped[0]) && mig.batch.index === 1 && mig.batch.size === 2);
+
+const vo = V.createVault({ doc: { read: async () => null, write: async () => {} }, ...plain, now: () => 59_000 });
+await vo.load();
+await vo.save({ title: 'GitHub', username: 'kiddshady', password: 'x', urls: ['https://github.com'] });
+const code = await vo.save({ kind: 'totp', issuer: 'GitHub', account: 'kiddshady', secret: RFC.SHA1.toLowerCase(), digits: 8 });
+ok('lo público de un código no lleva la clave', code.kind === 'totp' && !('secret' in code) && code.hasSecret && code.title === 'GitHub');
+ok('ni la lista', vo.list().every((it) => !('secret' in it)));
+ok('la clave se guarda normalizada', vo.get(code.id).secret === RFC.SHA1);
+ok('el código se calcula en la bóveda', vo.code(code.id, 59_000)?.code === '94287082' && vo.code(code.id, 59_000).msLeft === 1000);
+ok('un código no se ofrece como contraseña', vo.findFor('https://github.com/login').length === 1);
+await vo.save({ id: code.id, note: 'el de la compu' });
+ok('editar sin mandar la clave la conserva, y sus 8 dígitos', vo.get(code.id).secret === RFC.SHA1 && vo.get(code.id).digits === 8 && vo.get(code.id).note === 'el de la compu');
+ok('codeWith encuentra la clave escrita de otra forma', vo.codeWith(RFC.SHA1.toLowerCase().replace(/(.{4})/g, '$1 '))?.id === code.id);
+
+const tessera = Buffer.from(`# Respaldo de Tessera\notpauth://totp/GitHub:kiddshady?secret=${RFC.SHA1}&issuer=GitHub\notpauth://totp/Proton:fran?secret=JBSWY3DPEHPK3PXP&issuer=Proton\notpauth://hotp/x?secret=JBSWY3DP\nno es un enlace\n`);
+const tx = V.parseExport('tessera-respaldo.txt', tessera);
+ok('el respaldo de Tessera entra como códigos', tx.items.length === 2 && tx.items.every((it) => it.kind === 'totp') && tx.skipped === 1);
+const ri3 = await vo.importItems(tx.items);
+ok('importar cuenta los códigos y saltea el que ya estaba', ri3.added === 1 && ri3.codes === 1 && ri3.repeated === 1, JSON.stringify(ri3));
+ok('un archivo sin enlaces avisa', /otpauth/.test(tira(() => V.parseExport('vacio.txt', Buffer.from('nada\n')))));
+
+const conTotp = structuredClone(proton);
+conTotp.vaults.s1.items[0].data.content.totpUri = 'otpauth://totp/Google:fran%40gmail.com?secret=JBSWY3DPEHPK3PXQ&issuer=Google';
+const jt = V.fromProtonJson(conTotp);
+const jcode = jt.items.find((it) => it.kind === 'totp');
+ok('de Proton, el código de doble factor del login viene aparte', !!jcode && jcode.secret === 'JBSWY3DPEHPK3PXQ' && jcode.account === 'fran@gmail.com');
+const ct = V.fromCsv('type,name,url,email,username,password,note,totp\nlogin,Steam,https://steampowered.com,,fran,x,,JBSWY3DPEHPK3PXR\n');
+ok('y del CSV, aunque traiga la clave sola', ct.items.length === 2 && ct.items[1].kind === 'totp' && ct.items[1].title === 'Steam' && ct.items[1].account === 'fran');
+
 console.log(`\n═══ ${pass} ok · ${fail} fallas ═══`);
 process.exit(fail ? 1 : 0);

@@ -937,12 +937,12 @@ function settingsPage() {
       </section>
 
       <section class="pr-set" style="--i:6">
-        <div class="pr-set__head">${Icons.svg('passKey')}<span class="pr-set__title">Contraseñas y tarjetas</span></div>
+        <div class="pr-set__head">${Icons.svg('passKey')}<span class="pr-set__title">Contraseñas, tarjetas y códigos</span></div>
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Completar contraseñas y tarjetas</div>
           <div class="pr-opt__hint">También ofrece guardar las contraseñas después de entrar. Todo se guarda cifrado con tu cuenta de Windows: el archivo copiado a otra compu, o leído desde otra cuenta, no se abre. Una página solo recibe las contraseñas de su propio sitio, y una tarjeta se completa solo en páginas seguras y cuando la elegís vos.</div></div>
           <div class="pr-opt__ctl">${toggle('passwords', 'Contraseñas')}</div></div>
-        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Tus contraseñas y tarjetas</div>
-          <div class="pr-opt__hint">Buscar, editar, agregar notas, o importar de Proton Pass o de un respaldo. También desde la llave de la barra.</div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Tus contraseñas, tarjetas y códigos</div>
+          <div class="pr-opt__hint">Buscar, editar, agregar notas, o importar de Proton Pass, de Tessera o de un respaldo. Los códigos de doble factor también entran por su QR. Todo desde la llave de la barra.</div></div>
           <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-pass"><i data-icon="passKey"></i> Abrir</button></div></div>
         <div class="pr-bk" data-key="${backupKey()}">${backupHTML()}</div>
         <div class="op-reveal pr-chipset" id="s-never"><div>
@@ -1293,7 +1293,7 @@ function backupHTML() {
   const b = S.backup;
   if (!b?.on) {
     return `<div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Respaldo</div>
-        <div class="pr-opt__hint">Tus contraseñas y tarjetas viven solo en esta compu: si se rompe el disco, se pierden. El respaldo guarda una copia cifrada con una clave tuya en la carpeta que elijas, y la pone al día sola con cada cambio.</div></div>
+        <div class="pr-opt__hint">Tus contraseñas, tarjetas y códigos viven solo en esta compu: si se rompe el disco, se pierden. El respaldo guarda una copia cifrada con una clave tuya en la carpeta que elijas, y la pone al día sola con cada cambio.</div></div>
         <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-bk-setup">${Icons.svg('lock')} Configurar…</button></div></div>`;
   }
   const estado = b.error
@@ -1354,7 +1354,7 @@ async function backupSetupModal() {
   });
   let hecho = null;
   const ok = await modal({
-    title: cambia ? 'Cambiar la clave del respaldo' : 'Respaldo de contraseñas y tarjetas',
+    title: cambia ? 'Cambiar la clave del respaldo' : 'Respaldo de la bóveda',
     sub: cambia ? 'Las copias de los días anteriores siguen abriéndose con la clave vieja.' : 'Una copia cifrada, en la carpeta que elijas, que se pone al día sola.',
     body,
     width: 480,

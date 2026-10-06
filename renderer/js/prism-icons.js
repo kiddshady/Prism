@@ -83,6 +83,11 @@ Icons.add({
   passKey: '<g transform="rotate(-45 8 8)"><path d="M8.31 6.6H1.9V9.4H3.2V11H5.8V9.4H8.31A3.3 3.3 0 1 0 8.31 6.6Z"/><circle cx="12.3" cy="8" r="1" fill="currentColor" stroke="none"/></g>',
   /* La tarjeta: el plástico con su banda y el renglón del número. */
   card: '<rect x="1.8" y="3.4" width="12.4" height="9.2" rx="1.8"/><path d="M1.8 6.6h12.4M4.4 10.1h2.8"/>',
+  /* El código de doble factor: un cronómetro (el código vale mientras corre). */
+  otp: '<circle cx="8" cy="9.1" r="5"/><path d="M6.5 1.9h3M8 1.9v2.2M8 6.6v2.5l1.7 1.1M12.1 4.6l.9-.9"/>',
+  /* Leer un QR: el de Tessera, tres ojos y dos módulos. */
+  qr: '<rect x="2.2" y="2.2" width="4.8" height="4.8" rx="1.1"/><rect x="9" y="2.2" width="4.8" height="4.8" rx="1.1"/><rect x="2.2" y="9" width="4.8" height="4.8" rx="1.1"/><path d="M9.2 9.2h2v2h-2zM11.8 11.8h2v2h-2z"/>',
+  clipboard: '<path d="M6.2 2.4h3.6a1 1 0 0 1 1 1v.9H5.2v-.9a1 1 0 0 1 1-1z"/><path d="M4.6 3.7H4.2a1.3 1.3 0 0 0-1.3 1.3v7.4a1.3 1.3 0 0 0 1.3 1.3h7.6a1.3 1.3 0 0 0 1.3-1.3V5a1.3 1.3 0 0 0-1.3-1.3h-.4"/><path d="M5.8 8.2h4.4M5.8 10.6h3"/>',
   mail: '<rect x="1.8" y="3.2" width="12.4" height="9.6" rx="1.8"/><path d="M2.2 4.4 8 8.6l5.8-4.2"/>',
   note: '<path d="M13.4 9.4V3.8a1.4 1.4 0 0 0-1.4-1.4H4a1.4 1.4 0 0 0-1.4 1.4v8.4A1.4 1.4 0 0 0 4 13.6h5.6z"/><path d="M13.4 9.4H10.4a1 1 0 0 0-1 1v3.2M5.2 5.8h5.6M5.2 8.2h3"/>',
   wand: '<path d="M2.4 13.6 10.2 5.8M8.9 4.5l2.6 2.6"/><path d="M12.2 1.8v2.4M11 3h2.4M13.8 6.4v1.8M12.9 7.3h1.8M5.8 1.8v1.8M4.9 2.7h1.8"/>',

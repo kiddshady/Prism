@@ -36,6 +36,13 @@
    Se dibuja en el documento principal, y el iframe le pasa por acá las
    flechas, el Enter y el "me fui" (pay:key, pay:blur).
 
+   ── Códigos de doble factor ────────────────────────────────────────────────
+   Los de Tessera, en la misma bóveda. El código se calcula acá y el cromo
+   recibe solo los dígitos y cuánto les queda; la clave se pide aparte, como
+   una contraseña. Entran por un QR (una imagen o el portapapeles, src/qr.cjs),
+   a mano, o importados (el respaldo de Tessera, el QR de Google Authenticator,
+   el totpUri de los logins de Proton Pass).
+
    ── Respaldo ───────────────────────────────────────────────────────────────
    Como la bóveda solo se abre con esta cuenta de Windows, el respaldo es otro
    archivo con su propia clave (src/backup.cjs): se escribe solo después de
@@ -49,6 +56,8 @@ const fs = require('fs/promises');
 const path = require('path');
 const store = require('./store.cjs');
 const V = require('./vault.cjs');
+const T = require('./totp.cjs');
+const QR = require('./qr.cjs');
 const B = require('./backup.cjs');
 const windows = require('./windows.cjs');
 
@@ -319,8 +328,8 @@ function createPasswords(ctx) {
   const withIcon = (it) => ({ ...it, favicon: it.urls?.[0] ? ctx.library.faviconFor(it.urls[0]) : null });
 
   /** Lo secreto de cada clase: lo único que se pide aparte, de a un campo. */
-  const SECRET = { login: ['password'], card: ['number', 'cvv', 'pin'] };
-  const kindOf = (it) => (V.isCard(it) ? 'card' : 'login');
+  const SECRET = { login: ['password'], card: ['number', 'cvv', 'pin'], totp: ['secret'] };
+  const kindOf = V.kindOf;
 
   chrome('pass:list', async () => {
     // Si al arrancar estaba tomada, abrir Contraseñas es el momento de volver a probar.
@@ -333,11 +342,102 @@ function createPasswords(ctx) {
     return it && SECRET[kindOf(it)].includes(field) ? it[field] ?? '' : '';
   });
 
+  /* El código vigente: los dígitos y cuánto les queda, nunca la clave. */
+  chrome('pass:code', (id) => {
+    try { return vault.code(String(id)); } catch (err) { return { error: err.message }; }
+  });
+
+  /** Un código nuevo; si esa clave ya estaba, devuelve el que estaba. */
+  async function addCode(acc) {
+    const prev = vault.codeWith(acc.secret);
+    if (prev) return { item: withIcon(V.publicItem(prev)), existed: true };
+    const item = await vault.save({ kind: 'totp', ...acc, title: acc.issuer });
+    changed();
+    return { item: withIcon(item), existed: false };
+  }
+
+  /* Un QR de una imagen o del portapapeles. El de un sitio se guarda en el
+     acto (se ve el código, y se edita si hace falta); el de "Transferir
+     cuentas" de Google Authenticator trae varios y entra como una importación. */
+  /** La foto de una página (la primera a veces sale vacía: se reintenta, como en el congelado). */
+  async function pageShot(wc) {
+    for (let i = 0; i < 3; i++) {
+      const img = await wc.capturePage().catch(() => null);
+      if (img && !img.isEmpty()) return img;
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return null;
+  }
+
+  /* Escanear la pantalla: primero las pestañas a la vista (la activa
+     primero), después las pantallas y las ventanas (src/qr.cjs). */
+  function fromScreen() {
+    const shown = (ctx.tabs?.list || []).filter((t) => t.view && t.shown && !t.crashed && !t.view.webContents.isDestroyed());
+    const active = ctx.tabs?.active;
+    shown.sort((a, b) => (b === active) - (a === active));
+    const skip = new Set();
+    try { if (ctx.win && !ctx.win.isDestroyed()) skip.add(ctx.win.getMediaSourceId()); } catch { /* sin ventana */ }
+    return QR.fromScreen({
+      pages: shown.map((t) => pageShot(t.view.webContents)),
+      skip,
+      want: (text) => T.isOtpauth(text) || T.isMigration(text),
+    });
+  }
+
+  const NOT_FOUND = {
+    screen: 'No se encontró un código QR de doble factor a la vista: ni en la pestaña, ni en la pantalla, ni en las otras ventanas. Dejalo visible (que no esté minimizado) y probá de nuevo.',
+    file: 'No se encontró un código QR en esa imagen.',
+    clipboard: 'El portapapeles no tiene una imagen con un código QR (ni un enlace otpauth://). Copiá una captura del QR y probá de nuevo.',
+  };
+
+  chrome('pass:qr', async (source) => {
+    const text = source === 'screen' ? await fromScreen() : source === 'file' ? await QR.fromFile(ctx.win) : await QR.fromClipboard();
+    if (text === undefined) return null;
+    if (!text) throw new Error(NOT_FOUND[source] || NOT_FOUND.clipboard);
+    if (!T.isOtpauth(text) && !T.isMigration(text)) throw new Error('Ese QR no es de doble factor: no trae un enlace otpauth://.');
+    const r = T.parseAny(text);
+    if (T.isMigration(text)) {
+      const res = await vault.importItems(V.codeItems(r.accounts));
+      changed();
+      return { imported: { ...res, skipped: r.skipped.length, file: 'Google Authenticator', batch: r.batch } };
+    }
+    return addCode(r.accounts[0]);
+  });
+
+  /* Guardar un código. La clave puede venir como el enlace otpauth:// entero
+     (el que muchos sitios muestran debajo del QR): trae todo lo demás, y
+     completa lo que quedó vacío. */
+  async function saveCode(raw) {
+    const id = raw.id ? String(raw.id) : undefined;
+    let clave = raw.secret != null ? String(raw.secret).trim() : undefined;
+    let fields = { title: raw.title, account: raw.account, digits: raw.digits, period: raw.period, algorithm: raw.algorithm, note: raw.note };
+    if (clave && T.isOtpauth(clave)) {
+      const acc = T.parseOtpauth(clave);
+      clave = acc.secret;
+      fields = {
+        ...fields,
+        title: String(raw.title || '').trim() || acc.issuer,
+        account: String(raw.account || '').trim() || acc.account,
+        digits: acc.digits, period: acc.period, algorithm: acc.algorithm,
+      };
+    }
+    if (clave && !T.isValidSecret(clave)) throw new Error('La clave va en base32: letras de la A a la Z y dígitos del 2 al 7 (o pegá el enlace otpauth:// entero).');
+    if (!id && !clave) throw new Error('Falta la clave: la que muestra el sitio al lado del QR, o el enlace otpauth://.');
+    if (clave && vault.codeWith(clave) && vault.codeWith(clave).id !== id) throw new Error('Ese código ya está guardado.');
+    // Lo que no vino queda como estaba (un undefined pisaría, por ejemplo, los 8 dígitos con el 6 de fábrica).
+    const given = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+    const it = await vault.save({ id, kind: 'totp', ...given, ...(clave ? { secret: clave } : {}) });
+    changed();
+    return withIcon(it);
+  }
+
   chrome('pass:save', async (raw = {}) => {
     const prev = raw.id ? vault.get(String(raw.id)) : null;
-    const card = prev ? V.isCard(prev) : raw.kind === 'card';
+    const kind = prev ? kindOf(prev) : kindOf(raw);
+    if (kind === 'totp') return saveCode(raw);
+    const card = kind === 'card';
     // Editar sin tocar un secreto no lo manda: undefined es "dejalo como está".
-    const secrets = Object.fromEntries(SECRET[card ? 'card' : 'login'].filter((k) => raw[k] != null).map((k) => [k, String(raw[k])]));
+    const secrets = Object.fromEntries(SECRET[kind].filter((k) => raw[k] != null).map((k) => [k, String(raw[k])]));
     if (card) {
       if (secrets.number && !/^\d{12,19}$/.test(secrets.number.replace(/[\s-]/g, ''))) throw new Error('El número de la tarjeta tiene que tener entre 12 y 19 dígitos.');
       if (String(raw.expiry || '').trim() && !V.parseExpiry(raw.expiry)) throw new Error('El vencimiento va como MM/AA (por ejemplo 08/29).');
@@ -355,15 +455,18 @@ function createPasswords(ctx) {
   /* Copiar pasa por acá y no por el portapapeles del cromo: así la contraseña
      no viaja a la interfaz, y a los 45 s se borra si seguía siendo ella. Lo
      mismo con el número, el código y el PIN de una tarjeta. */
-  const COPY = { login: ['username', 'email', 'password'], card: ['holder', 'number', 'expiry', 'cvv', 'pin'] };
+  const COPY = { login: ['username', 'email', 'password'], card: ['holder', 'number', 'expiry', 'cvv', 'pin'], totp: ['account', 'secret', 'code'] };
   let clipTimer = null;
   chrome('pass:copy', async (id, field) => {
     const it = vault.get(String(id));
     if (!it || !COPY[kindOf(it)].includes(field)) return false;
-    const value = field === 'expiry' ? V.shortExpiry(it.expiry) : it[field];
+    const value = field === 'expiry' ? V.shortExpiry(it.expiry) : field === 'code' ? vault.code(it.id)?.code : it[field];
     if (!value) return false;
     await clipboard.writeText(value);
-    if (SECRET[kindOf(it)].includes(field)) {
+    // Sin avisar el cambio: el panel abierto se repintaría y se llevaría el tilde de copiado.
+    if (field === 'code') vault.markUsed(it.id);
+    // El código también se va: a los 45 s ya no sirve, y en el portapapeles sobra.
+    if (SECRET[kindOf(it)].includes(field) || field === 'code') {
       clearTimeout(clipTimer);
       /* Desde Electron 44 leer el portapapeles es asíncrono: comparado sin
          esperar, era una promesa contra el texto, nunca igual, y lo copiado
@@ -388,9 +491,9 @@ function createPasswords(ctx) {
   }
   chrome('pass:import', async () => {
     const r = await dialog.showOpenDialog(ctx.win, {
-      title: 'Importar contraseñas y tarjetas',
+      title: 'Importar contraseñas, tarjetas y códigos',
       buttonLabel: 'Importar',
-      filters: [{ name: 'Proton Pass o un respaldo de Prism', extensions: ['zip', 'csv', 'json', B.EXT.slice(1)] }],
+      filters: [{ name: 'Proton Pass, Tessera o un respaldo de Prism', extensions: ['zip', 'csv', 'json', 'txt', B.EXT.slice(1)] }],
       properties: ['openFile'],
     });
     if (r.canceled || !r.filePaths[0]) return null;

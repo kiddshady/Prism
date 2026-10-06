@@ -209,6 +209,8 @@ contextBridge.exposeInMainWorld('prism', {
   pass: {
     list: () => call('pass:list'),
     reveal: (id, field) => call('pass:reveal', id, field),
+    code: (id) => call('pass:code', id),
+    qr: (source) => call('pass:qr', source),
     save: (item) => call('pass:save', item),
     remove: (id) => call('pass:remove', id),
     copy: (id, field) => call('pass:copy', id, field),

@@ -1359,7 +1359,7 @@
 .pr-pass__hero .op-icon { width: 24px; height: 24px; }
 .pr-pass__welcometitle { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); }
 .pr-pass__welcometext { max-width: 360px; font-size: var(--op-fs-12); line-height: var(--op-lh); color: var(--op-text-3); }
-.pr-pass__welcomeactions { display: flex; gap: var(--op-2); margin-top: var(--op-2); }
+.pr-pass__welcomeactions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--op-2); max-width: 420px; margin-top: var(--op-2); }
 
 .pr-pass__form { display: flex; flex-direction: column; gap: var(--op-3); padding-bottom: var(--op-2); }
 .pr-pass__formtitle { font-size: var(--op-fs-15); font-weight: var(--op-w-semi); padding: var(--op-1) 0 var(--op-1); }
@@ -1370,6 +1370,106 @@
 .pr-pass__urlsinput { min-height: 60px; font-family: var(--op-mono); font-size: 12px; }
 .pr-pass__formrow--3 { grid-template-columns: 1fr 1fr 1fr; }
 .pr-pass__formactions { display: flex; justify-content: flex-end; gap: var(--op-2); }
+
+/* Tres lados (contraseñas, tarjetas, códigos) en los 228 px de la columna:
+   sin íconos y con menos aire a los costados, entran los tres rótulos. */
+.pr-pass__kinds .op-segmented__opt { padding: 0 var(--op-1); }
+
+/* ── Un código de doble factor ───────────────────────────────────────────────
+   El código es el dato que se vino a buscar: grande, mono y tabular (no baila
+   cuando cambia), seleccionable. Al lado, el anillo que se vacía con el
+   período, y el botón de copiar. */
+.pr-otp { display: flex; align-items: center; gap: var(--op-3); min-height: 76px; padding: var(--op-3) var(--op-2) var(--op-3) var(--op-4); }
+.pr-otp__text { flex: 1 1 auto; min-width: 0; }
+.pr-otp__code {
+  font-family: var(--op-mono);
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: var(--op-w-medium);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .08em;
+  color: var(--op-text);
+  user-select: text;
+  cursor: text;
+  transition: color var(--op-t-2) var(--op-ease);
+}
+.pr-otp__code.op-swap { justify-items: start; }
+/* Los últimos segundos: el código se apaga un paso, sin ponerse rojo. El rojo
+   es del fallo, y un código por vencer no es un fallo: es un reloj. */
+.pr-otp.is-expiring .pr-otp__code { color: var(--op-text-2); }
+.pr-otp.is-expiring .pr-ring__arc { stroke: var(--op-text-4); }
+.pr-otp__copy { flex: 0 0 auto; }
+.pr-otp__broken { color: var(--op-danger); }
+
+/* El anillo se vacía en sentido horario. El arco viaja con una transición
+   lineal de un segundo por cada paso del reloj, así se ve continuo sin tocar
+   el DOM más de una vez por segundo. Al darse vuelta el período se le apaga
+   la transición un cuadro (.is-reset): no se rellena hacia atrás. */
+.pr-ring { width: 34px; height: 34px; flex: 0 0 auto; overflow: visible; }
+.pr-ring__track { fill: none; stroke: var(--op-line-2); stroke-width: 2.4; }
+.pr-ring__arc {
+  fill: none;
+  stroke: var(--op-text-2);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 1s linear, stroke var(--op-t-2) var(--op-ease);
+}
+.pr-ring__arc.is-reset { transition: stroke var(--op-t-2) var(--op-ease); }
+.pr-ring__sec {
+  fill: var(--op-text-3);
+  font-family: var(--op-mono);
+  font-size: 10.5px;
+  font-weight: var(--op-w-medium);
+  text-anchor: middle;
+  dominant-baseline: central;
+  user-select: none;
+}
+
+/* Leer el QR, arriba del formulario de un código nuevo. */
+.pr-pass__qr {
+  display: flex;
+  flex-direction: column;
+  gap: var(--op-3);
+  padding: var(--op-3) var(--op-4);
+  border-radius: var(--op-r-lg);
+  background: var(--op-wash-1);
+  box-shadow: inset 0 0 0 1px var(--op-line);
+}
+.pr-pass__qrtext { font-size: var(--op-fs-12); line-height: var(--op-lh); color: var(--op-text-3); }
+.pr-pass__qrtext b { font-weight: var(--op-w-medium); color: var(--op-text); }
+.pr-pass__qractions { display: flex; flex-wrap: wrap; gap: var(--op-2); }
+.pr-pass__or { display: flex; align-items: center; gap: var(--op-3); font-size: var(--op-fs-11); color: var(--op-text-4); }
+.pr-pass__or::before,
+.pr-pass__or::after { content: ''; flex: 1 1 auto; height: 1px; background: var(--op-line); }
+
+/* "Más opciones": un renglón que despliega los dígitos, el período y el
+   algoritmo (casi nunca hacen falta). La flecha gira con el despliegue. */
+.pr-pass__more {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--op-1);
+  height: 24px;
+  margin: -4px 0;
+  padding: 0 var(--op-2) 0 var(--op-1);
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: transparent;
+  color: var(--op-text-3);
+  font-size: var(--op-fs-12);
+  transition: var(--tr-color);
+}
+.pr-pass__more:hover { color: var(--op-text-2); background: var(--op-wash-1); }
+.pr-pass__more .op-icon { width: 12px; height: 12px; transform: rotate(-90deg); transition: transform var(--op-t-2) var(--op-ease); }
+.pr-pass__more.is-open .op-icon { transform: none; }
+/* El revelado recorta lo de adentro: 4 px de aire alrededor para que el
+   anillo de foco de los campos no se corte contra el borde. */
+.pr-pass__moreopts { margin: -4px -4px 0; opacity: 0; transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft); }
+.pr-pass__moreopts.is-open { opacity: 1; }
+.pr-pass__morein { display: flex; flex-direction: column; gap: var(--op-3); padding: 4px; }
+.pr-pass__seg.op-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; }
 
 /* "¿Guardar la contraseña?" */
 .pr-offer { display: flex; flex-direction: column; gap: var(--op-3); padding: var(--op-1) var(--op-4) var(--op-4); }

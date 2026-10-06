@@ -27,10 +27,16 @@
    y por eso lo que las cuida está en otro lado (src/passwords.cjs). Lo
    secreto de una tarjeta es el número, el código y el PIN: nada de eso sale
    en la lista, que muestra la marca y los últimos cuatro.
+
+   ── Códigos de doble factor ────────────────────────────────────────────────
+   También en el mismo blob (kind: 'totp'), y por lo tanto en el mismo
+   respaldo. Lo secreto es la clave: el código de seis dígitos se calcula en
+   el proceso principal (src/totp.cjs) y es lo único que llega al cromo.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const crypto = require('crypto');
 const zlib = require('zlib');
+const T = require('./totp.cjs');
 
 /* ── Sitios ──────────────────────────────────────────────────────────────── */
 
@@ -164,11 +170,46 @@ function normalizeCard(raw = {}, now = Date.now()) {
   };
 }
 
+/* ── Códigos ─────────────────────────────────────────────────────────────── */
+
+const isCode = (it) => it?.kind === 'totp';
+/** Solo los logins pertenecen a un sitio: ni las tarjetas ni los códigos se ofrecen en una página. */
+const isLogin = (it) => !isCard(it) && !isCode(it);
+
+/** Un código que entra (del panel, de un QR, de una importación), saneado. */
+function normalizeCode(raw = {}, now = Date.now()) {
+  const time = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
+  const algorithm = String(raw.algorithm || 'SHA1').toUpperCase().replace('-', '');
+  const digits = Number(raw.digits);
+  const period = Number(raw.period);
+  const account = clip(raw.account, 300).trim();
+  return {
+    kind: 'totp',
+    title: clip(raw.title || raw.issuer, 200).trim() || account || 'Sin título',
+    account,
+    secret: T.normalizeSecret(raw.secret).slice(0, 512),
+    algorithm: T.ALGORITHMS.includes(algorithm) ? algorithm : 'SHA1',
+    digits: [6, 7, 8].includes(digits) ? digits : 6,
+    period: Number.isInteger(period) && period >= 5 && period <= 300 ? period : 30,
+    note: clip(raw.note, 20000),
+    createdAt: time(raw.createdAt) || now,
+    modifiedAt: time(raw.modifiedAt) || time(raw.createdAt) || now,
+    lastUsedAt: time(raw.lastUsedAt),
+  };
+}
+
+const NORMALIZE = { login: normalize, card: normalizeCard, totp: normalizeCode };
+const kindOf = (it) => (isCard(it) ? 'card' : isCode(it) ? 'totp' : 'login');
+
 /** Con qué se entra: el usuario si hay, si no el correo. */
 const loginOf = (it) => it.username || it.email || '';
 
-/** Un elemento para mostrar: todo menos lo secreto (la contraseña; el número, el código y el PIN). */
+/** Un elemento para mostrar: todo menos lo secreto (la contraseña; el número, el código y el PIN; la clave de un código). */
 function publicItem(it) {
+  if (isCode(it)) {
+    const { secret, ...rest } = it;
+    return { ...rest, hasSecret: !!secret };
+  }
   if (isCard(it)) {
     const { number, cvv, pin, ...rest } = it;
     return { ...rest, brand: brandOf(number), last4: number.slice(-4), hasNumber: !!number, hasCvv: !!cvv, hasPin: !!pin };
@@ -234,8 +275,8 @@ function createVault({ doc, seal, unseal, now = () => Date.now(), onPersist = nu
     if (raw.id && !prev) throw new Error('Ese elemento ya no existe.');
     const t = now();
     // Editar no cambia la clase: una contraseña no se vuelve tarjeta.
-    const card = prev ? isCard(prev) : raw.kind === 'card';
-    const it = { ...(card ? normalizeCard : normalize)({ ...prev, ...raw }, t), id: prev?.id || newId() };
+    const kind = prev ? kindOf(prev) : kindOf(raw);
+    const it = { ...NORMALIZE[kind]({ ...prev, ...raw }, t), id: prev?.id || newId() };
     if (prev) {
       it.createdAt = prev.createdAt;
       it.lastUsedAt = prev.lastUsedAt;
@@ -263,7 +304,7 @@ function createVault({ doc, seal, unseal, now = () => Date.now(), onPersist = nu
     const site = siteOf(host);
     const scored = [];
     for (const it of items) {
-      if (isCard(it)) continue;
+      if (!isLogin(it)) continue;
       let score = 0;
       for (const u of it.urls) {
         const h = hostOf(u);
@@ -289,23 +330,39 @@ function createVault({ doc, seal, unseal, now = () => Date.now(), onPersist = nu
   }
 
   /** Suma lo importado, salteando lo que ya está igual (mismo sitio, login y
-      contraseña; en una tarjeta, el mismo número). */
+      contraseña; en una tarjeta, el mismo número; en un código, la misma clave). */
   async function importItems(list) {
-    const key = (it) => (isCard(it) ? `card|${it.number}` : `${siteOf(hostOf(it.urls[0]))}|${loginOf(it).toLowerCase()}|${it.password}`);
-    const seen = new Set(items.map(key));
-    let added = 0; let repeated = 0; let cardsAdded = 0;
+    const seen = new Set(items.map(keyOf));
+    let added = 0; let repeated = 0; let cardsAdded = 0; let codesAdded = 0;
     for (const raw of list) {
-      const card = raw?.kind === 'card';
-      const it = { ...(card ? normalizeCard : normalize)(raw, now()), id: newId() };
-      const k = key(it);
+      const kind = kindOf(raw);
+      const it = { ...NORMALIZE[kind](raw, now()), id: newId() };
+      // Un código sin clave no sirve para nada: no es un elemento, es un error de la exportación.
+      if (kind === 'totp' && !T.isValidSecret(it.secret)) continue;
+      const k = keyOf(it);
       if (seen.has(k)) { repeated++; continue; }
       seen.add(k);
       items.push(it);
       added++;
-      if (card) cardsAdded++;
+      if (kind === 'card') cardsAdded++;
+      if (kind === 'totp') codesAdded++;
     }
     if (added) await persist();
-    return { added, repeated, cards: cardsAdded };
+    return { added, repeated, cards: cardsAdded, codes: codesAdded };
+  }
+
+  /** El código que ya tiene esta clave (para no agregar dos veces el mismo QR). */
+  const codeWith = (secret) => {
+    const s = T.normalizeSecret(secret);
+    return items.find((it) => isCode(it) && it.secret === s) || null;
+  };
+
+  /** El código vigente de un elemento, sin la clave. */
+  function code(id, at = now()) {
+    const it = get(id);
+    if (!isCode(it) || !it.secret) return null;
+    const c = T.totp(it.secret, { digits: it.digits, period: it.period, algorithm: it.algorithm, now: at });
+    return { code: c.code, counter: c.counter, msLeft: c.msLeft, period: c.period };
   }
 
   return {
@@ -323,12 +380,46 @@ function createVault({ doc, seal, unseal, now = () => Date.now(), onPersist = nu
     cards,
     markUsed,
     importItems,
+    codeWith,
+    code,
     /** La bóveda entera, con lo secreto: solo para respaldarla (src/backup.cjs). */
     dump: () => structuredClone(items),
   };
 }
 
+/** Lo que identifica a un elemento al importar: dos iguales no se suman. */
+function keyOf(it) {
+  if (isCard(it)) return `card|${it.number}`;
+  if (isCode(it)) return `totp|${it.secret}`;
+  return `${siteOf(hostOf(it.urls[0]))}|${loginOf(it).toLowerCase()}|${it.password}`;
+}
+
 /* ── Importar ────────────────────────────────────────────────────────────── */
+
+/** El código de doble factor de un login exportado (Proton Pass lo guarda adentro del login). */
+function codeFromUri(uri, raw) {
+  const s = String(uri || '').trim();
+  if (!s) return null;
+  let acc;
+  try {
+    if (T.isOtpauth(s)) acc = T.parseOtpauth(s);
+    else if (T.isValidSecret(s)) acc = { secret: T.normalizeSecret(s) };   // a veces es la clave sola
+    else return null;
+  } catch {
+    return null;
+  }
+  return {
+    kind: 'totp',
+    ...acc,
+    title: raw.title || acc.issuer || '',
+    account: acc.account || raw.username || raw.email || '',
+    createdAt: raw.createdAt,
+    modifiedAt: raw.modifiedAt,
+  };
+}
+
+/** Las cuentas de un QR o de un respaldo de Tessera, como elementos de la bóveda. */
+const codeItems = (accounts) => accounts.map((a) => ({ kind: 'totp', ...a, title: a.issuer }));
 
 /** CSV de RFC 4180: comillas, comillas dobladas, saltos de línea adentro de un campo. */
 function parseCsv(text) {
@@ -374,6 +465,7 @@ const COLS = {
   username: ['username', 'login_username', 'login'],
   password: ['password', 'login_password'],
   note: ['note', 'notes', 'extra'],
+  totp: ['totp', 'login_totp', 'otpauth'],
   createdAt: ['createtime', 'created'],
   modifiedAt: ['modifytime', 'modified'],
   lastUsedAt: ['lastusetime', 'last_used'],
@@ -391,11 +483,14 @@ function fromCsv(text) {
   for (const r of rows) {
     const type = at(r, 'type').trim().toLowerCase();
     if (type && type !== 'login') { skipped++; continue; }
-    out.push({
+    const it = {
       title: at(r, 'title'), username: at(r, 'username'), email: at(r, 'email'), password: at(r, 'password'),
       urls: at(r, 'url'), note: at(r, 'note'),
       createdAt: timeOf(at(r, 'createdAt')), modifiedAt: timeOf(at(r, 'modifiedAt')), lastUsedAt: timeOf(at(r, 'lastUsedAt')),
-    });
+    };
+    out.push(it);
+    const code = codeFromUri(at(r, 'totp'), it);
+    if (code) out.push(code);
   }
   return { items: out, skipped };
 }
@@ -427,7 +522,7 @@ function fromProtonJson(data) {
         });
         continue;
       }
-      out.push({
+      const it = {
         title: d.metadata?.name,
         username: c.itemUsername ?? (c.itemEmail == null ? c.username : ''),
         email: c.itemEmail ?? '',
@@ -437,7 +532,10 @@ function fromProtonJson(data) {
         createdAt: timeOf(item.createTime),
         modifiedAt: timeOf(item.modifyTime),
         lastUsedAt: timeOf(item.lastUseTime),
-      });
+      };
+      out.push(it);
+      const code = codeFromUri(c.totpUri, it);
+      if (code) out.push(code);
     }
   }
   return { items: out, skipped };
@@ -471,7 +569,7 @@ function unzip(buf) {
   return files;
 }
 
-/** Lee lo que la persona eligió: .csv, .json o el .zip de Proton Pass. */
+/** Lee lo que la persona eligió: .csv, .json o el .zip de Proton Pass, o el .txt de Tessera. */
 function parseExport(name, buf) {
   const lower = String(name).toLowerCase();
   if (lower.endsWith('.pgp') || lower.endsWith('.gpg')) {
@@ -485,13 +583,20 @@ function parseExport(name, buf) {
     if (csv) return fromCsv(files[csv].toString('utf8'));
     throw new Error('El .zip no tiene un data.json ni un .csv adentro.');
   }
-  const text = buf.toString('utf8');
+  const text = buf.toString('utf8').replace(/^\uFEFF/, '');
   if (lower.endsWith('.json') || /^\s*\{/.test(text)) return fromProtonJson(JSON.parse(text));
+  // El respaldo de Tessera: un enlace otpauth:// por renglón (los # son comentarios).
+  if (lower.endsWith('.txt') || /^\s*(#.*\n\s*)*otpauth(-migration)?:\/\//i.test(text)) {
+    const r = T.parseList(text);
+    if (!r.accounts.length) throw new Error('El archivo no tiene ningún enlace otpauth:// (los códigos de doble factor que exporta Tessera).');
+    return { items: codeItems(r.accounts), skipped: r.skipped.length };
+  }
   return fromCsv(text);
 }
 
 module.exports = {
   createVault, hostOf, siteOf, prettyHost, loginOf, publicItem, normalize,
   isCard, brandOf, brandName, parseExpiry, shortExpiry, normalizeCard,
+  isCode, isLogin, kindOf, normalizeCode, codeItems,
   parseCsv, fromCsv, fromProtonJson, unzip, parseExport, timeOf,
 };
