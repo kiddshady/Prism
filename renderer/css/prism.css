@@ -955,8 +955,14 @@
    y contra la foto blanca de la página el canto de arriba salía como una línea
    blanca, hasta que la hoja se quedaba quieta. Sin blur, no hay línea.
    El velo del modal (.op-scrim) sigue esmerilando: no se mueve, solo cambia de
-   opacidad. Opal no se toca (es del framework): esto lo pisa. */
-:root { --pr-float: linear-gradient(var(--op-s3), var(--op-s3)), rgb(12 12 14 / .97); }
+   opacidad. Opal no se toca (es del framework): esto lo pisa.
+   Opaca de VERDAD (Prism 1.12.1): al 97 % dejaba pasar un 3 % de la página,
+   y un calco (el fundido de la bóveda, el de un panel que se rehace) deja
+   pasar la hoja oscura en vez de la página. Contra una página blanca, todo
+   el lado derecho de la bóveda bajaba de 40,8 a 35 de brillo de golpe al
+   elegir otro elemento, y volvía con el fundido. El tono es el que tenía
+   sobre una página blanca (12 × ,97 + 255 × ,03 ≈ 19), la más común. */
+:root { --pr-float: linear-gradient(var(--op-s3), var(--op-s3)), rgb(19 19 21); }
 :is(.op-menu, .op-modal, .op-tooltip, .op-toast) { background: var(--pr-float); backdrop-filter: none; }
 
 /* Las sugerencias de la omnibox: una hoja que cuelga de la barra. */
@@ -1217,30 +1223,6 @@
 .pr-pass__title { font-size: 17px; font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pr-pass__sub { font-size: var(--op-fs-12); color: var(--op-text-3); margin-top: 2px; }
 .pr-pass__del { color: var(--op-text-3); transition: var(--tr-color); }
-.pr-pass__del.is-open { color: var(--op-danger); background: var(--op-danger-wash); }
-
-/* Confirmar el borrado se despliega en el lugar (0fr → 1fr), sin modal. */
-.pr-pass__confirm {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  margin-bottom: 0;
-  transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft), margin-bottom var(--op-t-3) var(--op-ease);
-}
-.pr-pass__confirm.is-open { grid-template-rows: 1fr; opacity: 1; margin-bottom: var(--op-3); }
-.pr-pass__confirminner { min-height: 0; overflow: hidden; }
-.pr-pass__confirmrow {
-  display: flex;
-  align-items: center;
-  gap: var(--op-2);
-  padding: var(--op-2) var(--op-2) var(--op-2) var(--op-4);
-  border-radius: var(--op-r-lg);
-  background: var(--op-danger-wash);
-  box-shadow: inset 0 0 0 1px var(--op-danger-ring);
-  font-size: var(--op-fs-12);
-  color: var(--op-text-2);
-}
-.pr-pass__confirmrow b { color: var(--op-text); font-weight: var(--op-w-medium); }
 
 .pr-pass__card {
   margin-bottom: var(--op-3);

@@ -235,6 +235,12 @@ ok('un código no se ofrece como contraseña', vo.findFor('https://github.com/lo
 await vo.save({ id: code.id, note: 'el de la compu' });
 ok('editar sin mandar la clave la conserva, y sus 8 dígitos', vo.get(code.id).secret === RFC.SHA1 && vo.get(code.id).digits === 8 && vo.get(code.id).note === 'el de la compu');
 ok('codeWith encuentra la clave escrita de otra forma', vo.codeWith(RFC.SHA1.toLowerCase().replace(/(.{4})/g, '$1 '))?.id === code.id);
+const lugar = vo.list().findIndex((x) => x.id === code.id);
+await vo.remove(code.id);
+ok('borrar lo saca', !vo.get(code.id));
+const vuelto = await vo.undoRemove();
+ok('deshacer lo trae entero: mismo id, misma clave, mismo lugar', vuelto?.id === code.id && vo.get(code.id)?.secret === RFC.SHA1 && vo.list().findIndex((x) => x.id === code.id) === lugar);
+ok('y deshacer dos veces no lo duplica', (await vo.undoRemove()) === null && vo.list().filter((x) => x.id === code.id).length === 1);
 
 const tessera = Buffer.from(`# Respaldo de Tessera\notpauth://totp/GitHub:kiddshady?secret=${RFC.SHA1}&issuer=GitHub\notpauth://totp/Proton:fran?secret=JBSWY3DPEHPK3PXP&issuer=Proton\notpauth://hotp/x?secret=JBSWY3DP\nno es un enlace\n`);
 const tx = V.parseExport('tessera-respaldo.txt', tessera);

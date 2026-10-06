@@ -1207,11 +1207,49 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('pp-q').focus()`);
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
   ok('Enter en el buscador copia el código', await until(async () => (await clipboard.readText()) === V.code(otp.id).code));
+
+  /* Elegir otro elemento: el fundido no cambia el brillo del panel. La hoja
+     era opaca al 97 %, y contra la página blanca de atrás el calco (que deja
+     pasar la hoja oscura, no la página) oscurecía todo el lado derecho de
+     golpe, 40,8 → 35, y volvía con el fundido (video de Fran, 1.12.1). Se
+     mide una franja de fondo vacío, congelada en el primer cuadro. */
+  await V.save({ kind: 'totp', issuer: 'Steam', account: 'fran', secret: 'GEZDGNBVGY3TQOJQ' });
+  // Guardado directo en la bóveda no avisa al panel: se cierra y se vuelve a abrir.
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!document.querySelector('.pr-pass')`));
+  await js(`document.getElementById('btn-pass').click()`);
+  await until(() => js(`document.querySelectorAll('.pr-pass__row').length === 2`));
+  await sleep(450);
+  const franja = await js(`(() => { const r = document.getElementById('pp-main').getBoundingClientRect(); return { x: Math.round(r.left + 8), y: Math.round(r.bottom - 40), width: Math.round(r.width - 16), height: 28 }; })()`);
+  const brillo = async () => {
+    const b = (await win.webContents.capturePage(franja)).toBitmap();
+    let s = 0;
+    for (let i = 0; i < b.length; i += 4) s += b[i] + b[i + 1] + b[i + 2];
+    return s / (b.length / 4) / 3;
+  };
+  const quieto = await brillo();
+  await js(`document.querySelector('.pr-pass__row:not(.is-selected)').click()`);
+  await until(() => js(`!!document.querySelector('#pp-main .pr-pass__view[data-state=closing]')`), 2000);
+  await js(`(() => { for (const a of document.querySelector('#pp-main .pr-pass__view[data-state=closing]').getAnimations()) { a.pause(); a.currentTime = 0; } return true; })()`);
+  await sleep(120);
+  const fundiendo = await brillo();
+  await js(`(() => { for (const a of document.querySelector('#pp-main .pr-pass__view[data-state=closing]')?.getAnimations() || []) a.play(); return true; })()`);
+  ok('elegir otro no oscurece el panel mientras se funde', Math.abs(fundiendo - quieto) < 0.5, `${quieto.toFixed(2)} → ${fundiendo.toFixed(2)}`);
+  await until(() => js(`document.querySelectorAll('#pp-main .pr-pass__view').length === 1`));
+
+  /* El tacho borra sin preguntar; el pie dice qué se fue y ofrece deshacer. */
+  const borrado = await js(`document.querySelector('.pr-otp').dataset.id`);
+  await js(`document.querySelector('#pp-main [data-a=delete]').click()`);
+  ok('el tacho borra sin preguntar', await until(() => !V.get(borrado) && js(`document.querySelectorAll('.pr-pass__row').length === 1`)));
+  ok('y el pie ofrece deshacer', await until(() => js(`document.getElementById('pp-count').textContent.includes('eliminado') && document.getElementById('pp-import').textContent.includes('Deshacer')`)));
+  await js(`document.getElementById('pp-import').click()`);
+  ok('deshacer lo trae de vuelta, con su clave, y a la vista', await until(() => V.get(borrado)?.secret?.length > 0 && js(`document.querySelector('.pr-otp')?.dataset.id === ${JSON.stringify(borrado)}`)));
+  ok('y el pie vuelve a Importar', await until(() => js(`(() => { const t = document.getElementById('pp-import').textContent; return t.includes('Importar') && !t.includes('Deshacer') && !document.getElementById('pp-count').textContent.includes('eliminado'); })()`)));
   // De vuelta a las contraseñas: lo que sigue abre el panel y espera verlas.
   await js(`document.querySelector('#pp-kind [data-value=login]').click()`);
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   await until(() => js(`!document.querySelector('.pr-pass')`));
-  await V.remove(otp.id);
+  for (const it of V.list().filter((x) => x.kind === 'totp')) await V.remove(it.id);
   ctx.tabs.close(ctx.tabs.active.id);
 
   console.log('\n9c. El IPC del cromo no atiende a las páginas');

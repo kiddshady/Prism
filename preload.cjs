@@ -213,6 +213,7 @@ contextBridge.exposeInMainWorld('prism', {
     qr: (source) => call('pass:qr', source),
     save: (item) => call('pass:save', item),
     remove: (id) => call('pass:remove', id),
+    undoRemove: () => call('pass:undo-remove'),
     copy: (id, field) => call('pass:copy', id, field),
     import: () => call('pass:import'),
     forgetImport: () => call('pass:forget-import'),

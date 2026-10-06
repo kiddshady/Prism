@@ -451,6 +451,11 @@ function createPasswords(ctx) {
   });
 
   chrome('pass:remove', async (id) => { const r = await vault.remove(String(id)); changed(); return r; });
+  chrome('pass:undo-remove', async () => {
+    const it = await vault.undoRemove();
+    if (it) changed();
+    return it && withIcon(it);
+  });
 
   /* Copiar pasa por acá y no por el portapapeles del cromo: así la contraseña
      no viaja a la interfaz, y a los 45 s se borra si seguía siendo ella. Lo

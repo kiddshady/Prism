@@ -289,12 +289,25 @@ function createVault({ doc, seal, unseal, now = () => Date.now(), onPersist = nu
     return publicItem(it);
   }
 
+  /* Borrar no pregunta (desde 1.12.1): a cambio, el último borrado se puede
+     traer de vuelta entero, con su id, su secreto y su lugar. */
+  let trash = null;
   async function remove(id) {
     const i = items.findIndex((it) => it.id === id);
     if (i < 0) return false;
-    items.splice(i, 1);
+    const [it] = items.splice(i, 1);
+    trash = { it, i };
     await persist();
     return true;
+  }
+
+  async function undoRemove() {
+    if (!trash || get(trash.it.id)) return null;
+    const { it, i } = trash;
+    trash = null;
+    items.splice(Math.min(i, items.length), 0, it);
+    await persist();
+    return publicItem(it);
   }
 
   /** Los elementos de un sitio, primero los del host exacto y los usados hace poco. */
@@ -376,6 +389,7 @@ function createVault({ doc, seal, unseal, now = () => Date.now(), onPersist = nu
     get,
     save,
     remove,
+    undoRemove,
     findFor,
     cards,
     markUsed,

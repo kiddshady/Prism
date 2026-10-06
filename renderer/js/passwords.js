@@ -46,7 +46,6 @@ const P = {
   mode: 'view',          // view · edit · new · restore
   restore: null,         // { file }: el respaldo elegido en Importar que espera su clave
   revealed: null,        // { id, values: { campo: valor } } mientras se ve algo secreto
-  confirmDel: false,
   banner: null,          // resultado de una importación
 };
 
@@ -142,7 +141,6 @@ export async function openPanel() {
   if (!filtered().some((it) => it.id === P.sel)) P.sel = filtered()[0]?.id || null;
   P.mode = ofKind().length ? 'view' : P.mode === 'new' ? 'new' : 'view';
   P.revealed = null;
-  P.confirmDel = false;
   const width = Math.min(720, window.innerWidth - 24);
   popover(btn, (el) => {
     if (el.dataset.built) return;
@@ -163,7 +161,7 @@ export async function openPanel() {
           <div class="pr-pass__list op-scroll op-scroll--line-bottom" id="pp-list" role="listbox"></div>
           <div class="pr-pass__foot">
             <span class="op-meta op-grow op-truncate" id="pp-count"></span>
-            <button class="op-btn op-btn--ghost op-btn--sm" id="pp-import"><i data-icon="download"></i> Importar</button>
+            <button class="op-btn op-btn--ghost op-btn--sm" id="pp-import"><span class="op-swap--row" id="pp-foot">${footHTML()}</span></button>
           </div>
         </aside>
         <section class="pr-pass__main" id="pp-main"></section>
@@ -190,7 +188,7 @@ function paintList() {
   const list = root.querySelector('#pp-list');
   const items = filtered();
   const all = ofKind().length;
-  swapText(root.querySelector('#pp-count'), all ? plural(all, KINDS[P.kind].one, KINDS[P.kind].many) : '');
+  swapText(root.querySelector('#pp-count'), P.undo ? `${P.undo.title} eliminado` : all ? plural(all, KINDS[P.kind].one, KINDS[P.kind].many) : '');
   /* Fila por fila (motion.js): al buscar, las que siguen coincidiendo se
      quedan y se acomodan, las otras se van; rehecha entera, la lista
      parpadeaba con cada letra. */
@@ -381,13 +379,8 @@ function headHTML(it, sub) {
         ${sub ? `<div class="pr-pass__sub">${esc(sub)}</div>` : ''}
       </div>
       <button class="op-btn op-btn--secondary op-btn--sm" data-a="edit"><i data-icon="edit"></i> Editar</button>
-      <button class="op-iconbtn op-iconbtn--sm pr-pass__del${P.confirmDel ? ' is-open' : ''}" data-a="delete" aria-label="Eliminar" data-tip="Eliminar"><i data-icon="trash"></i></button>
-    </div>
-    <div class="pr-pass__confirm${P.confirmDel ? ' is-open' : ''}"><div class="pr-pass__confirminner"><div class="pr-pass__confirmrow">
-      <span class="op-grow">¿Eliminar <b>${esc(it.title)}</b>? ${isCode(it) ? 'Si el sitio todavía te lo pide, sin él no vas a poder entrar.' : 'No se puede deshacer.'}</span>
-      <button class="op-btn op-btn--ghost op-btn--sm" data-a="delete-no">Cancelar</button>
-      <button class="op-btn op-btn--danger-solid op-btn--sm" data-a="delete-yes">Eliminar</button>
-    </div></div></div>`;
+      <button class="op-iconbtn op-iconbtn--sm pr-pass__del" data-a="delete" aria-label="Eliminar" data-tip="Eliminar"><i data-icon="trash"></i></button>
+    </div>`;
 }
 
 /** La nota y las fechas, iguales en las dos clases. */
@@ -675,7 +668,6 @@ function select(id) {
   P.sel = id;
   P.mode = 'view';
   P.revealed = null;
-  P.confirmDel = false;
   markSelected();
   paintMain();
 }
@@ -710,7 +702,6 @@ function setKind(kind) {
   P.sel = list.some((it) => it.id === P.selBy[kind]) ? P.selBy[kind] : list[0]?.id || null;
   P.mode = 'view';
   P.revealed = null;
-  P.confirmDel = false;
   if (!root) return;
   const seg = root.querySelector('#pp-kind');
   seg.querySelectorAll('.op-segmented__opt').forEach((o) => o.classList.toggle('is-active', o.dataset.value === kind));
@@ -776,7 +767,6 @@ async function readQr(source, b) {
   P.sel = r.item.id;
   P.mode = 'view';
   P.revealed = null;
-  P.confirmDel = false;
   paintList();
   markSelected();
   paintMain();
@@ -875,10 +865,9 @@ function wire(el) {
   el.querySelector('#pp-new').addEventListener('click', () => {
     P.mode = 'new';
     P.revealed = null;
-    P.confirmDel = false;
     paintMain();
   });
-  el.querySelector('#pp-import').addEventListener('click', doImport);
+  el.querySelector('#pp-import').addEventListener('click', () => (P.undo ? undoRemove() : doImport()));
   el.querySelector('#pp-list').addEventListener('click', (e) => {
     const row = e.target.closest('.pr-pass__row');
     if (row) select(row.dataset.id);
@@ -904,7 +893,7 @@ function wire(el) {
       return null;
     }
     if (a === 'new') { P.mode = 'new'; return paintMain(); }
-    if (a === 'edit') { P.mode = 'edit'; P.confirmDel = false; return paintMain(); }
+    if (a === 'edit') { P.mode = 'edit'; return paintMain(); }
     if (a === 'cancel') { P.mode = 'view'; return paintMain(); }
     if (a === 'banner-close') { P.banner = null; return paintMain(); }
     if (a === 'aside-close') { P.asideSeen = true; return paintMain(); }
@@ -952,27 +941,67 @@ function wire(el) {
       b.dataset.tip = shown ? 'Ocultar' : 'Mostrar';
       return null;
     }
-    if (a === 'delete' || a === 'delete-no') {
-      P.confirmDel = a === 'delete' ? !P.confirmDel : false;
-      main.querySelector('.pr-pass__confirm')?.classList.toggle('is-open', P.confirmDel);
-      main.querySelector('.pr-pass__del')?.classList.toggle('is-open', P.confirmDel);
-      return null;
-    }
-    if (a === 'delete-yes') {
-      const list = filtered();
-      const i = list.findIndex((x) => x.id === it.id);
-      await api.pass.remove(it.id).catch(() => false);
-      await load();
-      const rest = filtered();
-      P.sel = rest[Math.min(i, rest.length - 1)]?.id || null;
-      P.confirmDel = false;
-      paintList();
-      markSelected();
-      paintMain();
-      say('Elemento eliminado', { icon: 'trash' });
-    }
+    if (a === 'delete') return removeItem(it);
     return null;
   });
+}
+
+/* ── Borrar, sin preguntar ───────────────────────────────────────────────────
+   El tacho borra en el acto (pedido de Fran, 1.12.1). A cambio, durante unos
+   segundos el pie de la lista dice qué se fue y el botón de Importar se
+   vuelve Deshacer: lo trae de vuelta entero, con su clave y en su lugar. El
+   aviso vive en el panel y no en la statusbar: un clic allá abajo cerraría
+   el panel. */
+const UNDO_MS = 6000;
+const footHTML = () => (P.undo ? `${Icons.svg('undo')} Deshacer` : `${Icons.svg('download')} Importar`);
+
+function paintFoot() {
+  if (!root) return;
+  const b = root.querySelector('#pp-import');
+  b.dataset.tip = P.undo ? `Traer de vuelta ${P.undo.title}` : '';
+  if (!P.undo) delete b.dataset.tip;
+  swap(root.querySelector('#pp-foot'), footHTML(), { size: true });
+}
+
+function endUndo() {
+  if (!P.undo) return;
+  clearTimeout(P.undo.timer);
+  P.undo = null;
+  paintList();
+  paintFoot();
+}
+
+async function removeItem(it) {
+  const list = filtered();
+  const i = list.findIndex((x) => x.id === it.id);
+  if (!(await api.pass.remove(it.id).catch(() => false))) return;
+  clearTimeout(P.undo?.timer);
+  P.undo = { title: it.title, timer: setTimeout(endUndo, UNDO_MS) };
+  await load();
+  const rest = filtered();
+  P.sel = rest[Math.min(i, rest.length - 1)]?.id || null;
+  P.mode = 'view';
+  P.revealed = null;
+  paintList();
+  markSelected();
+  paintMain();
+  paintFoot();
+}
+
+async function undoRemove() {
+  const it = await api.pass.undoRemove().catch(() => null);
+  clearTimeout(P.undo?.timer);
+  P.undo = null;
+  if (!it) { paintList(); paintFoot(); return; }
+  await load();
+  if (kindOf(it) !== P.kind) setKind(kindOf(it));
+  P.sel = it.id;
+  P.mode = 'view';
+  P.revealed = null;
+  paintList();
+  markSelected();
+  paintMain();
+  paintFoot();
 }
 
 /* ── "¿Guardar la contraseña?" ───────────────────────────────────────────── */
