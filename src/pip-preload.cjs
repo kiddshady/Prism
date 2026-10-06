@@ -103,9 +103,29 @@ function videoAt(x, y) {
     if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
     const s = shownRect(v);
     if (!s || x < s.left || x > s.right || y < s.top || y > s.bottom) continue;
-    if (s.width * s.height > area && usable(v)) { best = v; area = s.width * s.height; }
+    if (s.width * s.height > area && usable(v) && !covered(v, x, y)) { best = v; area = s.width * s.height; }
   }
   return best;
+}
+
+/* Si lo que está bajo el mouse es otra cosa encima del video (el modal de
+   los likes de una historia de Instagram), el video no está "debajo del
+   mouse" aunque su caja sí. La capa de controles de un reproductor y el
+   video son parientes cercanos: los dos viven en el reproductor, una caja
+   más o menos de su tamaño. Un modal es pariente lejano: lo más cercano que
+   comparten es la página entera, o una caja mucho más grande que el video. */
+const up = (el) => el.parentElement || el.getRootNode()?.host || null;
+function covered(v, x, y) {
+  const hit = document.elementFromPoint(x, y);
+  if (!hit || hit === v || hit === host) return false;
+  const mine = new Set();
+  for (let a = v; a; a = up(a)) mine.add(a);
+  let common = hit;
+  while (common && !mine.has(common)) common = up(common);
+  if (!common || common === document.body || common === document.documentElement) return true;
+  const c = common.getBoundingClientRect();
+  const r = v.getBoundingClientRect();
+  return c.width > r.width * 1.3 + 40 || c.height > r.height * 1.3 + 40;
 }
 
 /** El que más probablemente quiera ver la persona: el que suena, el que ya

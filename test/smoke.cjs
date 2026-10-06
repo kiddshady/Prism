@@ -161,6 +161,22 @@ const PAGES = {
       setInterval(() => { x.fillStyle = 'hsl(' + (n++ * 7 % 360) + ',70%,50%)'; x.fillRect(0, 0, 640, 360); }, 40);
       document.getElementById('v').srcObject = c.captureStream(25);
     </script></body>`,
+  /* Como una historia de Instagram con la lista de quién la vio abierta: todo
+     vive en una caja del tamaño de la página, el reproductor tiene su capa de
+     controles transparente encima del video, y el modal tapa parte de él. */
+  '/video-modal': `<title>Historia</title><body style="margin:0">
+    <div id="root" style="position:fixed;inset:0">
+      <div style="position:absolute;left:100px;top:40px;width:400px;height:600px">
+        <video id="v" autoplay muted playsinline style="width:400px;height:600px;display:block;object-fit:cover"></video>
+        <div style="position:absolute;inset:0"></div>
+      </div>
+      <div style="position:fixed;left:300px;top:200px;width:450px;height:250px;background:#222;border-radius:24px"></div>
+    </div>
+    <script>
+      const c = document.createElement('canvas'); c.width = 400; c.height = 600; const x = c.getContext('2d'); let n = 0;
+      setInterval(() => { x.fillStyle = 'hsl(' + (n++ * 7 % 360) + ',70%,50%)'; x.fillRect(0, 0, 400, 600); }, 40);
+      document.getElementById('v').srcObject = c.captureStream(25);
+    </script></body>`,
   '/video-solo': `<body style="margin:0;background:#000"><video id="e" muted playsinline style="width:100%;height:100%;display:block"></video><script>
       const c = document.createElement('canvas'); c.width = 400; c.height = 300; const x = c.getContext('2d'); let n = 0;
       setInterval(() => { x.fillStyle = 'hsl(' + (n++ * 11 % 360) + ',60%,40%)'; x.fillRect(0, 0, 400, 300); }, 40);
@@ -1646,6 +1662,22 @@ app.whenReady().then(async () => {
   ok('sobre el video escondido de un carrusel no aparece el botón', !(await botonEn(840 - 26, 190)) && !(await botonEn(440 - 26, 190)));
   cwc2.sendInputEvent({ type: 'mouseMove', x: 240, y: 190 });
   ok('sobre el que se ve, aparece en su borde', await until(() => botonEn(440 - 26, 190)));
+  ctx.tabs.close(ctx.tabs.active.id);
+  /* Un modal encima del video (los likes de una historia): sobre el modal el
+     botón no sale; sobre la parte del video que se ve, con su capa de
+     controles encima, sí. */
+  ctx.tabs.create({ url: `${BASE}/video-modal` });
+  await until(() => ctx.tabs.active.title === 'Historia' && !ctx.tabs.active.loading);
+  const storyWc = ctx.tabs.active.view.webContents;
+  await until(() => storyWc.executeJavaScript(`document.getElementById('v').readyState > 0`));
+  const botonModal = () => storyWc.executeJavaScript(`document.elementFromPoint(474, 340)?.tagName === 'PRISM-PIP'`);
+  storyWc.sendInputEvent({ type: 'mouseMove', x: 400, y: 300 });
+  await sleep(400);
+  ok('sobre un modal que tapa el video no aparece el botón', !(await botonModal()));
+  storyWc.sendInputEvent({ type: 'mouseMove', x: 200, y: 120 });
+  ok('sobre la capa de controles del video, sí', await until(() => botonModal()));
+  storyWc.sendInputEvent({ type: 'mouseMove', x: 400, y: 300 });
+  ok('y al pasar al modal se va', await until(async () => !(await botonModal())));
   ctx.tabs.close(ctx.tabs.active.id);
   ctx.tabs.create({ url: `${BASE}/video` });
   await until(() => ctx.tabs.active.title === 'Video');
