@@ -710,10 +710,20 @@ function createTabs(ctx) {
   }
 
   /** Archivos soltados sobre la ventana: cada uno en su pestaña, en orden, a
-      la derecha de `from` (la activa si no se dice). La primera queda a la vista. */
-  function openFiles(urls, from = activeId) {
+      la derecha de `from` (la activa si no se dice). La primera queda a la vista.
+      Soltados sobre una pestaña nueva (`into`, la mitad vacía de un par), el
+      primero se abre ahí mismo: no hay nada que perder y el par queda armado. */
+  function openFiles(urls, from = activeId, into = null) {
+    const t = get(into);
+    const reuse = t?.internal === 'nueva' && urls.length > 0;
+    if (reuse) {
+      load(t, urls[0]);
+      activateTab(t.id);
+      urls = urls.slice(1);
+      from = t.id;
+    }
     const base = get(from) ? indexOf(from) + 1 : tabs.length;
-    urls.forEach((url, i) => create({ url, active: i === 0, index: base + i }));
+    urls.forEach((url, i) => create({ url, active: i === 0 && !reuse, index: base + i }));
   }
 
   function countOpenedBy(id) {

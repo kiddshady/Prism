@@ -168,6 +168,7 @@ async function boot() {
   });
   /* Un PDF soltado sobre la barra, las pestañas o una página propia de Prism
      se abre en su pestaña (sobre una página web lo toma src/drop-preload.cjs).
+     Sobre una pestaña nueva (la mitad vacía de un par) se abre en ella.
      Solo archivos: un texto soltado en la barra de direcciones sigue siendo
      del campo. */
   const withFiles = (e) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
@@ -179,7 +180,7 @@ async function boot() {
   document.addEventListener('drop', (e) => {
     if (!withFiles(e)) return;
     e.preventDefault();
-    api.files.open([...e.dataTransfer.files]);
+    api.files.open([...e.dataTransfer.files], Pages.tabAt(e.target));
   });
   api.page.onFullscreen((on) => document.getElementById('app').classList.toggle('is-fullscreen', on));
   api.onCommand(onCommand);

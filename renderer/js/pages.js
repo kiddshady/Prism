@@ -140,6 +140,13 @@ function pageKey(t) {
   return `web:${t.id}`;
 }
 
+/** La pestaña cuya página propia está debajo de `el` (la mitad de la hoja
+    donde cayó un drop), o null si `el` no está sobre una. */
+export function tabAt(el) {
+  const sf = surfaces.find((s) => document.getElementById(s.hostId)?.contains(el));
+  return sf?.key?.startsWith('internal:') ? tabOfKey(sf.key) : null;
+}
+
 export function render() {
   const sp = S.split;
   const byId = (id) => S.tabs.find((x) => x.id === id) || null;

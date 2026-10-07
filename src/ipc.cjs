@@ -68,10 +68,12 @@ function register() {
   /* ── Pestañas ──────────────────────────────────────────────────────────── */
   handle('tabs:state', (ctx) => ctx.tabs.snapshot());
   on('tabs:new', (ctx, url, opts = {}) => ctx.tabs.create({ url: str(url), active: opts.active !== false, index: Number.isInteger(opts.index) ? opts.index : undefined }));
-  // Archivos soltados sobre la barra o las pestañas (rutas de webUtils, en el preload).
-  on('files:open', (ctx, paths) => {
+  /* Archivos soltados sobre la barra, las pestañas o una página propia (rutas
+     de webUtils, en el preload). `into`: la pestaña de la página propia donde
+     cayeron; si es una pestaña nueva, el primero se abre en ella. */
+  on('files:open', (ctx, paths, into) => {
     const urls = fileTargets(Array.isArray(paths) ? paths.slice(0, 20).map((p) => str(p, 1024)) : []);
-    if (urls.length) ctx.tabs.openFiles(urls);
+    if (urls.length) ctx.tabs.openFiles(urls, undefined, into == null ? null : num(into));
   });
   on('tabs:close', (ctx, id) => ctx.tabs.close(num(id)));
   on('tabs:activate', (ctx, id) => ctx.tabs.activate(num(id)));

@@ -75,10 +75,11 @@ contextBridge.exposeInMainWorld('prism', {
 
   files: {
     /** Archivos soltados sobre la ventana (los File de un drop): se abren en
-        pestañas. La ruta sale acá; la interfaz no la ve. */
-    open: (files) => send('files:open', Array.from(files || [])
+        pestañas. La ruta sale acá; la interfaz no la ve. `into`: la pestaña
+        de la página propia donde cayeron, si cayeron sobre una. */
+    open: (files, into = null) => send('files:open', Array.from(files || [])
       .map((f) => { try { return webUtils.getPathForFile(f); } catch { return ''; } })
-      .filter(Boolean)),
+      .filter(Boolean), into),
   },
 
   nav: {

@@ -664,6 +664,17 @@ app.whenReady().then(async () => {
   ok('y la nueva pasa a ser la activa', T.active.id === sn);
   ok('la hoja se parte en dos', await until(() => js(`document.getElementById('page').classList.contains('is-split')`)));
   ok('la derecha dibuja la nueva pestaña', await until(() => js(`!!document.querySelector('#internal-2 .pr-view[data-page="nueva"]')`)));
+  /* Un archivo soltado sobre la mitad vacía se abre ahí, no en otra pestaña:
+     el par queda armado con el archivo. */
+  const soltado = path.join(TMP, 'soltado.html');
+  fs.writeFileSync(soltado, '<title>Soltado</title><p>hola</p>');
+  const sueltas = T.list.length;
+  T.openFiles([require('url').pathToFileURL(soltado).href], undefined, sn);
+  ok('un archivo soltado en la mitad vacía se abre en ella', await until(() => tn.title === 'Soltado') && T.list.length === sueltas && T.snapshot().split?.b === sn && T.active.id === sn);
+  T.openFiles([require('url').pathToFileURL(soltado).href], undefined, sn);
+  ok('pero sobre una página ya abierta va a una pestaña nueva', T.list.length === sueltas + 1 && tn.title === 'Soltado');
+  T.close(T.list[T.list.indexOf(tn) + 1].id);
+  T.activate(sn);
   /* El canto de la mitad activa, pegado a una página blanca, no se veía. Ahora
      va despegado: un hueco del color del fondo y después la luz. Se mide en
      los píxeles de afuera del borde (la vista nativa tapa lo de adentro). */
