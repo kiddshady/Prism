@@ -1107,9 +1107,10 @@
    scroll aparecía recién al terminar: las acciones se corrían 10 px a la
    izquierda. El lugar de la barra queda reservado desde el primer cuadro;
    2 px de relleno + 6 de barra son los 8 del otro lado. */
-.pr-dlpop__list { padding-right: 2px; scrollbar-gutter: stable; }
+.pr-dlpop__list { --op-sb: 6px; padding-right: 2px; scrollbar-gutter: stable; }
 .pr-dlpop__list::-webkit-scrollbar { width: 6px; }
-.pr-dlpop__list::-webkit-scrollbar-thumb { border-width: 3px 1px; }
+.pr-dlpop__list::-webkit-scrollbar-thumb { border-width: 1px; }
+.pr-dlpop__list::-webkit-scrollbar-track { margin-block: 2px; }
 
 /* ── Contraseñas ─────────────────────────────────────────────────────────────
    Una hoja ancha en dos columnas. La columna de la lista es un escalón más
@@ -1141,9 +1142,15 @@
    El carril es más angosto que el de siempre (el pulgar se ve igual, de
    4 px): con los 4 px de relleno que pide el anillo de foco, la derecha
    suma lo mismo que antes y las filas no pierden ancho. */
-.pr-pass__list { --op-fade: 12px; flex: 1 1 auto; min-height: 0; padding-left: var(--op-2); padding-right: var(--op-1); scrollbar-gutter: stable; }
+.pr-pass__list { --op-fade: 12px; --op-sb: 6px; flex: 1 1 auto; min-height: 0; padding-left: var(--op-2); padding-right: var(--op-1); scrollbar-gutter: stable; }
 .pr-pass__list::-webkit-scrollbar { width: 6px; }
-.pr-pass__list::-webkit-scrollbar-thumb { border-width: 3px 1px; }
+/* El pulgar de los carriles angostos: 1 px de borde parejo y el aire de
+   las puntas como margen de la pista (2 + 1 = los 3 de siempre). Con 3 px
+   arriba y abajo, el radio de afuera (tope: la mitad de los 6 px) menos el
+   borde daba 0, y las puntas salían rectas; así es la misma píldora de 4 px
+   que la de Ajustes. */
+.pr-pass__list::-webkit-scrollbar-thumb { border-width: 1px; }
+.pr-pass__list::-webkit-scrollbar-track { margin-block: 2px; }
 .pr-pass__row {
   display: flex;
   align-items: center;
