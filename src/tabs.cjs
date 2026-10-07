@@ -388,6 +388,10 @@ function createTabs(ctx) {
         safeDialogs: true,
         // El visor de PDF de Chromium es un plugin: sin esto un PDF se descarga.
         plugins: true,
+        /* La ventana no se pone en pantalla completa sola cuando la página
+           lo pide: lo decide setFullscreen, que a veces la deja adentro de
+           la pestaña (una pestaña compartida en un Meet). */
+        disableHtmlFullscreenWindowResize: true,
       },
     });
     /* Oscuro hasta el primer DOM: una pestaña nueva no destella blanco
@@ -573,10 +577,19 @@ function createTabs(ctx) {
 
     /* En la ventanita, la pantalla completa es la del video adentro de su
        ventana chica: la ventana grande no se entera. Si la página sale sola
-       de ella, el video vuelve a su pestaña. */
-    wc.on('enter-html-full-screen', () => { if (!t.pip) setFullscreen(true); });
+       de ella, el video vuelve a su pestaña.
+       Una pestaña que se está compartiendo (presentar en un Meet) hace su
+       pantalla completa adentro de la pestaña, como en Chrome: la diapositiva
+       llena lo que se transmite y la ventana queda como estaba, con el Meet
+       a mano en la otra mitad o en otra pestaña. */
+    wc.on('enter-html-full-screen', () => {
+      if (t.pip) return;
+      if (wc.isBeingCaptured()) { t.tabFullscreen = true; return; }
+      setFullscreen(true);
+    });
     wc.on('leave-html-full-screen', () => {
       if (t.pip) { if (!ctx.pip?.isClosing(t)) ctx.pip?.lost(t); return; }
+      if (t.tabFullscreen) { t.tabFullscreen = false; return; }
       setFullscreen(false);
     });
 
@@ -589,10 +602,11 @@ function createTabs(ctx) {
     wc.on('before-input-event', (e, input) => {
       // Escape saca de la pantalla completa de la página (un video, una
       // presentación). Fuera de eso, Escape es de la página: cierra SUS modales.
-      if (fullscreen && input.type === 'keyDown' && input.key === 'Escape') {
+      if ((fullscreen || t.tabFullscreen) && input.type === 'keyDown' && input.key === 'Escape') {
         e.preventDefault();
         wc.executeJavaScript('document.fullscreenElement && document.exitFullscreen()', true).catch(() => {});
-        setFullscreen(false);
+        if (t.tabFullscreen) t.tabFullscreen = false;
+        else setFullscreen(false);
         return;
       }
       const cmd = ctx.shortcuts.match(input);
@@ -761,6 +775,7 @@ function createTabs(ctx) {
       lastSeen: Date.now(),
       slept: null,
       waking: false,
+      tabFullscreen: false,   // pantalla completa adentro de la pestaña (compartida en un Meet)
     };
   }
 

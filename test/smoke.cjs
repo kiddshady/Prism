@@ -1471,6 +1471,30 @@ app.whenReady().then(async () => {
   ok('la pestaña que presenta no se duerme', ctx.tabs.active.usesMedia === true);
   await until(() => js(`!document.querySelector('.op-scrim')`));
 
+  /* Presentar (Slides, el PDF) en una pestaña compartida: la pantalla
+     completa queda adentro de la pestaña, como en Chrome. La ventana no
+     cambia y lo que se transmite es la diapositiva entera. */
+  const pres = ctx.tabs.create({ url: `${BASE}/dos` });
+  const tp = ctx.tabs.list.find((t) => t.id === pres);
+  await until(() => tp.title === 'Página dos' && tp.shown);
+  const swc = tp.view.webContents;
+  const enPantalla = () => swc.executeJavaScript('!!document.fullscreenElement');
+  const pedir = () => swc.executeJavaScript('document.documentElement.requestFullscreen().then(() => true, () => false)', true);
+  const marcoAntes = tp.view.getBounds();
+  swc.isBeingCaptured = () => true;   // como si un Meet la estuviera transmitiendo
+  await pedir();
+  ok('compartida, la página entra en pantalla completa', await until(enPantalla));
+  await sleep(400);
+  ok('pero adentro de la pestaña: la ventana queda como estaba', !win.isFullScreen() && !ctx.tabs.fullscreen && same(tp.view.getBounds(), marcoAntes), JSON.stringify(tp.view.getBounds()));
+  swc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  ok('Escape la saca', await until(async () => !(await enPantalla()) && !tp.tabFullscreen));
+  delete swc.isBeingCaptured;
+  await pedir();
+  ok('sin compartir, la pantalla completa sigue siendo de la ventana', await until(() => win.isFullScreen() && ctx.tabs.fullscreen));
+  swc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  ok('y Escape también la saca', await until(async () => !win.isFullScreen() && !ctx.tabs.fullscreen && !(await enPantalla()), 4000));
+  ctx.tabs.close(pres);
+
   console.log('\n11. Páginas propias');
   for (const p of ['historial', 'favoritos', 'descargas', 'ajustes']) {
     ctx.tabs.openInternal(p);
