@@ -421,3 +421,7 @@
 .pr-incog__head { display: flex; align-items: center; gap: var(--op-2); font-size: var(--op-fs-12); font-weight: var(--op-w-medium); color: var(--op-text-2); }
 .pr-incog__head .op-icon { width: 14px; height: 14px; }
 .pr-incog__list { margin: var(--op-2) 0 0; padding: 0; list-style: none; font-size: var(--op-fs-12); line-height: 1.7; color: var(--op-text-3); user-select: text; }
+
+/* La scrollbar de la hoja arranca y termina debajo de sus esquinas, como la
+   de una página web: pegada arriba, el thumb se metía en la curva del borde. */
+.pr-view__scroll::-webkit-scrollbar-track { margin-block: var(--pr-page-r); }
