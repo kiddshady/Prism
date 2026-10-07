@@ -222,13 +222,23 @@ p, code, pre,
   --op-fade-bottom: var(--op-fade);
   transition: --op-fade-top var(--op-t-3) var(--op-ease-soft),
               --op-fade-bottom var(--op-t-3) var(--op-ease-soft);
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    #000 var(--op-fade-top),
-    #000 calc(100% - var(--op-fade-bottom)),
-    transparent 100%
-  );
+  /* El esfumado es del contenido, no de la scrollbar: la franja de la
+     derecha (--op-sb, el ancho de la scrollbar) va sin máscara. Con la
+     máscara entera, al llegar arriba el thumb quedaba tapado y recién
+     aparecía cuando el fade terminaba de retirarse. */
+  --op-sb: 10px;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--op-fade-top),
+      #000 calc(100% - var(--op-fade-bottom)),
+      transparent 100%
+    ),
+    linear-gradient(#000, #000);
+  mask-size: calc(100% - var(--op-sb)) 100%, var(--op-sb) 100%;
+  mask-position: left top, right top;
+  mask-repeat: no-repeat;
 }
 /* Pegado arriba: no esfumamos arriba. Pegado abajo: no esfumamos abajo. */
 .op-scroll.is-top    { --op-fade-top: 0px; }
