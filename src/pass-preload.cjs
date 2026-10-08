@@ -38,6 +38,8 @@ const IS_TOP = window.top === window;
 
 const TEXTY = new Set(['text', 'email', 'tel']);
 const USERISH = /user|e-?mail|login|correo|usuario|identifier|account|cuenta|dni|cuit|documento/i;
+/** Una búsqueda que nombra lo que busca («Buscar correo») no es un usuario. */
+const SEARCHY = /search|buscar|b[uú]squeda|query|consulta|filtr/i;
 const inputSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
 const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
 
@@ -242,7 +244,15 @@ if (IS_TOP) {
 
   // Un código de seguridad en un campo de contraseña no es una contraseña.
   const isPw = (el) => isInput(el) && el.type === 'password' && visible(el) && !ccKind(el);
-  const isTexty = (el) => isInput(el) && TEXTY.has(el.type) && !el.readOnly && visible(el);
+  /** Un buscador (el de Gmail dice «Buscar correo»): ni usuario ni candidato a serlo. */
+  function isSearch(el) {
+    const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
+    if (ac.includes('username') || ac === 'email') return false;
+    if (el.name === 'q' || el.getAttribute('role') === 'searchbox' || el.closest('[role=search], search')) return true;
+    if (el.getAttribute('enterkeyhint') === 'search' || el.getAttribute('inputmode') === 'search') return true;
+    return SEARCHY.test(`${el.name} ${el.id} ${el.getAttribute('aria-label') || ''} ${el.placeholder || ''}`);
+  }
+  const isTexty = (el) => isInput(el) && TEXTY.has(el.type) && !el.readOnly && visible(el) && !isSearch(el);
   function isUserish(el) {
     if (!isTexty(el)) return false;
     const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
