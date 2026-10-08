@@ -1606,6 +1606,9 @@ app.whenReady().then(async () => {
     ctx.term.write(ctx, 'echo prism-term-ok\r');
     ok('lo que se escribe corre y vuelve', await until(() => js(`document.querySelector('.pr-view[data-page="terminal"] .xterm-rows').innerText.includes('prism-term-ok')`), 8000));
     ok('la barra de abajo muestra la carpeta (OSC 7 del arranque)', await until(() => js(`!!document.querySelector('.pr-view[data-page="terminal"] .pr-term__cwd.is-on')`), 8000));
+    ctx.term.write(ctx, 'Start-Sleep -Milliseconds 2500\r');
+    ok('un comando que tarda muestra el «run» con su tiempo (OSC 133)', await until(() => js(`(() => { const r = document.querySelector('.pr-view[data-page="terminal"] .pr-term__run'); return r.classList.contains('is-on') && /\\d+s/.test(r.innerText); })()`), 5000));
+    ok('y se va cuando termina', await until(() => js(`!document.querySelector('.pr-view[data-page="terminal"] .pr-term__run.is-on')`), 5000));
     ok('el cursor es un bloque con aura', await js(`(() => { const c = document.querySelector('.pr-view[data-page="terminal"] .xterm-cursor'); return !!c && c.classList.contains('xterm-cursor-block') && getComputedStyle(c).boxShadow !== 'none'; })()`));
     const termId = ctx.tabs.active.id;
     ok('pedir otra terminal lleva a la misma', ctx.tabs.create({ url: 'prism://terminal' }) === termId && ctx.tabs.list.filter((t) => t.internal === 'terminal').length === 1);

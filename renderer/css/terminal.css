@@ -58,17 +58,22 @@
   background: rgb(var(--op-accent-rgb) / .92);
   box-shadow: 0 0 10px rgb(var(--op-accent-rgb) / .38);
 }
-/* El punto de la shell: viva, con su aura; terminada, apagado. */
-.pr-term__dot {
+/* El triangulito de la shell (el de NTX): viva, de luz y con su aura;
+   terminada, apagado. Relleno y trazo redondeado, así las puntas no pinchan.
+   El aura es un drop-shadow: un box-shadow haría un cuadrado. */
+.pr-term__tri {
   flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--op-accent);
-  box-shadow: 0 0 6px rgb(var(--op-accent-rgb) / .7);
-  transition: background-color var(--op-t-3) var(--op-ease-soft), box-shadow var(--op-t-3) var(--op-ease-soft);
+  width: 7px;
+  height: 9px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  color: var(--op-accent);
+  filter: drop-shadow(0 0 3px rgb(var(--op-accent-rgb) / .7));
+  transition: color var(--op-t-3) var(--op-ease-soft), filter var(--op-t-3) var(--op-ease-soft);
 }
-.pr-view.is-dead .pr-term__dot { background: var(--op-text-4); box-shadow: 0 0 0 transparent; }
+.pr-view.is-dead .pr-term__tri { color: var(--op-text-4); filter: drop-shadow(0 0 3px rgb(var(--op-accent-rgb) / 0)); }
 .pr-term__num {
   font-family: var(--op-mono);
   font-size: var(--op-fs-11);
@@ -199,8 +204,8 @@
   user-select: text;
   cursor: text;
 }
-/* El branch y la carpeta entran y salen (no aparecen de golpe). */
-.pr-term__branch, .pr-term__cwd {
+/* El branch, la carpeta y el «run» entran y salen (no aparecen de golpe). */
+.pr-term__branch, .pr-term__cwd, .pr-term__run {
   max-width: 0;
   margin-right: 0;
   opacity: 0;
@@ -209,6 +214,9 @@
 }
 .pr-term__branch.is-on { max-width: 32ch; margin-right: 16px; opacity: 1; }
 .pr-term__cwd.is-on { max-width: 72ch; margin-right: 16px; opacity: 1; }
+/* Lo que lleva el comando que corre. Va último de la fila: su ancho cambia
+   cada segundo y ahí atrás no corre a nadie. */
+.pr-term__run.is-on { max-width: 16ch; margin-right: 16px; opacity: 1; }
 .pr-term__end {
   margin-left: auto;
   display: inline-flex;

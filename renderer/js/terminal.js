@@ -21,9 +21,11 @@ const VENDOR = '../vendor/xterm';
 const FONT = "'Roboto Mono', 'Cascadia Mono', Consolas, monospace";
 const SIZE = { def: 13, min: 9, max: 24 };
 
-/* La paleta, en la escala de Prism: acromática, de blanco a gris. El rojo
-   queda para el error (el mismo --op-danger del sistema): es lo único que
-   tiene permiso de tener color, porque dice que algo se rompió. */
+/* La paleta: los colores de siempre de una terminal (git en rojo y verde, las
+   carpetas en azul, los avisos en amarillo, el resaltado de PSReadLine), pero
+   apagados, con la luz y la saturación del rojo de error de Prism
+   (--op-danger), que es el ancla. El prompt sigue en grises: ese lo pinta
+   src/term-init.ps1 con truecolor, no con esta paleta. */
 const THEME = {
   background: '#00000000',
   foreground: '#e8e8ea',
@@ -34,14 +36,14 @@ const THEME = {
   scrollbarSliderBackground: 'rgba(255, 255, 255, 0.10)',
   scrollbarSliderHoverBackground: 'rgba(255, 255, 255, 0.20)',
   scrollbarSliderActiveBackground: 'rgba(255, 255, 255, 0.28)',
-  black: '#3a3a3e', brightBlack: '#6e6e75',
+  black: '#3a3a3e', brightBlack: '#84848c',   // el gris oscuro se lee: PSReadLine pinta ahí los parámetros
   red: '#d4676b', brightRed: '#e08a8d',
-  green: '#c9c9cc', brightGreen: '#e2e2e4',
-  yellow: '#dcdcdf', brightYellow: '#f0f0f2',
-  blue: '#9c9ca2', brightBlue: '#b8b8bd',
-  magenta: '#b4b4b9', brightMagenta: '#cacacf',
-  cyan: '#d2d2d6', brightCyan: '#e6e6e9',
-  white: '#bcbcc0', brightWhite: '#f4f4f6',
+  green: '#8cba94', brightGreen: '#a9d1af',
+  yellow: '#d4bc84', brightYellow: '#e6d3a1',
+  blue: '#86a2cf', brightBlue: '#a5bce0',
+  magenta: '#b693c8', brightMagenta: '#cdaedb',
+  cyan: '#7fb9bc', brightCyan: '#a0d0d2',
+  white: '#cdcdd1', brightWhite: '#f4f4f6',   // white es el texto que tipeás (PSReadLine): que no quede apagado
 };
 
 /* ── Estado de la única xterm ─────────────────────────────────────────────── */
@@ -56,12 +58,18 @@ let opened = false;        // ya se le pidió una shell a esta xterm
 let page = null;           // la .pr-view montada ahora, o null
 let cwd = '';
 let branch = null;
+let runSince = null;       // cuándo arrancó el comando que corre, o null
+let runTimer = 0;
+
+/* El «run» aparece recién pasado el primer segundo: un cd o un ls no tienen
+   por qué hacer parpadear un «run 0s» en la barra. */
+const RUN_SHOW = 1000;
 
 const html = () => `
   <div class="pr-term">
     <header class="pr-term__head">
       <div class="pr-term__tab">
-        <span class="pr-term__dot"></span>
+        <svg class="pr-term__tri" viewBox="0 0 8 10" aria-hidden="true"><path d="M1.6 1.4 6.6 5l-5 3.6z"/></svg>
         <span class="pr-term__num op-num">01</span>
         <span class="pr-term__name">PowerShell 7</span>
         <span class="pr-term__where"><span class="pr-term__dash"></span><span class="pr-term__short op-swap--truncate"></span></span>
@@ -73,6 +81,7 @@ const html = () => `
       <span class="pr-term__stat"><b>mem</b><span class="pr-term__gauge op-num" data-k="mem">0%</span></span>
       <span class="pr-term__stat pr-term__branch">${Icons.svg('branch')}<span class="pr-term__val op-swap--truncate"></span></span>
       <span class="pr-term__stat pr-term__cwd">${Icons.svg('folder')}<span class="pr-term__val op-swap--truncate"></span></span>
+      <span class="pr-term__stat pr-term__run"><b>run</b><span class="pr-term__val op-num"></span></span>
       <span class="pr-term__end"><span class="pr-term__live"></span><span class="pr-term__clock op-num"></span></span>
     </footer>
   </div>`;
@@ -158,6 +167,13 @@ async function boot() {
     return true;
   });
 
+  // OSC 133: C arranca un comando, D vuelve el prompt (src/term-init.ps1).
+  xterm.parser.registerOscHandler(133, (data) => {
+    if (data[0] === 'C') setRun(true);
+    else if (data[0] === 'D') setRun(false);
+    return true;
+  });
+
   xterm.attachCustomKeyEventHandler(onKey);
 
   const ta = xterm.textarea;
@@ -179,6 +195,7 @@ async function boot() {
   api.term.onExit((m) => {
     if (m.session !== session) return;
     dead = true;
+    setRun(false);
     page?.classList.add('is-dead');
     xterm.write(`\r\n\x1b[38;2;150;150;156mLa sesión terminó${m.code ? ` (código ${m.code})` : ''}. Enter abre otra.\x1b[0m\r\n`);
   });
@@ -271,6 +288,7 @@ async function open() {
     if (r.started) {
       xterm.reset();
       setCwd('');
+      setRun(false);
     } else if (r.backlog) {
       xterm.write(r.backlog);
     }
@@ -289,6 +307,7 @@ async function restart() {
   try {
     xterm.reset();
     setCwd('');
+    setRun(false);
     const r = await api.term.restart(xterm.cols, xterm.rows);
     session = r.session;
     dead = false;
@@ -330,6 +349,38 @@ function paintPlace() {
   const br = page.querySelector('.pr-term__branch');
   br.classList.toggle('is-on', !!branch);
   if (branch) swapText(br.querySelector('.pr-term__val'), branch);
+}
+
+/** 6s · 1m 14s · 1h 03m: segundos enteros, que es lo que corre. */
+function fmtRun(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${String(s % 60).padStart(2, '0')}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+/** Lo que lleva el comando que corre. Al terminar se esfuma con su último
+    número, no se borra antes. */
+function paintRun() {
+  const el = page?.querySelector('.pr-term__run');
+  if (!el) return;
+  const ms = runSince == null ? 0 : Date.now() - runSince;
+  const on = runSince != null && ms >= RUN_SHOW;
+  if (on) {
+    const val = el.querySelector('.pr-term__val');
+    const text = fmtRun(ms);
+    if (val.textContent !== text) val.textContent = text;
+  }
+  el.classList.toggle('is-on', on);
+}
+
+function setRun(running) {
+  if (running === (runSince != null)) return;
+  runSince = running ? Date.now() : null;
+  clearInterval(runTimer);
+  runTimer = running ? setInterval(paintRun, 250) : 0;
+  paintRun();
 }
 
 const visible = () => !!page && page.isConnected && !page.classList.contains('is-parked');
@@ -375,6 +426,7 @@ export function attach(el) {
     body.appendChild(screen);
     ro.observe(body);
     paintPlace();
+    paintRun();
     /* Siempre se pide: si la shell corre, se engancha (y toma el tamaño
        nuevo); si se cerró con su pestaña, abre otra. */
     await open();

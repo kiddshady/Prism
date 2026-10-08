@@ -6,10 +6,11 @@
 #
 #  · UTF-8 de punta a punta (sin esto, las cajas del prompt y los acentos
 #    llegan como signos de pregunta).
-#  · Los colores, en la escala de Prism: acromático, de blanco a gris. El rojo
-#    queda para el error, que es lo único que dice que algo se rompió.
+#  · El prompt de NTX en grises, acromático. Lo demás (PSReadLine, $PSStyle)
+#    con sus colores de siempre, que la paleta de la terminal pone suaves.
 #  · El prompt avisa en qué carpeta está (OSC 7): la barra de abajo de la
 #    terminal muestra la ruta y el branch sin preguntarle nada a la shell.
+#  · Y cuándo arranca y termina un comando (OSC 133): el «run» de la barra.
 #
 #  Tiene que andar con Set-StrictMode -Version Latest (lo prende el core-profile).
 # ═══════════════════════════════════════════════════════════════════════════
@@ -28,7 +29,6 @@ function global:__PrismGray([int]$v, [switch]$Bold) {
     $b = if ($Bold) { '1;' } else { '' }
     "$([char]27)[${b}38;2;$v;$v;${v}m"
 }
-$global:__PrismDanger = "$([char]27)[38;2;212;103;107m"
 
 # ── El prompt de NTX, en grises ────────────────────────────────────────────
 # ntx-prompt.ps1 lee $global:NtxColors cada vez que dibuja: alcanza con
@@ -44,61 +44,33 @@ if (Get-Variable -Name NtxColors -Scope Global -ErrorAction SilentlyContinue) {
     }
 }
 
-# ── PSReadLine: lo que se tipea ────────────────────────────────────────────
-if (Get-Module PSReadLine) {
-    $colors = @{
-        Default                = (__PrismGray 232)
-        Command                = (__PrismGray 240 -Bold)
-        Parameter              = (__PrismGray 150)
-        String                 = (__PrismGray 196)
-        Variable               = (__PrismGray 222)
-        Number                 = (__PrismGray 222)
-        Member                 = (__PrismGray 204)
-        Type                   = (__PrismGray 176)
-        Operator               = (__PrismGray 140)
-        Keyword                = (__PrismGray 236)
-        Comment                = (__PrismGray 112)
-        Emphasis               = (__PrismGray 244 -Bold)
-        ContinuationPrompt     = (__PrismGray 108)
-        InlinePrediction       = (__PrismGray 104)
-        ListPrediction         = (__PrismGray 150)
-        ListPredictionSelected = "$([char]27)[48;2;46;46;50m"
-        Selection              = "$([char]27)[48;2;64;65;68m"
-        Error                  = $global:__PrismDanger
-    }
-    # De a una: una versión de PSReadLine que no conoce una clave tira error
-    # por todo el lote.
-    foreach ($k in $colors.Keys) {
-        try { Set-PSReadLineOption -Colors @{ $k = $colors[$k] } } catch { }
-    }
-}
+# ── Lo demás: los colores de siempre ───────────────────────────────────────
+# PSReadLine (lo que se tipea) y $PSStyle (tablas, carpetas, avisos, errores)
+# quedan con sus colores de fábrica. Son los 16 de ANSI, y esos los pone la
+# paleta de la terminal (renderer/js/terminal.js): los de siempre, apagados
+# al tono de Prism. Por eso acá no se tocan.
 
-# ── $PSStyle: tablas, archivos, avisos ─────────────────────────────────────
-if (Get-Variable -Name PSStyle -ErrorAction SilentlyContinue) {
-    try {
-        $PSStyle.Formatting.TableHeader = (__PrismGray 236 -Bold)
-        $PSStyle.Formatting.CustomTableHeaderLabel = (__PrismGray 176)
-        $PSStyle.Formatting.FormatAccent = (__PrismGray 236 -Bold)
-        $PSStyle.Formatting.Warning = (__PrismGray 236 -Bold)
-        $PSStyle.Formatting.Verbose = (__PrismGray 150)
-        $PSStyle.Formatting.Debug = (__PrismGray 150)
-        $PSStyle.Formatting.Error = $global:__PrismDanger
-        $PSStyle.Formatting.ErrorAccent = "$([char]27)[1m$global:__PrismDanger"
-        $PSStyle.Progress.Style = (__PrismGray 200)
-        $PSStyle.FileInfo.Directory = (__PrismGray 240 -Bold)
-        $PSStyle.FileInfo.SymbolicLink = (__PrismGray 176)
-        $PSStyle.FileInfo.Executable = (__PrismGray 222)
-        # Las extensiones vienen de color (los .zip en rojo, los .ps1 en amarillo).
-        $PSStyle.FileInfo.Extension.Clear()
-    } catch { }
-}
-
-# ── Dónde está (OSC 7) ─────────────────────────────────────────────────────
-# Envuelve el prompt que ya hay (el de NTX) en vez de reemplazarlo. El aviso
-# va con [Console]::Write y no en el string que devuelve el prompt: PSReadLine
+# ── Dónde está (OSC 7) y cuánto tardó (OSC 133) ────────────────────────────
+# Envuelve el prompt que ya hay (el de NTX) en vez de reemplazarlo. Los avisos
+# van con [Console]::Write y no en el string que devuelve el prompt: PSReadLine
 # mide ese string para saber dónde empieza a escribir.
+#
+# El «run» de la barra de abajo: 133;C cuando se suelta un comando y 133;D
+# cuando vuelve el prompt. La C la marca el lector de líneas, y PSReadLine
+# define PSConsoleHostReadLine recién antes de la primera lectura (después de
+# este archivo): se envuelve en el primer prompt que la encuentre.
 $global:__PrismInnerPrompt = $function:prompt
 function global:prompt {
+    [Console]::Write("$([char]27)]133;D$([char]7)")
+    if (-not (Test-Path variable:global:__PrismReadLine) -and (Test-Path function:global:PSConsoleHostReadLine)) {
+        $global:__PrismReadLine = $function:PSConsoleHostReadLine
+        function global:PSConsoleHostReadLine {
+            $line = & $global:__PrismReadLine
+            # Un Enter en vacío no arranca nada.
+            if ($line -and $line.Trim()) { [Console]::Write("$([char]27)]133;C$([char]7)") }
+            $line
+        }
+    }
     $loc = $ExecutionContext.SessionState.Path.CurrentLocation
     if ($loc.Provider.Name -eq 'FileSystem') {
         $p = $loc.ProviderPath.Replace('\', '/').Replace('%', '%25').Replace(' ', '%20').Replace('#', '%23').Replace('?', '%3F')

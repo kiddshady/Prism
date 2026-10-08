@@ -117,8 +117,11 @@ npm run release # publica en GitHub (ver abajo)
 - **Terminal** (Ctrl+Ñ, y otra vez para volver adonde estabas): una
   PowerShell 7 de verdad en la pestaña `prism://terminal`, dibujada directo
   sobre la hoja, con el `$PROFILE` de siempre (el core-profile y el prompt de
-  NTX) pintado en grises. Arriba, la pestaña de la shell con su carpeta;
-  abajo, cpu, memoria, branch, carpeta y hora. Una sola shell: vive mientras
+  NTX, en grises). Lo demás lleva los colores de siempre de una terminal
+  (git, carpetas, avisos, errores, el resaltado de PSReadLine), apagados al
+  tono de Prism. Arriba, la pestaña de la shell con su carpeta; abajo, cpu,
+  memoria, branch, carpeta, lo que lleva el comando que corre (pasado el
+  primer segundo) y la hora. Una sola shell: vive mientras
   viva su pestaña, sigue si la interfaz se recarga y entra en la vista
   dividida al lado de una página. Con ella enfocada, Ctrl+R, Ctrl+L, Ctrl+W y
   Alt+flechas son de la shell, y Ctrl++ / Ctrl+- cambian la letra.
@@ -351,7 +354,8 @@ src/
   shortcuts.cjs       Atajos. Puro, con tests.
   term.cjs            La terminal: PowerShell 7 en una pty, la salida por tandas,
                       el branch sin correr git, cpu y memoria.
-  term-init.ps1       Lo que corre después del $PROFILE: UTF-8, los grises, OSC 7.
+  term-init.ps1       Lo que corre después del $PROFILE: UTF-8, el prompt en grises,
+                      OSC 7 (la carpeta) y OSC 133 (el «run»).
   updater.cjs         Auto-update desde los releases de GitHub.
   default-browser.cjs Ser el navegador de Windows: el registro, quién abre los
                       links y lo que llega por la línea de comandos. Pura hasta
