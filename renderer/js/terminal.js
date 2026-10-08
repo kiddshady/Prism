@@ -22,9 +22,11 @@ const FONT = "'Roboto Mono', 'Cascadia Mono', Consolas, monospace";
 const SIZE = { def: 13, min: 9, max: 24 };
 
 /* La paleta: los colores de siempre de una terminal (git en rojo y verde, las
-   carpetas en azul, los avisos en amarillo, el resaltado de PSReadLine), pero
-   apagados, con la luz y la saturación del rojo de error de Prism
-   (--op-danger), que es el ancla. El prompt sigue en grises: ese lo pinta
+   carpetas en azul, los avisos en amarillo, el resaltado de PSReadLine), con
+   color de verdad. Salen de oklch: los normales con croma .12–.17 a luz
+   .68–.84 (el amarillo y el cian más claros, que si no se ven sucios), los
+   brillantes un escalón más de luz y un poco menos de croma. Apagados (croma
+   .07) se veía todo igual de gris. El prompt sigue en grises: ese lo pinta
    src/term-init.ps1 con truecolor, no con esta paleta. */
 const THEME = {
   background: '#00000000',
@@ -37,12 +39,12 @@ const THEME = {
   scrollbarSliderHoverBackground: 'rgba(255, 255, 255, 0.20)',
   scrollbarSliderActiveBackground: 'rgba(255, 255, 255, 0.28)',
   black: '#3a3a3e', brightBlack: '#84848c',   // el gris oscuro se lee: PSReadLine pinta ahí los parámetros
-  red: '#d4676b', brightRed: '#e08a8d',
-  green: '#8cba94', brightGreen: '#a9d1af',
-  yellow: '#d4bc84', brightYellow: '#e6d3a1',
-  blue: '#86a2cf', brightBlue: '#a5bce0',
-  magenta: '#b693c8', brightMagenta: '#cdaedb',
-  cyan: '#7fb9bc', brightCyan: '#a0d0d2',
+  red: '#ef6567', brightRed: '#fe9b98',
+  green: '#66d37a', brightGreen: '#93e9a0',
+  yellow: '#f0c551', brightYellow: '#fcda86',
+  blue: '#67a6fb', brightBlue: '#9ec7fe',
+  magenta: '#ce81e5', brightMagenta: '#e5abf7',
+  cyan: '#40d0df', brightCyan: '#7de8f3',
   white: '#cdcdd1', brightWhite: '#f4f4f6',   // white es el texto que tipeás (PSReadLine): que no quede apagado
 };
 

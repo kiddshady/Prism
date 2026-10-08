@@ -118,8 +118,8 @@ npm run release # publica en GitHub (ver abajo)
   PowerShell 7 de verdad en la pestaña `prism://terminal`, dibujada directo
   sobre la hoja, con el `$PROFILE` de siempre (el core-profile y el prompt de
   NTX, en grises). Lo demás lleva los colores de siempre de una terminal
-  (git, carpetas, avisos, errores, el resaltado de PSReadLine), apagados al
-  tono de Prism. Arriba, la pestaña de la shell con su carpeta; abajo, cpu,
+  (git, carpetas, avisos, errores, el resaltado de PSReadLine), con color
+  de verdad. Arriba, la pestaña de la shell con su carpeta; abajo, cpu,
   memoria, branch, carpeta, lo que lleva el comando que corre (pasado el
   primer segundo) y la hora. Una sola shell: vive mientras
   viva su pestaña, sigue si la interfaz se recarga y entra en la vista
