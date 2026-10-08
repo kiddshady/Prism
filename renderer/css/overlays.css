@@ -125,7 +125,12 @@
 .op-menuitem:disabled:hover .op-icon { color: var(--op-text-3); }
 .op-menuitem--danger { color: var(--op-danger); }
 .op-menuitem--danger .op-icon { color: var(--op-danger); }
-.op-menuitem--danger:hover { background: var(--op-danger-wash); color: var(--op-danger); }
+/* Reposo, mouse encima y resaltado por teclado son el mismo ítem peligroso y
+   se pintan igual. Sin el .is-active, con las flechas el texto se iba al
+   blanco del resaltado genérico y «Eliminar» quedaba igual que el resto (lo
+   cazó el humo de Nexus). */
+.op-menuitem--danger:hover,
+.op-menuitem--danger.is-active { background: var(--op-danger-wash); color: var(--op-danger); }
 /* Con :hover, la regla genérica de arriba (`.op-menuitem:hover .op-icon`)
    pesa 0-3-0 y le gana al 0-2-0 del danger: el tacho volvía a gris justo
    cuando el mouse se paraba encima. Misma especificidad, declarada después. */
