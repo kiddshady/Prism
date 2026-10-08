@@ -23,6 +23,7 @@ import { menu, modal, confirm } from './layers.js';
 import { say } from './status.js';
 import { attachSuggest } from './suggest.js';
 import { openPanel as openPasswords } from './passwords.js';
+import * as Terminal from './terminal.js';
 
 /* Una superficie por mitad de la hoja: sin vista dividida se usa solo la
    primera; con un par, cada mitad dibuja lo suyo (una página propia, un
@@ -1506,6 +1507,17 @@ export async function clearDataModal() {
   if (done?.length) say(`Borrado: ${done.join(', ')}`, { icon: 'check' });
 }
 
+/* ══ Terminal ════════════════════════════════════════════════════════════════
+   La terminal no se dibuja acá: terminal.js tiene una sola xterm para toda la
+   ventana y la pasa de página en página. Esta solo la monta; desmontarla no
+   cierra la shell. */
+
+function terminalPage() {
+  const el = mount(Terminal.html(), 'terminal');
+  surf.cleanups.push(Terminal.attach(el));
+  return { name: 'terminal', el };
+}
+
 /* ══ Registro ════════════════════════════════════════════════════════════════ */
 
 const PAGES = {
@@ -1514,6 +1526,7 @@ const PAGES = {
   favoritos: bookmarksPage,
   descargas: downloadsPage,
   ajustes: settingsPage,
+  terminal: terminalPage,
 };
 
 export function init() {

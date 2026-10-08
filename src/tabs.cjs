@@ -186,6 +186,8 @@ function createTabs(ctx) {
       emitTimer = null;
       ctx.send('tabs:state', snapshot());
       persist();
+      // Sin su pestaña, la shell se cierra (term.cjs). La de incógnito no tiene terminal.
+      if (!ctx.private) ctx.term?.sync(ctx, tabs);
       const t = active();
       const app = ctx.private ? 'Prism · Incógnito' : 'Prism';
       if (ctx.win && !ctx.win.isDestroyed()) ctx.win.setTitle(t ? `${publicTab(t).title} — ${app}` : app);
@@ -786,6 +788,9 @@ function createTabs(ctx) {
    */
   function create({ url = '', active: activate = true, index, openerId = null, dormant = false, title = '', favicon = null, pinned = false } = {}) {
     if (elsewhere(omni.internalPage(url))) { ctx.openPage(omni.internalPage(url)); return null; }
+    // La terminal es una sola: pedir otra lleva a la que ya está.
+    const term = omni.internalPage(url) === 'terminal' && tabs.find((x) => x.internal === 'terminal');
+    if (term) { activateTab(term.id); return term.id; }
     const t = blank(url);
     t.openerId = openerId;
     t.pinned = !!pinned;
@@ -809,6 +814,8 @@ function createTabs(ctx) {
   function load(t, url) {
     const page = omni.internalPage(url);
     if (elsewhere(page)) { ctx.openPage(page); return; }
+    const term = page === 'terminal' && tabs.find((x) => x.internal === 'terminal' && x !== t);
+    if (term) { activateTab(term.id); return; }
     if (page) { toInternal(t, page); return; }
     if (t.internal) t.backTo = t.internal;
     t.internal = null;

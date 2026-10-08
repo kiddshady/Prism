@@ -1595,6 +1595,28 @@ app.whenReady().then(async () => {
   ok('al cambiar de página, la vieja se desvanece', relevo?.sale === 'op-fade-out', JSON.stringify(relevo));
   ok('y la nueva espera a que se vaya', relevo?.llega === true, JSON.stringify(relevo));
 
+  console.log('\n11a. La terminal');
+  {
+    const desde = ctx.tabs.active.id;
+    ctx.command('term:toggle');
+    ok('Ctrl+Ñ abre la terminal', await until(() => ctx.tabs.active?.internal === 'terminal'));
+    ok('xterm se monta en la hoja', await until(() => js(`!!document.querySelector('.pr-view[data-page="terminal"] .pr-term__body .xterm')`), 8000));
+    ok('arranca PowerShell 7 en una pty', await until(() => ctx.term.alive, 8000));
+    ok('la shell dibuja su prompt', await until(() => js(`document.querySelector('.pr-view[data-page="terminal"] .xterm-rows').innerText.trim().length > 0`), 15000));
+    ctx.term.write(ctx, 'echo prism-term-ok\r');
+    ok('lo que se escribe corre y vuelve', await until(() => js(`document.querySelector('.pr-view[data-page="terminal"] .xterm-rows').innerText.includes('prism-term-ok')`), 8000));
+    ok('la barra de abajo muestra la carpeta (OSC 7 del arranque)', await until(() => js(`!!document.querySelector('.pr-view[data-page="terminal"] .pr-term__cwd.is-on')`), 8000));
+    ok('el cursor es un bloque con aura', await js(`(() => { const c = document.querySelector('.pr-view[data-page="terminal"] .xterm-cursor'); return !!c && c.classList.contains('xterm-cursor-block') && getComputedStyle(c).boxShadow !== 'none'; })()`));
+    const termId = ctx.tabs.active.id;
+    ok('pedir otra terminal lleva a la misma', ctx.tabs.create({ url: 'prism://terminal' }) === termId && ctx.tabs.list.filter((t) => t.internal === 'terminal').length === 1);
+    ctx.command('term:toggle');
+    ok('Ctrl+Ñ otra vez vuelve a la pestaña de antes', await until(() => ctx.tabs.active?.id === desde));
+    ok('la shell sigue viva en su pestaña escondida', ctx.term.alive);
+    ok('la incógnito no puede usar la shell', (() => { try { ctx.term.open({ private: true }); return false; } catch { return true; } })());
+    ctx.tabs.close(termId);
+    ok('cerrar su pestaña cierra la shell', await until(() => !ctx.term.alive));
+  }
+
   console.log('\n11b. Capturas');
   const { nativeImage } = require('electron');
   const medir = (file) => file && nativeImage.createFromPath(file).getSize();

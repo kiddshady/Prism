@@ -114,6 +114,14 @@ npm run release # publica en GitHub (ver abajo)
 - **Oscuro**: los sitios ven `prefers-color-scheme: dark`, y hay un ajuste
   para oscurecer también los que no tienen modo oscuro. Lo de Prism, los PDF
   y las hojas para imprimir no se tocan.
+- **Terminal** (Ctrl+Ñ, y otra vez para volver adonde estabas): una
+  PowerShell 7 de verdad en la pestaña `prism://terminal`, dibujada directo
+  sobre la hoja, con el `$PROFILE` de siempre (el core-profile y el prompt de
+  NTX) pintado en grises. Arriba, la pestaña de la shell con su carpeta;
+  abajo, cpu, memoria, branch, carpeta y hora. Una sola shell: vive mientras
+  viva su pestaña, sigue si la interfaz se recarga y entra en la vista
+  dividida al lado de una página. Con ella enfocada, Ctrl+R, Ctrl+L, Ctrl+W y
+  Alt+flechas son de la shell, y Ctrl++ / Ctrl+- cambian la letra.
 - **Atajos** de Chrome (la tabla completa está en Ajustes).
 - **Vive en la bandeja.** Cerrar la ventana no cierra Prism: se esconde con
   las pestañas vivas (la música sigue, las descargas siguen). Salir de verdad
@@ -180,7 +188,7 @@ pero el contraste ya no depende de ella.
 El proceso principal es la única fuente de verdad de las pestañas
 (`src/tabs.cjs`). El cromo no guarda nada: recibe la foto completa del estado
 en cada cambio y la dibuja. Las páginas propias (`prism://nueva`, `historial`,
-`favoritos`, `descargas`, `ajustes`) no tienen vista: las dibuja el cromo
+`favoritos`, `descargas`, `ajustes`, `terminal`) no tienen vista: las dibuja el cromo
 adentro de la hoja, y por eso pueden ser vidrio de verdad.
 
 Los atajos no pueden vivir en el DOM: con el foco en una página, las teclas van
@@ -296,6 +304,20 @@ el instalador le saca a `file://` el privilegio de leer otros archivos.
 - **Probar la app empaquetada cerrando solo su PID.** `dist/win-unpacked/Prism.exe`
   se llama igual que el instalado: cerrar por nombre mata el Prism de quien
   lo está usando. Y al relanzarse, el PID cambia: se buscan los de esa ruta.
+- **node-pty con el ConPTY de Windows levanta otro Prism al cerrar la shell.**
+  Su `kill()` hace un `child_process.fork()`, y con el fuse `runAsNode`
+  apagado ese fork arranca el ejecutable de Electron como app, no como Node.
+  Con `useConptyDll` (el ConPTY que trae el paquete) no hay fork. node-pty
+  1.1.0 trae binarios N-API precompilados: `npmRebuild: false`, porque
+  electron-builder intentaba compilarlo con node-gyp y fallaba en winpty.
+- **pwsh no lee adentro del asar.** `src/term-init.ps1` y node-pty van en
+  `asarUnpack`; term.cjs cambia `app.asar` por `app.asar.unpacked` en la ruta.
+- **Un Prism lanzado desde una consola con `NO_COLOR` le pasaba el texto
+  plano a pwsh**: sin colores en los errores ni en las tablas. La terminal
+  lo saca del entorno de la shell.
+- **xterm pone su CSS después del nuestro.** Sus reglas del cursor llevan la
+  clase de la terminal (`.xterm-dom-renderer-owner-N`): las de terminal.css
+  suman `.pr-term__screen .xterm` para ganarles.
 
 ---
 
@@ -327,6 +349,9 @@ src/
   bookmarks-import.cjs  Favoritos de Chrome/Edge/Brave o de un HTML. Puro, con tests.
   prompts.cjs         Preguntas que nacen acá y se contestan en el cromo.
   shortcuts.cjs       Atajos. Puro, con tests.
+  term.cjs            La terminal: PowerShell 7 en una pty, la salida por tandas,
+                      el branch sin correr git, cpu y memoria.
+  term-init.ps1       Lo que corre después del $PROFILE: UTF-8, los grises, OSC 7.
   updater.cjs         Auto-update desde los releases de GitHub.
   default-browser.cjs Ser el navegador de Windows: el registro, quién abre los
                       links y lo que llega por la línea de comandos. Pura hasta
@@ -344,6 +369,9 @@ renderer/
   js/toolbar.js       Navegación, buscar en la página, escudo, descargas.
   js/pages.js         Nueva pestaña, historial, favoritos, descargas, ajustes.
   js/bmbar.js         La barra de favoritos.
+  js/terminal.js      La terminal: una sola xterm que pasa de página en página.
+  css/terminal.css    Sus dos líneas de luz y el cursor de bloque.
+  vendor/xterm/       xterm.js, copiado de node_modules (tools/vendor-xterm.mjs).
   js/print.js         La pantalla de impresión: opciones y hojas (con pdf.js).
   vendor/pdfjs/       pdf.js, copiado de node_modules (tools/vendor-pdfjs.mjs).
   js/freeze.js        El congelado.
@@ -356,6 +384,7 @@ tools/
   icons.mjs           El ícono y el de la bandeja, desde la geometría de la marca.
   release.mjs         Publicar un release entero, o nada.
   vendor-pdfjs.mjs    Copiar pdf.js a renderer/vendor al actualizarlo.
+  vendor-xterm.mjs    Lo mismo con xterm.js y sus addons.
   shot.mjs            Captura fiel (cromo + página) en modo verificación.
   cdp.mjs · main.mjs  Manejar el cromo y el proceso principal desde afuera.
 ```

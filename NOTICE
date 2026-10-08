@@ -29,6 +29,31 @@ Dibuja las hojas de la vista previa de impresión. Se copia tal cual desde el
 paquete pdfjs-dist (tools/vendor-pdfjs.mjs), sin modificar.
 
 
+xterm.js
+--------
+Archivos:  renderer/vendor/xterm/xterm.mjs, xterm.css, addon-fit.mjs,
+           addon-unicode11.mjs, addon-web-links.mjs
+Licencia:  MIT
+Texto:     renderer/vendor/xterm/LICENSE
+Copyright: Copyright (c) 2017-2019, The xterm.js authors; (c) 2014-2016,
+           SourceLair Private Company; (c) 2012-2013, Christopher Jeffrey
+
+Dibuja la terminal (prism://terminal). Se copia tal cual desde los paquetes
+@xterm/* (tools/vendor-xterm.mjs), sin modificar.
+
+
+node-pty
+--------
+Paquete:   node-pty (con sus binarios precompilados, conpty.dll y OpenConsole.exe)
+Licencia:  MIT (OpenConsole y conpty.dll: MIT, Microsoft Corporation)
+Texto:     node_modules/node-pty/LICENSE
+Copyright: Copyright (c) 2012-2015, Christopher Jeffrey; (c) 2016, Daniel Imms;
+           (c) 2018, Microsoft Corporation
+
+Le da a la terminal su PowerShell en una pseudoconsola. Se usa tal cual,
+desde node_modules (fuera del asar), sin modificar sus archivos.
+
+
 Roboto Mono
 -----------
 Archivos:  renderer/fonts/roboto-mono-*.woff2

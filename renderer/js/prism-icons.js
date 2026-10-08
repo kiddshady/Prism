@@ -92,6 +92,8 @@ Icons.add({
   note: '<path d="M13.4 9.4V3.8a1.4 1.4 0 0 0-1.4-1.4H4a1.4 1.4 0 0 0-1.4 1.4v8.4A1.4 1.4 0 0 0 4 13.6h5.6z"/><path d="M13.4 9.4H10.4a1 1 0 0 0-1 1v3.2M5.2 5.8h5.6M5.2 8.2h3"/>',
   wand: '<path d="M2.4 13.6 10.2 5.8M8.9 4.5l2.6 2.6"/><path d="M12.2 1.8v2.4M11 3h2.4M13.8 6.4v1.8M12.9 7.3h1.8M5.8 1.8v1.8M4.9 2.7h1.8"/>',
   exit: '<path d="M6.2 13.8H3.6a1.4 1.4 0 0 1-1.4-1.4V3.6a1.4 1.4 0 0 1 1.4-1.4h2.6M10.4 11.2 13.6 8l-3.2-3.2M13.6 8H6.2"/>',
+  /* El branch de git en la barra de la terminal: el tronco y una rama que se abre. */
+  branch: '<circle cx="4.6" cy="3.6" r="1.6"/><circle cx="4.6" cy="12.4" r="1.6"/><circle cx="11.4" cy="5.2" r="1.6"/><path d="M4.6 5.2v5.6M11.4 6.8c0 2.6-2.4 3.2-6.4 4"/>',
 });
 
 export { Icons };

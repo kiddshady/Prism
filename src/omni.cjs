@@ -48,6 +48,7 @@ const INTERNAL = {
   favoritos: 'Favoritos',
   descargas: 'Descargas',
   ajustes: 'Ajustes',
+  terminal: 'Terminal',
 };
 
 /** 'prism://historial' → 'historial'. Cualquier otra cosa → null. */

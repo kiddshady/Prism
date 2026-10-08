@@ -20,6 +20,7 @@ import * as Status from './status.js';
 import * as Prompts from './prompts.js';
 import * as Passwords from './passwords.js';
 import * as Bmbar from './bmbar.js';
+import * as Terminal from './terminal.js';
 import { pageMenu, fieldMenu, textFieldOf } from './menus.js';
 import { openPrint } from './print.js';
 
@@ -110,6 +111,7 @@ function onCommand(cmd) {
   else if (cmd === 'find:prev') Toolbar.findStep(false);
   else if (cmd === 'print:open') openPrint();
   else if (cmd === 'print:page') openPrint({ fromPage: true });
+  else if (cmd === 'term:focus') Terminal.focus();
 }
 
 /* ── Arranque ────────────────────────────────────────────────────────────── */

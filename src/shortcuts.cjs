@@ -59,6 +59,9 @@ function commandOf(i) {
     if (k === 'i' && shift) return 'page:devtools';
     if (k === 'delete' && shift) return 'open:ajustes';
     if (k === 'q' && shift) return 'app:quit';
+    /* La ñ por la letra, y por la tecla por si Windows la manda sin traducir
+       con el Ctrl apretado (en español la ñ ocupa la tecla del ; inglés). */
+    if ((k === 'ñ' || code === 'Semicolon') && !shift) return 'term:toggle';
     return null;
   }
 
@@ -78,6 +81,31 @@ function commandOf(i) {
     if (k === 'f3') return shift ? 'find:prev' : 'find:next';
   }
   return null;
+}
+
+/* Con la terminal enfocada, Ctrl+letra es de la línea de comandos: Ctrl+R
+   busca en el historial, Ctrl+L limpia, Ctrl+W y Ctrl+U borran, Ctrl+D sale.
+   Esos atajos del navegador se le dejan pasar a la shell. Ctrl+W además
+   cerraba la pestaña, y con ella la shell, a mitad de una palabra. Alt con
+   las flechas mueve de a palabra (y "atrás" se iba de la terminal). Lo demás
+   (pestañas, Ctrl+T, Ctrl+Ñ, Ctrl+Mayús, las F) sigue siendo de Prism. El
+   zoom también pasa: la terminal agranda su letra. */
+const SHELL_KEEPS = new Set([
+  'tab:close', 'omni:focus', 'page:reload', 'page:hard-reload', 'bookmark:toggle',
+  'open:historial', 'open:descargas', 'find:open', 'find:next', 'find:prev',
+  'page:print', 'page:source', 'zoom:in', 'zoom:out', 'zoom:reset',
+  'nav:back', 'nav:forward', 'nav:home',
+]);
+
+/** Si el input le toca a la shell cuando la terminal tiene el foco. Mira el
+    comando y no lo que devuelve match: dejar apretado Ctrl+W es una
+    repetición, y también es de la shell. */
+function forShell(i) {
+  const cmd = commandOf(i);
+  if (!cmd || !SHELL_KEEPS.has(cmd)) return false;
+  const ctrl = !!(i.control || i.meta);
+  // Solo Ctrl+tecla y Alt+tecla: F3, F5 y F6 siguen siendo del navegador.
+  return (ctrl || !!i.alt) && !i.shift;
 }
 
 /** La tabla que muestra Ajustes: se deriva del mismo lugar para no mentir. */
@@ -104,6 +132,7 @@ const TABLE = [
   ['Ver el video en una ventanita (o traerlo de vuelta)', 'Ctrl+Mayús+P'],
   ['Código fuente', 'Ctrl+U'],
   ['Herramientas de desarrollo', 'F12'],
+  ['Terminal (o volver a donde estabas)', 'Ctrl+Ñ'],
   ['Pantalla completa', 'F11'],
   ['Salir de Prism (cerrar lo manda a la bandeja)', 'Ctrl+Mayús+Q'],
   ['Mostrar u ocultar Prism, desde cualquier lado de Windows', 'Ctrl+Alt+P'],
@@ -113,4 +142,4 @@ const TABLE = [
     (ver main.cjs). En formato de Electron, no el de la tabla. */
 const GLOBAL_TOGGLE = 'CommandOrControl+Alt+P';
 
-module.exports = { match, TABLE, GLOBAL_TOGGLE };
+module.exports = { match, forShell, TABLE, GLOBAL_TOGGLE };

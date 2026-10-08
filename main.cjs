@@ -40,6 +40,7 @@ const { createCard } = require('./src/card.cjs');
 const { createFill } = require('./src/fill.cjs');
 const ui = require('./src/ui-protocol.cjs');
 const { createPip } = require('./src/pip.cjs');
+const { createTerm } = require('./src/term.cjs');
 const windows = require('./src/windows.cjs');
 const updater = require('./src/updater.cjs');
 const { createDefaultBrowser, targetsFromArgv } = require('./src/default-browser.cjs');
@@ -239,12 +240,31 @@ function command(w, name) {
     return windows.all().forEach((x) => x.tabs?.emit());
   }
   if (name === 'bookmarks:bar') return ctx.updateSettings((s) => ({ bookmarksBar: s.bookmarksBar === false }));
+  if (name === 'term:toggle') return toggleTerminal(w);
   if (name === 'omni:focus') return ui('omni:focus');
   if (name === 'find:open') return T.active?.view && ui('find:open');
   if (name === 'find:next' || name === 'find:prev') return ui(name, false);
   return null;
 }
 windowMethods(ctx);
+
+/* Ctrl+Ñ: a la terminal, y otra vez de vuelta a la pestaña de donde viniste.
+   La terminal es de la ventana normal: desde incógnito se abre allá. */
+let termFrom = null;
+function toggleTerminal(w) {
+  if (w.private) { ctx.openPage('terminal'); return ctx.send('cmd', 'term:focus'); }
+  const T = ctx.tabs;
+  const cur = T.active;
+  if (cur?.internal === 'terminal') {
+    const back = T.list.find((t) => t.id === termFrom && t.internal !== 'terminal');
+    if (back) T.activate(back.id);
+    return null;
+  }
+  termFrom = cur?.id ?? null;
+  T.openInternal('terminal');
+  ctx.focusChrome();
+  return ctx.send('cmd', 'term:focus');
+}
 
 /* ── Estado de la ventana ────────────────────────────────────────────────────
    Tamaño y posición entre sesiones, validados contra las pantallas de hoy:
@@ -390,12 +410,14 @@ function createWindow(w, state) {
   win.webContents.on('before-input-event', (e, input) => {
     const cmd = shortcuts.match(input);
     if (!cmd) return;
+    // Con la terminal enfocada, Ctrl+R, Ctrl+L, Ctrl+W… son de la shell.
+    if (w.termFocus && shortcuts.forShell(input)) return;
     e.preventDefault();
     w.command(cmd);
   });
 
   // Si la interfaz se recarga, lo que esperaba respuesta se niega.
-  win.webContents.on('did-start-loading', () => w.prompts?.cancelAll());
+  win.webContents.on('did-start-loading', () => { w.prompts?.cancelAll(); w.termFocus = false; });
 
   /* Cerrar la normal no cierra: Prism se va a la bandeja con sus pestañas
      vivas (la música sigue sonando, las descargas siguen bajando). Salir de
@@ -679,6 +701,7 @@ app.whenReady().then(async () => {
   ctx.fill = createFill(ctx);
   // Una sola ventanita para todas las ventanas (la de incógnito la hereda).
   ctx.pip = createPip({ store, icon: ICON });
+  ctx.term = createTerm(ctx);
   ctx.defaultBrowser = createDefaultBrowser({ app, shell });
   ctx.autostart = createAutostart({ app });
 
@@ -744,6 +767,7 @@ app.on('second-instance', (_e, argv, cwd) => {
 let flushed = false;
 app.on('before-quit', (e) => {
   quitting = true;
+  ctx.term?.kill();
   if (flushed) return;
   e.preventDefault();
   flushed = true;

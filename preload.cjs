@@ -235,6 +235,21 @@ contextBridge.exposeInMainWorld('prism', {
     onChanged: listen('pass:changed'),
   },
 
+  /** La terminal: una sola PowerShell, que vive en el proceso principal. */
+  term: {
+    /** Abre la shell o se engancha a la que corre: { session, started, backlog }. */
+    open: (cols, rows, fresh = false) => call('term:open', { cols, rows, fresh }),
+    /** Cierra la shell y abre otra. */
+    restart: (cols, rows) => call('term:restart', { cols, rows }),
+    write: (data) => send('term:write', data),
+    resize: (cols, rows) => send('term:resize', cols, rows),
+    focused: (on) => send('term:focus', !!on),
+    stats: () => call('term:stats'),
+    branch: (dir) => call('term:branch', dir),
+    onData: listen('term:data'),
+    onExit: listen('term:exit'),
+  },
+
   prompts: {
     onAsk: listen('prompt:ask'),
     onCancel: listen('prompt:cancel'),

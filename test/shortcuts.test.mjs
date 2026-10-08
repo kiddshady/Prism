@@ -6,7 +6,7 @@
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { match, TABLE } = require('../src/shortcuts.cjs');
+const { match, forShell, TABLE } = require('../src/shortcuts.cjs');
 
 let pass = 0; let fail = 0;
 const ok = (n, c, x = '') => { if (c) { pass++; console.log(`  ok   ${n}`); } else { fail++; console.log(`  FALLA ${n} ${x}`); } };
@@ -65,6 +65,27 @@ is('Ctrl+Tab repetido sí sigue pasando de pestaña', rep('Tab', { control: true
 is('Ctrl++ repetido sí sigue acercando', rep('+', { control: true }, 'BracketRight'), 'zoom:in');
 is('F3 repetido sí sigue buscando', rep('F3', {}, 'F3'), 'find:next');
 is('Ctrl+C repetido sigue siendo de la página', rep('c', { control: true }), null);
+
+console.log('\n3c. La terminal');
+is('Ctrl+Ñ abre la terminal', key('ñ', { control: true }, 'Semicolon'), 'term:toggle');
+is('Ctrl+Ñ aunque Windows mande la tecla sin traducir', key(';', { control: true }, 'Semicolon'), 'term:toggle');
+is('Ctrl+Mayús+Ñ no', key('Ñ', { control: true, shift: true }, 'Semicolon'), null);
+is('Ctrl+Ñ repetido no abre y cierra', rep('ñ', { control: true }, 'Semicolon'), 'repeat');
+const shell = (name, input, expected) => ok(`${name} → ${expected ? 'shell' : 'Prism'}`, forShell(input) === expected);
+shell('Ctrl+R (buscar en el historial de la shell)', key('r', { control: true }), true);
+shell('Ctrl+L (limpiar)', key('l', { control: true }), true);
+shell('Ctrl+W (borrar palabra; no cierra la pestaña con la shell)', key('w', { control: true }), true);
+shell('Ctrl+W repetido también', rep('w', { control: true }), true);
+ok('Ctrl+U, Ctrl+D, Ctrl+F, Ctrl+H, Ctrl+J → shell', ['u', 'd', 'f', 'h', 'j'].every((k) => forShell(key(k, { control: true }))));
+shell('Alt+Izquierda (palabra atrás; no se va de la terminal)', key('ArrowLeft', { alt: true }, 'ArrowLeft'), true);
+shell('Alt+D (borrar palabra)', key('d', { alt: true }), true);
+shell('Ctrl++ (agranda la letra de la terminal)', key('+', { control: true }, 'BracketRight'), true);
+shell('Ctrl+T sigue abriendo pestaña', key('t', { control: true }), false);
+shell('Ctrl+Tab sigue pasando de pestaña', key('Tab', { control: true }, 'Tab'), false);
+shell('Ctrl+Ñ sigue siendo de Prism', key('ñ', { control: true }, 'Semicolon'), false);
+shell('Ctrl+Mayús+R sigue siendo de Prism', key('R', { control: true, shift: true }), false);
+shell('F5 sigue siendo de Prism', key('F5', {}, 'F5'), false);
+shell('F6 sigue siendo de Prism (para salir a la barra)', key('F6', {}, 'F6'), false);
 
 console.log('\n4. La tabla de Ajustes');
 ok('tiene filas', TABLE.length > 10);

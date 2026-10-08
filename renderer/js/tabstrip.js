@@ -37,6 +37,7 @@ const INTERNAL_ICON = {
   favoritos: 'star',
   descargas: 'download',
   ajustes: 'settings',
+  terminal: 'terminal',
 };
 
 const els = new Map();

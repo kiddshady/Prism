@@ -99,6 +99,8 @@ const DEFAULT_SETTINGS = {
   /** Certificados inválidos en los que se confió, solo de la red local
       (ver certs.cjs): [{ host, fp: huella SHA-256, at }]. */
   certAllow: [],
+  /** El tamaño de la letra de la terminal (Ctrl++ y Ctrl+- con ella enfocada). */
+  termFontSize: 13,
 };
 
 /** Migraciones: cada función lleva el archivo de la versión N a la N+1.

@@ -126,6 +126,16 @@ function register() {
   on('pip:back', (ctx, id) => ctx.pip.back(ctx, id == null ? null : num(id)));
   on('page:photo-ready', (ctx, nonce) => ctx.tabs.photoReady(num(nonce)));
 
+  /* ── La terminal (src/term.cjs) ────────────────────────────────────────── */
+  handle('term:open', (ctx, opts = {}) => ctx.term.open(ctx, { cols: num(opts.cols), rows: num(opts.rows), fresh: !!opts.fresh }));
+  on('term:write', (ctx, data) => ctx.term.write(ctx, str(data, 1 << 20)));
+  on('term:resize', (ctx, cols, rows) => ctx.term.resize(ctx, num(cols), num(rows)));
+  // Mientras la terminal tenga el foco, los Ctrl+letra son de la shell (main.cjs).
+  on('term:focus', (ctx, focused) => { ctx.termFocus = !!focused; });
+  handle('term:stats', (ctx) => ctx.term.stats());
+  handle('term:branch', (ctx, dir) => ctx.term.branch(str(dir, 1024)));
+  handle('term:restart', (ctx, opts = {}) => ctx.term.restart(ctx, { cols: num(opts.cols), rows: num(opts.rows) }));
+
   /* ── La página y los overlays ──────────────────────────────────────────── */
   on('page:insets', (ctx, i) => ctx.tabs.setInsets(i));
   handle('page:snapshot', (ctx) => ctx.tabs.snapshotPage());
@@ -331,6 +341,7 @@ function register() {
     electron: process.versions.electron,
     chrome: process.versions.chrome,
     node: process.versions.node,
+    home: require('os').homedir(),   // la terminal acorta las rutas con ~
     engines: Object.fromEntries(Object.entries(omni.ENGINES).map(([k, v]) => [k, v.label])),
     shortcuts: TABLE,
   }));
