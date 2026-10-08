@@ -107,10 +107,12 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  padding: 10px 6px 8px 14px;   /* a la derecha la scrollbar de xterm hace de margen */
+  padding: 6px 6px 6px 14px;   /* a la derecha la scrollbar de xterm hace de margen */
 }
-.pr-term__screen { position: absolute; inset: 10px 6px 8px 14px; }
-.pr-term__screen .xterm { height: 100%; padding: 0; }
+/* Arriba y abajo lo mismo: el sobrante de las filas se reparte entre los dos
+   (refit, en terminal.js), así el hueco contra cada línea queda igual. */
+.pr-term__screen { position: absolute; inset: 6px 6px 6px 14px; }
+.pr-term__screen .xterm { height: 100%; padding: 0; box-sizing: border-box; }
 .pr-term__screen .xterm .xterm-viewport { background: transparent !important; }
 .pr-term__screen .xterm-screen { cursor: text; }
 /* Sin el anillo del sistema: el foco de la terminal lo dice el cursor. */

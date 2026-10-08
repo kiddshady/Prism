@@ -274,9 +274,17 @@ function zoom(dir) {
 
 /* ── La shell ─────────────────────────────────────────────────────────────── */
 
+/* Las filas son enteras: lo que no llega a una fila sobra (de 0 a casi una
+   fila entera, según el alto de la ventana). Pegado abajo hacía el hueco de
+   abajo más alto que el de arriba; repartido mitad y mitad, los dos quedan
+   iguales. Va como padding de .xterm, que fit descuenta: no cambia las filas. */
 function refit() {
   if (!xterm || !screen?.isConnected || !screen.clientWidth || !screen.clientHeight) return;
+  xterm.element.style.paddingTop = '';
   try { fit.fit(); } catch { /* sin medidas todavía */ }
+  const rows = xterm.element.querySelector('.xterm-screen');
+  const spare = rows ? screen.clientHeight - rows.offsetHeight : 0;
+  if (spare > 1) xterm.element.style.paddingTop = `${Math.floor(spare / 2)}px`;
 }
 
 async function open() {
