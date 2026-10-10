@@ -157,7 +157,20 @@ async function boot() {
   screen.className = 'pr-term__screen';
   xterm.open(screen);
 
-  xterm.onData((d) => {
+  /* Un emoji tipeado (con el teclado o con Win+.) llega en dos tandas: Windows
+     manda las dos mitades del par sustituto como dos teclas. Mandada sola, la
+     mitad no se puede pasar a UTF-8 y la shell recibía dos �: la primera
+     espera a la segunda. */
+  let half = '';
+  xterm.onData((chunk) => {
+    let d = half + chunk;
+    half = '';
+    const last = d.charCodeAt(d.length - 1);
+    if (last >= 0xd800 && last <= 0xdbff) {
+      half = d.slice(-1);
+      d = d.slice(0, -1);
+      if (!d) return null;
+    }
     if (!dead) return api.term.write(d);
     if (d === '\r') restart();          // con la shell terminada, Enter abre otra
     return null;
