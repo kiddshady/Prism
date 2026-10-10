@@ -121,6 +121,8 @@ async function boot() {
     document.fonts.load(`500 13px 'Roboto Mono'`),
     document.fonts.load(`13px 'Roboto Mono'`, '█'),
     document.fonts.load(`500 13px 'Roboto Mono'`, '█'),
+    document.fonts.load(`13px 'Roboto Mono'`, '😀'),
+    document.fonts.load(`500 13px 'Roboto Mono'`, '😀'),
   ]).catch(() => {});
 
   xterm = new Terminal({
