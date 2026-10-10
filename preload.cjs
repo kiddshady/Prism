@@ -148,6 +148,8 @@ contextBridge.exposeInMainWorld('prism', {
     sources: () => call('bookmarks:sources'),
     import: (sourceId) => call('bookmarks:import', sourceId),
     importFile: () => call('bookmarks:import-file'),
+    /** Los guarda todos en un HTML que elige la persona: { count, file } o null. */
+    exportFile: () => call('bookmarks:export-file'),
   },
   onLibraryChanged: listen('library:changed'),
 

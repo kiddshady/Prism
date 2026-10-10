@@ -583,6 +583,12 @@ function sayImported(r, from) {
   say(r.added ? `Se sumaron ${plural(r.added, 'favorito', 'favoritos')} de ${from}${rep}` : `No había favoritos nuevos en ${from}${rep}`, { icon: 'star', ms: 7000 });
 }
 
+/** Todos los favoritos a un HTML, para importarlos en otro Prism o en otro navegador. */
+async function exportBookmarks() {
+  const r = await api.bookmarks.exportFile().catch((err) => { say(err.message, { icon: 'alert', tone: 'error' }); return null; });
+  if (r) say(`Se exportaron ${plural(r.count, 'favorito', 'favoritos')} a ${r.file}`, { icon: 'star', ms: 7000 });
+}
+
 /** De dónde importar: los perfiles de los navegadores instalados, o un archivo exportado. */
 async function importMenu(btn) {
   const sources = await api.bookmarks.sources().catch(() => []);
@@ -604,6 +610,7 @@ function bookmarksPage(t) {
         <div class="pr-head__text"><div class="pr-head__title">Favoritos</div><div class="pr-head__sub" id="b-sub"></div></div>
         <div class="pr-head__actions">
           <div class="op-inputwrap pr-search">${Icons.svg('search')}<input class="op-input" id="b-q" placeholder="Buscar en favoritos" spellcheck="false"></div>
+          <button class="op-btn op-btn--secondary op-flashable" id="b-export"><i data-icon="upload"></i> Exportar…</button>
           <button class="op-btn op-btn--secondary op-flashable" id="b-import"><i data-icon="download"></i> Importar…</button>
         </div>
       </div>
@@ -624,6 +631,9 @@ function bookmarksPage(t) {
     const subText = all.length ? plural(all.length, 'sitio guardado', 'sitios guardados') : 'Los sitios que guardás para volver';
     if (painted) swapText(sub, subText); else sub.textContent = subText;
     painted = true;
+    const exp = el.querySelector('#b-export');
+    exp.disabled = !all.length;
+    if (all.length) exp.removeAttribute('data-tip'); else exp.dataset.tip = 'Todavía no hay favoritos para exportar';
     reconcile(list, shown.length ? shown.map((b) => ({ key: b.id, html: `
       <div class="pr-row" data-id="${esc(b.id)}" data-url="${esc(b.url)}">
         <span class="pr-row__fav">${favIcon(b.url, b.favicon, 'star')}</span>
@@ -644,6 +654,7 @@ function bookmarksPage(t) {
   q.addEventListener('input', paint);
   const importBtn = el.querySelector('#b-import');
   importBtn.addEventListener('click', () => importMenu(importBtn));
+  el.querySelector('#b-export').addEventListener('click', exportBookmarks);
   el.addEventListener('click', (e) => {
     const row = e.target.closest('.pr-row');
     if (!row) return;

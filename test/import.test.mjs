@@ -8,7 +8,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 const require = createRequire(import.meta.url);
-const { flattenChrome, parseNetscape, chromeTime, findSources, readSource } = require('../src/bookmarks-import.cjs');
+const { flattenChrome, parseNetscape, toNetscape, chromeTime, findSources, readSource } = require('../src/bookmarks-import.cjs');
 
 let pass = 0; let fail = 0;
 const ok = (n, c, x = '') => { if (c) { pass++; console.log(`  ok   ${n}`); } else { fail++; console.log(`  FALLA ${n} ${x}`); } };
@@ -55,6 +55,23 @@ ok('decodifica la dirección', net[0].url === 'https://umaza.edu.ar/?a=1&b=2', n
 ok('decodifica el título', net[0].title === 'UMaza & cía', net[0].title);
 ok('ADD_DATE en segundos pasa a milisegundos', net[0].createdAt === 1767225600000);
 ok('comillas simples, entidades numéricas y etiquetas adentro', net[1].title === 'Paracetamol — Wiki', net[1].title);
+
+console.log('\n2-bis. Exportar y volver a importar (de un Prism a otro)');
+const mios = [
+  { id: 'b1', url: 'https://umaza.edu.ar/?a=1&b=2', title: 'UMaza & "cía" <facu>', favicon: 'data:x', createdAt: 1767225600123 },
+  { id: 'b2', url: 'https://es.wikipedia.org/wiki/Paracetamol', title: '', createdAt: null },
+  { id: 'b3', url: 'file:///C:/apuntes.html', title: 'Apuntes', createdAt: 1767225600000 },
+  { id: 'b4', url: 'javascript:void(0)', title: 'Bookmarklet' },
+];
+const exportado = toNetscape(mios);
+ok('arranca como el formato que exportan todos', exportado.startsWith('<!DOCTYPE NETSCAPE-Bookmark-file-1>'));
+const vuelta = parseNetscape(exportado);
+ok('vuelven los visitables, en el mismo orden', vuelta.map((b) => b.url).join(' ') === mios.slice(0, 3).map((b) => b.url).join(' '), vuelta.map((b) => b.url).join(' '));
+ok('el título vuelve igual, con & comillas y < >', vuelta[0].title === mios[0].title, vuelta[0].title);
+ok('la fecha vuelve (al segundo)', vuelta[0].createdAt === 1767225600000 && vuelta[1].createdAt === null, String(vuelta[0].createdAt));
+ok('sin título vuelve sin título (Prism muestra el sitio)', vuelta[1].title === '', vuelta[1].title);
+ok('nada de favicons ni ids en el archivo', !/data:x|"b1"/.test(exportado));
+ok('sin favoritos, un archivo válido y vacío', parseNetscape(toNetscape([])).length === 0);
 
 console.log('\n3. Perfiles');
 const root = await mkdtemp(join(tmpdir(), 'prism-import-'));

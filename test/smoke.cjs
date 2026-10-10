@@ -1500,7 +1500,16 @@ app.whenReady().then(async () => {
     ctx.tabs.openInternal(p);
     ok(`prism://${p} se dibuja`, await until(() => js(`!!document.querySelector('.pr-view[data-page="${p}"] .pr-head__title')`)));
     if (p === 'historial') ok('el historial lista lo visitado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="historial"] .pr-row').length >= 2`)));
-    if (p === 'favoritos') ok('los favoritos listan el guardado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="favoritos"] .pr-row').length === 1`)));
+    if (p === 'favoritos') {
+      ok('los favoritos listan el guardado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="favoritos"] .pr-row').length === 1`)));
+      /* Exportar existe para pasarlos a otro Prism: prendido con favoritos, y
+         la cabecera (búsqueda + dos botones) entra en la columna sin cortarse. */
+      const cab = await js(`(() => { const v = document.querySelector('.pr-view[data-page="favoritos"]');
+        const b = v.querySelector('#b-export'), col = v.querySelector('.pr-view__col').getBoundingClientRect();
+        const r = [...v.querySelectorAll('.pr-head__actions > *')].map((e) => e.getBoundingClientRect());
+        return { on: !!b && !b.disabled, dentro: r.every((x) => x.left >= col.left - 0.5 && x.right <= col.right + 0.5 && x.width > 0), alto: new Set(r.map((x) => Math.round(x.top))).size }; })()`);
+      ok('Exportar está, prendido y dentro de la cabecera', cab.on && cab.dentro && cab.alto === 1, JSON.stringify(cab));
+    }
   }
 
   /* Cambiar de pestaña desarmaba la página propia: al volver entraba de cero,

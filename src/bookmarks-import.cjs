@@ -1,7 +1,7 @@
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   PRISM — importar favoritos
+   PRISM — importar (y exportar) favoritos
    De dos lados:
    · Los navegadores Chromium instalados (Chrome, Edge, Brave): cada perfil
      guarda sus favoritos en `User Data/<perfil>/Bookmarks`, un JSON que se
@@ -14,6 +14,9 @@
    en el orden en que se ve en el otro navegador (la barra primero), y lo que
    no es una dirección que se pueda visitar (bookmarklets, chrome://) se
    saltea. Los parsers son puros, con tests.
+
+   Exportar escribe ese mismo HTML (toNetscape): así los favoritos pasan de
+   un Prism a otro, de la UCX a la UCK1, con el Importar de siempre.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const path = require('path');
@@ -75,6 +78,33 @@ function parseNetscape(html) {
   return out;
 }
 
+/* ── Exportar ──────────────────────────────────────────────────────────────── */
+
+const escHTML = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Los favoritos de Prism → el HTML de Netscape que lee parseNetscape (en
+    otro Prism) y cualquier navegador. En el orden de la lista, con ADD_DATE
+    en segundos, que es como lo escriben todos. */
+function toNetscape(list = []) {
+  const rows = list.filter((b) => visitable(b?.url)).map((b) => {
+    const added = Number(b.createdAt) > 0 ? ` ADD_DATE="${Math.floor(Number(b.createdAt) / 1000)}"` : '';
+    return `    <DT><A HREF="${escHTML(b.url)}"${added}>${escHTML(b.title)}</A>`;
+  });
+  return [
+    '<!DOCTYPE NETSCAPE-Bookmark-file-1>',
+    '<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">',
+    '<TITLE>Bookmarks</TITLE>',
+    '<H1>Bookmarks</H1>',
+    '<DL><p>',
+    '  <DT><H3>Prism</H3>',
+    '  <DL><p>',
+    ...rows,
+    '  </DL><p>',
+    '</DL><p>',
+    '',
+  ].join('\n');
+}
+
 /* ── Dónde buscar ──────────────────────────────────────────────────────────── */
 
 const BROWSERS = [
@@ -119,4 +149,4 @@ async function readSource(id, localAppData = process.env.LOCALAPPDATA) {
   return flattenChrome(json);
 }
 
-module.exports = { flattenChrome, parseNetscape, chromeTime, findSources, readSource, BROWSERS };
+module.exports = { flattenChrome, parseNetscape, toNetscape, chromeTime, findSources, readSource, BROWSERS };

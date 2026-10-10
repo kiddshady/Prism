@@ -19,6 +19,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const fsp = require('fs/promises');
+const path = require('path');
 const { ipcMain, app, dialog, shell, net, clipboard } = require('electron');
 const store = require('./store.cjs');
 const omni = require('./omni.cjs');
@@ -246,6 +247,22 @@ function register() {
     const res = ctx.library.importBookmarks(list);
     changed();
     return { ...res, found: list.length };
+  });
+  /* Exportar: el mismo HTML que lee bookmarks:import-file, para pasarlos a
+     otro Prism (o a cualquier navegador). La ruta la elige la persona. */
+  handle('bookmarks:export-file', async (ctx) => {
+    const list = ctx.library.listBookmarks();
+    if (!list.length) throw new Error('No hay favoritos para exportar.');
+    const r = await dialog.showSaveDialog(ctx.win, {
+      title: 'Exportar favoritos',
+      buttonLabel: 'Exportar',
+      defaultPath: path.join(ctx.downloads?.dir() || app.getPath('downloads'), `favoritos-prism-${new Date().toISOString().slice(0, 10)}.html`),
+      filters: [{ name: 'Favoritos exportados', extensions: ['html'] }],
+    });
+    if (r.canceled || !r.filePath) return null;
+    await fsp.writeFile(r.filePath, importer.toNetscape(list), 'utf8');
+    shell.showItemInFolder(r.filePath);
+    return { count: list.length, file: path.basename(r.filePath) };
   });
 
   /* ── Descargas ─────────────────────────────────────────────────────────── */
