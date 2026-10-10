@@ -113,8 +113,15 @@ async function boot() {
     import(`${VENDOR}/addon-web-links.mjs`),
   ]);
   /* La letra tiene que estar cargada antes de abrir: xterm mide la celda una
-     vez, y con la de reserva medida quedaban columnas corridas. */
-  await Promise.all([document.fonts.load(`13px 'Roboto Mono'`), document.fonts.load(`500 13px 'Roboto Mono'`)]).catch(() => {});
+     vez, y con la de reserva medida quedaban columnas corridas. Los bloques
+     (fonts.css) también: xterm se guarda el ancho de cada carácter la primera
+     vez que lo ve, y medido con el respaldo quedaba corrido para siempre. */
+  await Promise.all([
+    document.fonts.load(`13px 'Roboto Mono'`),
+    document.fonts.load(`500 13px 'Roboto Mono'`),
+    document.fonts.load(`13px 'Roboto Mono'`, '█'),
+    document.fonts.load(`500 13px 'Roboto Mono'`, '█'),
+  ]).catch(() => {});
 
   xterm = new Terminal({
     fontFamily: FONT,

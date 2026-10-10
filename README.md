@@ -389,6 +389,8 @@ tools/
   release.mjs         Publicar un release entero, o nada.
   vendor-pdfjs.mjs    Copiar pdf.js a renderer/vendor al actualizarlo.
   vendor-xterm.mjs    Lo mismo con xterm.js y sus addons.
+  bloques.mjs         La fuente de los bloques (█ ▀ ▛…) con las medidas de
+                      Roboto Mono, que no los trae: llenan la celda sin rayas.
   shot.mjs            Captura fiel (cromo + página) en modo verificación.
   cdp.mjs · main.mjs  Manejar el cromo y el proceso principal desde afuera.
 ```
