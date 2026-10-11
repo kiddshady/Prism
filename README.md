@@ -130,6 +130,15 @@ npm run release # publica en GitHub (ver abajo)
   las pestañas vivas (la música sigue, las descargas siguen). Salir de verdad
   es *Salir de Prism* en la bandeja o en el menú, o Ctrl+Mayús+Q. Instancia
   única: abrirlo otra vez (o abrir un link con Prism) lo trae de vuelta.
+- **Tus equipos** (menú → Tus equipos): dos Prism de la casa emparejados (la
+  UCX y la UCK1) se mandan pestañas («Mandar a…» en el menú de la pestaña, de
+  un enlace o de la página), cada uno ve las pestañas abiertas del otro, y los
+  favoritos son los mismos en los dos. Se prende en cada uno; uno muestra un
+  PIN de 6 dígitos y el otro lo encuentra solo en la red y lo escribe. Lo
+  mandado no se abre solo: queda en la statusbar y en la página hasta que lo
+  abrís. Si el otro está apagado, le llega cuando se conecte. Escucha solo en
+  la red de casa y en Tailscale (puerto 8731, TCP y UDP); `src/link.cjs`
+  cuenta el protocolo y `src/bmsync.cjs` cómo se mezclan los favoritos.
 - **Navegador predeterminado**: Prism se anota en Windows como navegador (para
   los links, los .html y los PDF), así aparece en "Abrir con" y en
   Aplicaciones predeterminadas. Windows no deja que una app se ponga sola:

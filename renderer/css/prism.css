@@ -1489,3 +1489,19 @@
    propios», arriba.) */
 .op-scrim { background: rgb(3 3 4 / .58); }
 
+
+/* Lo que te mandaron de otro equipo, en la statusbar: se abre con un clic.
+   Es un botón sin la cara de botón (fondo, borde y padding de fábrica afuera). */
+.pr-status__inbox {
+  height: 18px;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--op-r-sm);
+  background: transparent;
+  color: var(--op-text);
+  font: inherit;
+  cursor: pointer;
+  transition: var(--tr-color);
+}
+.pr-status__inbox:hover { background: var(--op-wash-2); }

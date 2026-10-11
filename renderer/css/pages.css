@@ -425,3 +425,67 @@
 /* La scrollbar de la hoja arranca y termina debajo de sus esquinas, como la
    de una página web: pegada arriba, el thumb se metía en la curva del borde. */
 .pr-view__scroll::-webkit-scrollbar-track { margin-block: var(--pr-page-r); }
+
+/* ── Tus equipos (devices.js) ────────────────────────────────────────────── */
+
+/* Las secciones son filas de un reconcile: el aire entre ellas es su margen. */
+.pr-dev { position: relative; }
+.pr-set__state { font-size: var(--op-fs-12); color: var(--op-text-3); }
+.pr-set__end { margin-left: auto; }
+.pr-set__head .op-mark { margin: 0 -1px; }
+/* Las pestañas del otro equipo, adentro de su hoja: el mismo hover que en
+   Favoritos, con aire contra los bordes de la sección. */
+.pr-dev__list { position: relative; padding: 4px 8px 10px; }
+.pr-dev__empty { padding: 8px 10px 4px; font-size: var(--op-fs-12); color: var(--op-text-3); }
+.pr-dev__note { padding: 2px 18px 4px; font-size: var(--op-fs-11); color: var(--op-text-3); }
+.pr-dev__none { margin-top: var(--op-6); }
+
+/* El PIN: grande, en mono y seleccionable (se puede dictar o copiar). Debajo,
+   una línea de 3 px que se vacía hasta que vence: el acento vive en líneas. */
+.pr-pinbox { gap: 14px; padding-top: 4px; }
+.pr-pin {
+  font-family: var(--op-mono);
+  font-size: 38px;
+  letter-spacing: .14em;
+  text-align: center;
+  color: var(--op-text);
+  font-variant-numeric: tabular-nums;
+  user-select: text;
+  transition: opacity var(--op-t-3) var(--op-ease-soft);
+}
+.pr-pin.op-swap { display: grid; justify-content: center; }
+.pr-pin__bar { height: 3px; border-radius: 2px; background: var(--op-line-2); overflow: hidden; }
+.pr-pin__fill { height: 100%; background: var(--op-accent); transform-origin: left center; }
+.pr-pinbox.is-expired .pr-pin { opacity: .35; }
+.pr-pin__hint { text-align: center; }
+.pr-pin__input { font-size: var(--op-fs-15); letter-spacing: .12em; }
+
+/* Los Prism encontrados en la red: el elegido no se rellena, se talla (el
+   canto del acento), como lo primario de Opal. */
+.pr-found__head { align-items: center; }
+.pr-found { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.pr-found__opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--op-r-md);
+  background: var(--op-sunken);
+  box-shadow: inset 0 0 0 1px transparent;
+  color: var(--op-text-2);
+  font: inherit;
+  font-size: var(--op-fs-13);
+  text-align: left;
+  cursor: pointer;
+  transition: var(--tr-color), box-shadow var(--op-t-2) var(--op-ease-soft);
+}
+.pr-found__opt:hover { background: var(--op-wash-1); color: var(--op-text); }
+.pr-found__opt.is-selected { color: var(--op-text); box-shadow: inset 0 0 0 1px var(--op-rim); }
+.pr-found__opt .op-icon { width: 14px; height: 14px; color: var(--op-text-3); flex: 0 0 auto; }
+.pr-found__name { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pr-found__addr { flex: 0 0 auto; font-family: var(--op-mono); font-size: 11px; color: var(--op-text-3); }
+.pr-found + .op-reveal > div > .op-input { margin-top: 6px; }

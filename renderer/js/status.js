@@ -14,6 +14,7 @@ import { Icons } from './icons.js';
 import { exit, reconcile, roll, swapText } from './motion.js';
 import { esc } from './ui.js';
 import { plural } from './format.js';
+import { openInbox } from './devices.js';
 
 let left;
 let right;
@@ -64,6 +65,14 @@ function paintRight() {
   const pct = known.length ? (known.reduce((s, d) => s + d.received, 0) / known.reduce((s, d) => s + d.total, 0)) * 100 : null;
   const parts = [];
   if (!navigator.onLine) parts.push({ key: 'offline', html: `<span class="pr-status__item" style="color:var(--op-text-2)">${Icons.svg('wifiOff')} Sin conexión</span>` });
+  /* Lo que te mandaron de otro equipo queda a la vista hasta que lo abrís
+     (devices.js): una sola, la abre; varias, lleva a Tus equipos. */
+  const inbox = S.link?.enabled ? S.link.inbox || [] : [];
+  if (inbox.length) {
+    const from = [...new Set(inbox.map((x) => x.fromName))];
+    const label = inbox.length === 1 ? `${inbox[0].fromName} te mandó una página` : `${plural(inbox.length, 'página', 'páginas')} de ${from.join(' y ')}`;
+    parts.push({ key: `inbox:${label}`, html: `<button class="pr-status__item pr-status__inbox" data-inbox-open data-tip="${inbox.length === 1 ? esc(inbox[0].title || inbox[0].url) : 'Ver en Tus equipos'}">${Icons.svg('send')}<span>${esc(label)}</span></button>` });
+  }
   if (live.length) {
     parts.push({
       key: 'downloads',
@@ -89,6 +98,8 @@ export function init() {
   api.page.onHover((url) => { hoverUrl = url || ''; paintLeft(); });
   api.onStatus((m) => say(m.text, { icon: m.icon, tone: m.tone, ...(m.ms ? { ms: m.ms } : {}) }));
   on('downloads', paintRight);
+  on('link', paintRight);
+  right.addEventListener('click', (e) => { if (e.target.closest('[data-inbox-open]')) openInbox(); });
   window.addEventListener('online', paintRight);
   window.addEventListener('offline', paintRight);
   paintRight();

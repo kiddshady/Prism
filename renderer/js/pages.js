@@ -24,6 +24,7 @@ import { say } from './status.js';
 import { attachSuggest } from './suggest.js';
 import { openPanel as openPasswords } from './passwords.js';
 import * as Terminal from './terminal.js';
+import { devicesPage } from './devices.js';
 
 /* Una superficie por mitad de la hoja: sin vista dividida se usa solo la
    primera; con un par, cada mitad dibuja lo suyo (una página propia, un
@@ -1538,12 +1539,17 @@ const PAGES = {
   descargas: downloadsPage,
   ajustes: settingsPage,
   terminal: terminalPage,
+  equipos: devicesPage,
 };
+
+/* Para las páginas que viven en su propio módulo (devices.js). */
+export { mount as mountPage, favIcon, hostOf, wireFallbacks };
 
 export function init() {
   on('tabs', render);
   on('library', () => refresh(['nueva', 'historial', 'favoritos']));
   on('downloads', () => refresh(['descargas']));
+  on('link', () => refresh(['equipos']));
   on('settings', () => {
     refresh(['ajustes'], () => Date.now() > quietUntil);
     for (const sf of surfaces) sf.current?.onSettings?.();

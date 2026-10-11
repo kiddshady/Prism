@@ -153,6 +153,27 @@ contextBridge.exposeInMainWorld('prism', {
   },
   onLibraryChanged: listen('library:changed'),
 
+  /** Tus equipos: otros Prism emparejados (src/link.cjs). */
+  link: {
+    state: () => call('link:state'),
+    enable: (on) => call('link:enable', !!on),
+    rename: (name) => call('link:name', name),
+    /** Muestra un PIN acá para que el otro equipo lo mande: { pin, until }. */
+    openPairing: () => call('link:pair-open'),
+    closePairing: () => call('link:pair-close'),
+    /** Busca Prisms en la red: [{ id, name, address, port, paired }]. */
+    discover: () => call('link:discover'),
+    pair: (address, pin, port) => call('link:pair', address, pin, port),
+    forget: (id) => call('link:forget', id),
+    /** Manda una página a otro equipo: { queued } (true si no está y queda en fila). */
+    send: (id, info) => call('link:send', id, info),
+    open: (id) => call('link:open', id),
+    dismiss: (id) => call('link:dismiss', id),
+    clear: () => call('link:clear'),
+    onState: listen('link:state'),
+    onArrived: listen('link:arrived'),
+  },
+
   downloads: {
     list: () => call('downloads:list'),
     onState: listen('downloads:state'),

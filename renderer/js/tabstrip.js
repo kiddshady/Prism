@@ -41,6 +41,7 @@ const INTERNAL_ICON = {
   descargas: 'download',
   ajustes: 'settings',
   terminal: 'terminal',
+  equipos: 'devices',
 };
 
 const els = new Map();

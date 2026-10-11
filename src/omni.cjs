@@ -49,6 +49,7 @@ const INTERNAL = {
   descargas: 'Descargas',
   ajustes: 'Ajustes',
   terminal: 'Terminal',
+  equipos: 'Tus equipos',
 };
 
 /** 'prism://historial' → 'historial'. Cualquier otra cosa → null. */

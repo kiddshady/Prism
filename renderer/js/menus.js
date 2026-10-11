@@ -12,8 +12,11 @@ import { Menu } from './overlays.js';
 import { menu, pointAnchor } from './layers.js';
 import { newTab } from './tabstrip.js';
 import { addressField } from './suggest.js';
+import { sendItems } from './devices.js';
 
 const ellipsis = (s, n = 28) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+/** Un grupo de ítems con su raya arriba, o nada si el grupo está vacío. */
+const withSep = (items) => (items.length ? [{ sep: true }, ...items] : []);
 
 /* ── Pestaña ─────────────────────────────────────────────────────────────── */
 
@@ -33,6 +36,7 @@ export async function tabMenu(anchor, id) {
     { label: t.pinned ? 'Desfijar' : 'Fijar', icon: 'pin', onSelect: () => api.tabs.pin(id, !t.pinned) },
     ...splitItems(t),
     { label: t.muted ? 'Activar el sonido' : 'Silenciar la pestaña', icon: t.muted ? 'speaker' : 'speakerOff', onSelect: () => api.tabs.mute(id) },
+    ...withSep(sendItems(t.url, t.title)),
     { sep: true },
     // Ctrl+W no cierra una fijada: el atajo solo se muestra donde anda.
     { label: 'Cerrar', icon: 'close', key: t.pinned ? undefined : 'Ctrl+W', onSelect: () => api.tabs.close(id) },
@@ -87,6 +91,7 @@ export function pageMenu(p) {
       { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: act('link-tab', { url: p.linkURL }) },
       ...(activeTab()?.pinned ? [] : [{ label: 'Abrir el enlace al costado', icon: 'splitView', onSelect: act('link-split', { url: p.linkURL }) }]),
       ...(S.info?.private ? [] : [{ label: 'Abrir el enlace en incógnito', icon: 'ghost', onSelect: act('link-incognito', { url: p.linkURL }) }]),
+      ...sendItems(p.linkURL, p.linkText || '', 'el enlace'),
       { label: 'Copiar la dirección del enlace', icon: 'link', onSelect: act('link-copy', { url: p.linkURL }) },
       { label: 'Guardar el enlace', icon: 'download', onSelect: act('link-save', { url: p.linkURL }) },
       { sep: true },
@@ -143,6 +148,7 @@ export function pageMenu(p) {
       { label: 'Atrás', icon: 'arrowLeft', key: 'Alt+Izq', disabled: !p.canGoBack, onSelect: act('back') },
       { label: 'Adelante', icon: 'arrowRight', key: 'Alt+Der', disabled: !p.canGoForward, onSelect: act('forward') },
       { label: 'Recargar', icon: 'reload', key: 'F5', onSelect: act('reload') },
+      ...withSep(sendItems(p.pageURL, activeTab()?.title || '', 'la página')),
       { sep: true },
       { label: 'Imprimir', icon: 'printer', key: 'Ctrl+P', onSelect: act('print') },
       { label: 'Capturar lo visible', icon: 'capture', onSelect: () => api.page.capture('visible') },
@@ -254,6 +260,7 @@ export function mainMenu(anchor, { openFind } = {}) {
     { label: 'Favoritos', icon: 'star', onSelect: () => openPage('favoritos') },
     { label: S.settings?.bookmarksBar === false ? 'Mostrar la barra de favoritos' : 'Ocultar la barra de favoritos', icon: 'bookmark', key: 'Ctrl+Mayús+B', onSelect: () => api.settings.save({ bookmarksBar: S.settings?.bookmarksBar === false }) },
     { label: 'Descargas', icon: 'download', key: 'Ctrl+J', onSelect: () => openPage('descargas') },
+    { label: 'Tus equipos', icon: 'devices', onSelect: () => openPage('equipos') },
     { sep: true },
     { label: 'Buscar en la página', icon: 'search', key: 'Ctrl+F', disabled: !web, onSelect: () => openFind?.() },
     { label: 'Acercar', icon: 'zoomIn', key: 'Ctrl++', disabled: !web, onSelect: () => api.page.zoom('in') },

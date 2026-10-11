@@ -21,6 +21,7 @@ import * as Prompts from './prompts.js';
 import * as Passwords from './passwords.js';
 import * as Bmbar from './bmbar.js';
 import * as Terminal from './terminal.js';
+import * as Devices from './devices.js';
 import { pageMenu, fieldMenu, textFieldOf } from './menus.js';
 import { openPrint } from './print.js';
 
@@ -151,6 +152,7 @@ async function boot() {
   Prompts.init();
   Passwords.init();
   Bmbar.init();
+  Devices.init();
 
   api.tabs.onState(applyTabs);
   api.settings.onChange(async (s) => {

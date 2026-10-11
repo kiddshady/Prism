@@ -46,6 +46,7 @@ const updater = require('./src/updater.cjs');
 const { createDefaultBrowser, targetsFromArgv } = require('./src/default-browser.cjs');
 const { createAutostart, HIDDEN } = require('./src/autostart.cjs');
 const { keepAlive } = require('./src/recover.cjs');
+const { createLink } = require('./src/link.cjs');
 
 /* Color base de arranque: el --op-bg de tokens.css, resuelto a hex. El
    renderer lo vuelve a mandar apenas carga (win.setBackground), así que este
@@ -457,7 +458,7 @@ function createWindow(w, state) {
      primero puede no terminar en apagado (otra app lo frena): las descargas
      se cortan recién con el segundo. */
   if (main) {
-    win.on('query-session-end', () => flushSync());
+    win.on('query-session-end', () => { flushSync(); ctx.link?.flushSync(); });
     win.on('session-end', () => { quitting = true; flushSync({ downloads: true }); });
   }
 
@@ -732,6 +733,20 @@ app.whenReady().then(async () => {
 
   ipc.register();
   ctx.tabs = createTabs(ctx);
+  ctx.link = createLink({
+    doc: store.doc('equipos', null),
+    library: ctx.library,
+    // Para las pruebas: dos Prism en una sola máquina, cada uno en su puerto.
+    port: Number(process.env.PRISM_LINK_PORT) || undefined,
+    seekAlso: String(process.env.PRISM_LINK_SEEK || '').split(',').filter(Boolean)
+      .map((x) => { const [address, p] = x.split(':'); return { address, port: Number(p) }; }),
+    tabs: () => ctx.tabs.list,
+    onState: (s) => windows.broadcast('link:state', s),
+    // Favoritos que llegaron de otro equipo: se redibuja lo que los muestra.
+    onBookmarks: () => { windows.all().forEach((w) => w.tabs?.emit()); windows.broadcast('library:changed'); },
+    onReceive: (item) => ctx.send('link:arrived', item),
+  });
+  ctx.link.load().catch((err) => console.error('[equipos]', err.message));
   /* Lanzado por el arranque con Windows (autostart.cjs): carga escondido. */
   const hidden = !SHOTS && process.argv.includes(HIDDEN);
   createWindow(ctx, { ...(await loadWindowState()), hidden });
@@ -787,6 +802,8 @@ let flushed = false;
 app.on('before-quit', (e) => {
   quitting = true;
   ctx.term?.kill();
+  ctx.link?.flushSync();
+  ctx.link?.stop();
   if (flushed) return;
   e.preventDefault();
   flushed = true;

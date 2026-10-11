@@ -23,6 +23,7 @@ fs.mkdirSync(DL, { recursive: true });
 process.env.PRISM_SHOTS = '1';
 process.env.PRISM_PROFILE = path.join(TMP, 'perfil');
 process.env.PRISM_DATA = path.join(TMP, 'datos');
+process.env.PRISM_LINK_PORT = '18799';   // Tus equipos: lejos del 8731 del Prism de todos los días
 process.env.PRISM_TRAY = '1';   // la bandeja existe unos segundos, para probarla
 // Ajustes de arranque: nada de red (sin sugerencias remotas ni listas del bloqueador).
 fs.mkdirSync(process.env.PRISM_DATA, { recursive: true });
@@ -732,7 +733,9 @@ app.whenReady().then(async () => {
   ok('moverla al otro lado de su par da vuelta el par', T.snapshot().split.a === sx && T.list.at(-2) === tx && T.list.at(-1) === tn);
   ok('y las vistas lo acompañan', await until(async () => same(tx.view.getBounds(), await paneRect(0)) && same(tn.view.getBounds(), await paneRect(1))));
   /* Con el mouse, en la tira: arrastrar la izquierda sobre la derecha. */
-  await until(() => tabEl(sx, `el.classList.contains('is-split-a')`));
+  // La tira tiene que tener ya todas las pestañas: el índice que manda al soltar sale de ella.
+  await until(async () => (await tabEl(sx, `el.classList.contains('is-split-a')`))
+    && (await js(`document.querySelectorAll('.pr-tab:not([data-state="closing"])').length`)) === T.list.length);
   const arr = await tabEl(sx, `(() => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width) }; })()`);
   win.webContents.sendInputEvent({ type: 'mouseMove', x: arr.x, y: arr.y });
   win.webContents.sendInputEvent({ type: 'mouseDown', x: arr.x, y: arr.y, button: 'left', clickCount: 1 });
@@ -760,6 +763,21 @@ app.whenReady().then(async () => {
   ok('separar deja las dos como pestañas comunes', !T.snapshot().split && !T.snapshot().tabs.some((t) => t.split));
   T.close(lk);
   T.close(sx);
+
+  console.log('\n7f2. Tus equipos');
+  const eq = T.create({ url: 'prism://equipos' });
+  ok('la página de Tus equipos se dibuja', await until(() => js(`!!document.querySelector('.pr-view[data-page="equipos"] .pr-set [data-act="toggle"]')`)));
+  ok('arranca apagada, sin emparejar', !ctx.link.running && await js(`document.getElementById('d-pair').disabled`));
+  await js(`document.querySelector('.pr-view[data-page="equipos"] [data-act="toggle"]').click()`);
+  ok('el interruptor la prende de verdad', await until(() => ctx.link.running));
+  ok('y muestra el nombre de este equipo', await until(() => js(`document.querySelector('.pr-view[data-page="equipos"] [data-part="named"]').classList.contains('is-open') && !document.getElementById('d-pair').disabled`)));
+  ok('sin equipos, dice cómo emparejar', await until(() => js(`!!document.querySelector('.pr-dev__none')`)));
+  await js(`document.getElementById('btn-menu').click()`);
+  ok('el menú principal lleva a Tus equipos', await until(() => js(`[...document.querySelectorAll('.op-menu')].some((m) => m.textContent.includes('Tus equipos'))`)));
+  win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  await until(() => js(`!document.querySelector('.op-menu:not([data-state="closing"])') && !document.getElementById('freeze').classList.contains('is-on')`));
+  ctx.link.setEnabled(false);
+  T.close(eq);
 
   console.log('\n7g. La tira: cerrar y desbordar');
   /* Cerrar una del medio: la que se va se pliega con la vecina. Quieta en su

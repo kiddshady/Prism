@@ -230,6 +230,26 @@ function register() {
   /* Importar: la ventana elige una fuente de la lista (no manda rutas), o un
      archivo HTML que elige la persona en el diálogo. */
   handle('bookmarks:sources', (ctx) => importer.findSources());
+
+  /* ── Tus equipos (link.cjs) ────────────────────────────────────────────── */
+  handle('link:state', (ctx) => ctx.link.state());
+  handle('link:enable', (ctx, on) => ctx.link.setEnabled(!!on));
+  handle('link:name', (ctx, name) => ctx.link.setName(str(name, 40)));
+  handle('link:pair-open', (ctx) => ctx.link.openPairing());
+  handle('link:pair-close', (ctx) => ctx.link.closePairing());
+  handle('link:discover', (ctx) => ctx.link.discover());
+  handle('link:pair', (ctx, address, pin, port) => ctx.link.pair(str(address, 64), str(pin, 6), Number(port) || undefined));
+  handle('link:forget', (ctx, id) => ctx.link.forget(str(id, 64)));
+  handle('link:send', (ctx, id, info = {}) => ctx.link.send(str(id, 64), { url: str(info.url, 4096), title: str(info.title, 300) }));
+  /* Abrir una recibida: sale de la lista y va a una pestaña de la ventana que
+     pidió. Descartarla solo la saca. */
+  handle('link:open', (ctx, id) => {
+    const item = ctx.link.take(str(id, 64));
+    if (item) ctx.tabs.create({ url: item.url });
+    return !!item;
+  });
+  handle('link:dismiss', (ctx, id) => !!ctx.link.take(str(id, 64)));
+  handle('link:clear', (ctx) => ctx.link.clearInbox());
   handle('bookmarks:import', async (ctx, id) => {
     const r = ctx.library.importBookmarks(await importer.readSource(str(id, 200)));
     changed();

@@ -186,6 +186,8 @@ function createTabs(ctx) {
       emitTimer = null;
       ctx.send('tabs:state', snapshot());
       persist();
+      // Los otros equipos ven lo que hay abierto acá (link.cjs). Incógnito, no.
+      if (!ctx.private) ctx.link?.tabsChanged();
       // Sin su pestaña, la shell se cierra (term.cjs). La de incógnito no tiene terminal.
       if (!ctx.private) ctx.term?.sync(ctx, tabs);
       const t = active();

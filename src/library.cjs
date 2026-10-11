@@ -16,6 +16,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const { bareHost } = require('./omni.cjs');
+const bmsync = require('./bmsync.cjs');
 
 const MAX_VISITS = 12000;
 const SAVE_DELAY = 1500;
@@ -31,8 +32,14 @@ function recordable(url) {
 function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveDelay = SAVE_DELAY, maxWait = SAVE_MAX_WAIT } = {}) {
   let visits = [];          // [{ id, url, title, t }] — más nueva al final
   let favicons = {};        // host → url del favicon
-  let bookmarks = [];       // [{ id, url, title, favicon, createdAt }]
+  let bookmarks = [];       // [{ id, url, title, favicon, createdAt, at }]
+  /* Para los otros equipos (bmsync.cjs): qué se quitó y cuándo, y cuándo se
+     reordenó la lista por última vez. */
+  let gone = {};            // url → cuándo se quitó
+  let orderAt = 0;
   let seq = 0;
+  /** Quién se entera de un cambio hecho ACÁ en los favoritos (link.cjs). */
+  let onBookmarks = null;
 
   /* url → { url, title, visits, last } */
   const index = new Map();
@@ -59,7 +66,7 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
      escribe en toda la corrida: arrancó vacío, y guardar lo pisaría. */
   const unread = new Set();
   const docOf = (which) => (which === 'history' ? historyDoc : bookmarksDoc);
-  const dataOf = (which) => (which === 'history' ? { visits, favicons, seq } : { bookmarks });
+  const dataOf = (which) => (which === 'history' ? { visits, favicons, seq } : { bookmarks, gone, orderAt });
 
   /** `lazy`: un cambio que puede esperar (el título de una visita que ya está)
       corre la escritura pero no la apura. Si no, un reloj en el título
@@ -120,6 +127,8 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
 
     const b = await read('bookmarks');
     bookmarks = Array.isArray(b.bookmarks) ? b.bookmarks.filter((x) => x && x.url) : [];
+    gone = b.gone && typeof b.gone === 'object' ? b.gone : {};
+    orderAt = Number(b.orderAt) || 0;
   }
 
   /* ── Historial ─────────────────────────────────────────────────────────── */
@@ -172,8 +181,8 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
     const e = index.get(url);
     if (e) e.title = title;
     let named = false;
-    for (const b of bookmarks) if (b.url === url && !b.title) { b.title = title; named = true; }
-    if (named) schedule('bookmarks');
+    for (const b of bookmarks) if (b.url === url && !b.title) { b.title = title; b.at = now(); named = true; }
+    if (named) touched();
     schedule('history', { lazy: true });
   }
 
@@ -318,21 +327,33 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
 
   /* ── Favoritos ─────────────────────────────────────────────────────────── */
 
+  /** Un cambio hecho acá: se guarda y se cuenta a los otros equipos. `order`:
+      el cambio decide el orden de la lista (bmsync.cjs). */
+  function touched({ order = false } = {}) {
+    if (order) orderAt = now();
+    schedule('bookmarks');
+    onBookmarks?.();
+  }
+
   const isBookmarked = (url) => bookmarks.some((b) => b.url === url);
   const listBookmarks = () => bookmarks.map((b) => ({ ...b, favicon: b.favicon || faviconFor(b.url) }));
 
   function addBookmark({ url, title = '', favicon = null }) {
     if (!url || isBookmarked(url)) return bookmarks.find((b) => b.url === url) || null;
-    const b = { id: `b${now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, url, title, favicon, createdAt: now() };
+    const b = { id: `b${now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, url, title, favicon, createdAt: now(), at: now() };
     bookmarks.unshift(b);
-    schedule('bookmarks');
+    touched();
     return b;
   }
 
   function removeBookmark(idOrUrl) {
     const before = bookmarks.length;
-    bookmarks = bookmarks.filter((b) => b.id !== idOrUrl && b.url !== idOrUrl);
-    if (bookmarks.length !== before) schedule('bookmarks');
+    bookmarks = bookmarks.filter((b) => {
+      if (b.id !== idOrUrl && b.url !== idOrUrl) return true;
+      gone[b.url] = now();
+      return false;
+    });
+    if (bookmarks.length !== before) touched();
     return before !== bookmarks.length;
   }
 
@@ -340,8 +361,11 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
     const b = bookmarks.find((x) => x.id === id);
     if (!b) return null;
     if (typeof patch.title === 'string') b.title = patch.title.trim();
-    if (typeof patch.url === 'string' && patch.url.trim()) b.url = patch.url.trim();
-    schedule('bookmarks');
+    // Otra dirección es otro favorito para los otros equipos: el viejo se quita.
+    const moved = typeof patch.url === 'string' && patch.url.trim() && patch.url.trim() !== b.url;
+    if (moved) { gone[b.url] = now(); b.url = patch.url.trim(); }
+    b.at = now();
+    touched({ order: moved });
     return { ...b };
   }
 
@@ -351,7 +375,7 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
     if (i < 0) return false;
     const [b] = bookmarks.splice(i, 1);
     bookmarks.splice(Math.max(0, Math.min(bookmarks.length, toIndex)), 0, b);
-    schedule('bookmarks');
+    touched({ order: true });
     return true;
   }
 
@@ -368,10 +392,11 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
       if (have.has(url)) { repeated += 1; continue; }
       have.add(url);
       const t = Number(x.createdAt) > 0 ? Number(x.createdAt) : now();
-      bookmarks.push({ id: `b${base}i${added.toString(36)}${Math.random().toString(36).slice(2, 5)}`, url, title: String(x.title || '').slice(0, 300), favicon: null, createdAt: t });
+      bookmarks.push({ id: `b${base}i${added.toString(36)}${Math.random().toString(36).slice(2, 5)}`, url, title: String(x.title || '').slice(0, 300), favicon: null, createdAt: t, at: now() });
       added += 1;
     }
-    if (added) schedule('bookmarks');
+    // Lo importado va al final: eso es un orden, y los otros equipos lo respetan.
+    if (added) touched({ order: true });
     return { added, repeated };
   }
 
@@ -382,8 +407,44 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
     return true;
   }
 
+  /* ── Otros equipos (link.cjs) ──────────────────────────────────────────── */
+
+  /** La lista tal como viaja: sin ids (cada máquina tiene los suyos). */
+  const syncState = () => bmsync.clean({
+    items: bookmarks.map((b) => ({ url: b.url, title: b.title, favicon: b.favicon, createdAt: b.createdAt, at: b.at || b.createdAt })),
+    gone,
+    orderAt,
+  }, now());
+
+  /** Mezcla la lista de otro equipo con la de acá. → true si algo cambió acá.
+      No avisa a onBookmarks: lo que llegó de afuera no se reenvía como propio. */
+  function mergeSync(remote) {
+    const mine = syncState();
+    const next = bmsync.merge(mine, remote, now());
+    if (bmsync.digest(next, now()) === bmsync.digest(mine, now())) return false;
+    const ids = new Map(bookmarks.map((b) => [b.url, b.id]));
+    // Un ícono guardado como data: no viaja (bmsync.cjs): acá se conserva.
+    const icons = new Map(bookmarks.map((b) => [b.url, b.favicon]));
+    let n = 0;
+    const stamp = now().toString(36);
+    bookmarks = next.items.map((x) => ({
+      id: ids.get(x.url) || `b${stamp}s${(n++).toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+      url: x.url,
+      title: x.title,
+      favicon: x.favicon || icons.get(x.url) || null,
+      createdAt: x.createdAt,
+      at: x.at,
+    }));
+    gone = next.gone;
+    orderAt = next.orderAt;
+    schedule('bookmarks');
+    return true;
+  }
+
   return {
     load, flushAll, flushAllSync,
+    syncState, mergeSync,
+    set onBookmarks(fn) { onBookmarks = fn; },
     visit, setTitle, setFavicon, faviconFor, listVisits, removeVisits, clearHistory, topSites, suggest,
     isBookmarked, listBookmarks, addBookmark, removeBookmark, updateBookmark, moveBookmark, toggleBookmark, importBookmarks,
     get visitCount() { return visits.length; },

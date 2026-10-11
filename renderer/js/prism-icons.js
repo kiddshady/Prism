@@ -71,6 +71,11 @@ Icons.add({
   splitView: '<rect x="1.6" y="2.8" width="5.6" height="10.4" rx="1.6"/><rect x="8.8" y="2.8" width="5.6" height="10.4" rx="1.6"/>',
   unsplit: '<rect x="2.4" y="2.8" width="11.2" height="10.4" rx="2"/><path d="M8 5.4v5.2" stroke-dasharray="1.2 1.6"/>',
   swap: '<path d="M2.6 5.4h10.4M10.6 3 13 5.4l-2.4 2.4M13.4 10.6H3M5.4 8.2 3 10.6 5.4 13"/>',
+  /* Tus equipos (link.cjs): el monitor y el celu juntos son «tus equipos»;
+     la laptop es uno de ellos; el avioncito, mandarle algo. */
+  devices: '<rect x="1.6" y="2.6" width="7.8" height="6.6" rx="1.2"/><path d="M3.8 12.6h3.4M5.5 9.2v3.4"/><rect x="10.8" y="5.6" width="3.6" height="7.6" rx="1"/>',
+  laptop: '<rect x="3" y="3.2" width="10" height="7" rx="1.2"/><path d="M1.6 12.8h12.8"/>',
+  send: '<path d="M14 2 7.2 8.8"/><path d="M14 2 9.6 14 7.2 8.8 2 6.4Z"/>',
   /* La calculadora de la fila de una cuenta en la barra (calc.cjs): el
      visor como una raya y seis teclas como puntos. La conversión usa `swap`. */
   calc: '<rect x="3" y="1.8" width="10" height="12.4" rx="2"/><path d="M5.6 4.8h4.8"/>'
