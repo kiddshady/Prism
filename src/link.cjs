@@ -21,9 +21,13 @@
 
    ── Encontrarse ───────────────────────────────────────────────────────────
    Por UDP en el mismo puerto: "¿quién está?" a la dirección de difusión de
-   cada red, y cada Prism prendido contesta con su nombre. Sirve para elegir
-   el equipo al emparejar sin tipear una IP, y para reencontrar uno que
-   cambió de dirección. Tailscale no difunde: ahí se escribe la dirección.
+   cada red. Sirve para elegir el equipo al emparejar sin tipear una IP, y
+   para reencontrar uno que cambió de dirección. Tailscale no difunde: ahí se
+   escribe la dirección.
+   Contesta solo quien tiene motivo: un Prism que está mostrando su PIN (lo
+   están buscando para emparejar) o uno que ya conoce al que pregunta. En una
+   red ajena (la facu, un bar, que usan los mismos rangos privados que la de
+   casa) la laptop no le dice su nombre a nadie.
 
    ── Seguridad ──────────────────────────────────────────────────────────────
    Escucha solo en loopback y en las IP privadas (LAN y Tailscale), nunca en
@@ -545,6 +549,8 @@ function createLink({
       try { msg = JSON.parse(buf.toString()); } catch { return; }
       if (!msg || msg.v !== PROTOCOL || msg.id === data.id || !idOk(msg.id)) return;
       if (msg.t === 'who') {
+        // Ver «Encontrarse» arriba: sin PIN a la vista ni conocerlo, silencio.
+        if (!pairing && !peerOf(msg.id)) return;
         const reply = Buffer.from(JSON.stringify({ t: 'here', v: PROTOCOL, id: data.id, name: data.name, port }));
         udp.send(reply, rinfo.port, rinfo.address);
       } else if (msg.t === 'here') {

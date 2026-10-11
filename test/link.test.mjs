@@ -84,11 +84,13 @@ uck.link.setEnabled(true);
 await sleep(200);
 ok('prendido, escucha', ucx.link.running && uck.link.running);
 
-const found = await uck.link.discover();
-ok('buscando en la red, encuentra al otro con su nombre', found.some((f) => f.id === ucx.link.state().me.id && f.address === '127.0.0.1' && f.port === PA), JSON.stringify(found));
+const quiet = await uck.link.discover();
+ok('sin PIN a la vista, un desconocido no le saca el nombre', !quiet.some((f) => f.id === ucx.link.state().me.id), JSON.stringify(quiet));
 
 ok('sin PIN abierto, emparejar falla', /PIN/.test(await rejects(uck.link.pair('127.0.0.1', '123456', PA))));
 const { pin } = ucx.link.openPairing();
+const found = await uck.link.discover();
+ok('mostrando el PIN, el otro lo encuentra con su nombre', found.some((f) => f.id === ucx.link.state().me.id && f.address === '127.0.0.1' && f.port === PA), JSON.stringify(found));
 ok('el PIN son 6 números', /^\d{6}$/.test(pin));
 const wrong = pin === '000000' ? '111111' : '000000';
 ok('un PIN equivocado no empareja', /PIN/.test(await rejects(uck.link.pair('127.0.0.1', wrong, PA))));
@@ -100,6 +102,7 @@ ok('y el PIN se cierra: sirve una sola vez', !ucx.link.state().pairing);
 ok('los dos se conocen', ucx.link.state().peers.length === 1 && uck.link.state().peers.length === 1);
 ok('y se conectan solos', await until(() => ucx.link.state().peers[0]?.online && uck.link.state().peers[0]?.online));
 ok('queda UNA conexión por lado aunque marquen los dos', await until(() => ucx.link.state().peers.length === 1 && uck.link.state().peers[0].online));
+ok('ya emparejados, se siguen encontrando sin PIN (por si cambia la IP)', !ucx.link.state().pairing && (await uck.link.discover()).some((f) => f.id === ucx.link.state().me.id && f.paired));
 
 console.log('\n3. Las pestañas del otro');
 ok('la UCK1 ve las pestañas web de la UCX', await until(() => uck.link.state().peers[0].tabs.length === 1));

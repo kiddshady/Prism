@@ -432,7 +432,7 @@ async function enterPinModal() {
         <span class="pr-found__addr">${esc(f.paired ? 'ya emparejado' : f.address)}</span></button>` }));
     opts.push({ key: 'other', html: `
       <button class="pr-found__opt${chosen === 'other' ? ' is-selected' : ''}" data-pick="other">
-        ${Icons.svg('edit')}<span class="pr-found__name">${searching && !found.length ? 'Buscando en tu red…' : found.length ? 'Otra dirección' : 'No apareció ninguno: escribí la dirección'}</span></button>` });
+        ${Icons.svg('edit')}<span class="pr-found__name">${searching && !found.length ? 'Buscando en tu red…' : found.length ? 'Otra dirección' : 'Ninguno a la vista: el otro tiene que estar mostrando su PIN, o escribí su dirección'}</span></button>` });
     reconcile(list, opts, { height: true });
     other.classList.toggle('is-open', chosen === 'other');
   }
