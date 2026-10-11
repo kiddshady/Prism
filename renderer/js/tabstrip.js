@@ -16,6 +16,9 @@
    Las fijadas van primero, angostas (solo el ícono), y se arrastran solo
    entre ellas; el resto reparte el ancho que queda. Las dos de una vista
    dividida van juntas, con un contorno que las une, y se arrastran en bloque.
+   Arrastrar una mitad sobre la otra las da vuelta: la que se arrastra va
+   adelante, así que para llevar el par sin darlo vuelta se toma la mitad del
+   lado hacia donde va.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { api, S, on } from './state.js';
@@ -162,8 +165,9 @@ function update(el, t) {
   el.classList.toggle('is-active', t.id === S.activeId);
   el.classList.toggle('is-error', !!(t.error || t.crashed));
   el.classList.toggle('is-pinned', !!t.pinned);
-  el.classList.toggle('is-split-a', t.split === 'a');
-  el.classList.toggle('is-split-b', t.split === 'b');
+  const side = splitSide(t);
+  el.classList.toggle('is-split-a', side === 'a');
+  el.classList.toggle('is-split-b', side === 'b');
   el.classList.toggle('is-split-shown', !!S.split && (S.split.a === t.id || S.split.b === t.id));
   el.classList.toggle('is-dormant', !!t.dormant);
   el.setAttribute('aria-selected', String(t.id === S.activeId));
@@ -213,6 +217,13 @@ export function render() {
 
 /* ── Interacción ───────────────────────────────────────────────────────── */
 
+/** De qué lado de su par está: mientras se arrastra manda el orden de la tira,
+    que puede haber dado vuelta el par antes de que el proceso principal lo sepa. */
+function splitSide(t) {
+  const i = drag?.block.length === 2 ? drag.block.indexOf(t.id) : -1;
+  return i < 0 ? t.split : i === 0 ? 'a' : 'b';
+}
+
 /** Lo que se arrastra: la pestaña sola, o su par entero en orden (a, b). */
 function blockOf(id) {
   const t = S.tabs.find((x) => x.id === id);
@@ -254,13 +265,26 @@ function onPointerMove(e) {
   drag.el.style.setProperty('--x', `${x - scroll}px`);
   const target = Math.max(lo, Math.min(hi, lo + Math.round((x - xAt(lo, w)) / (isPin ? PIN_W : w))));
   if (target === cur) return;
-  // El par viaja entero, y nunca cae adentro de otro par.
   const { block } = drag;
-  const rest = order.filter((id) => !block.includes(id));
-  const clamp = (i) => Math.max(lo, Math.min(rest.length, i));
-  let at = clamp(target - block.indexOf(drag.id));
-  if (S.tabs.find((t) => t.id === rest[at - 1])?.split === 'a') at = clamp(at + (target > cur ? 1 : -1));
-  const next = [...rest.slice(0, at), ...block, ...rest.slice(at)];
+  const start = order.indexOf(block[0]);
+  let next;
+  if (block.length === 2 && (target === start || target === start + 1)) {
+    // Sobre la otra mitad de su par: cambian de lado.
+    const other = block.find((id) => id !== drag.id);
+    drag.block = target === start ? [drag.id, other] : [other, drag.id];
+    next = [...order.slice(0, start), ...drag.block, ...order.slice(start + 2)];
+    drag.block.forEach((id, k) => {
+      els.get(id)?.classList.toggle('is-split-a', k === 0);
+      els.get(id)?.classList.toggle('is-split-b', k === 1);
+    });
+  } else {
+    // El par viaja entero, y nunca cae adentro de otro par.
+    const rest = order.filter((id) => !block.includes(id));
+    const clamp = (i) => Math.max(lo, Math.min(rest.length, i));
+    let at = clamp(target - block.indexOf(drag.id));
+    if (S.tabs.find((t) => t.id === rest[at - 1])?.split === 'a') at = clamp(at + (target > cur ? 1 : -1));
+    next = [...rest.slice(0, at), ...block, ...rest.slice(at)];
+  }
   if (next.join() === order.join()) return;
   order = next;
   layout();
@@ -268,11 +292,11 @@ function onPointerMove(e) {
 
 function onPointerUp() {
   if (!drag) return;
-  const { id, el, moved } = drag;
+  const { id, el, moved, block } = drag;
   drag = null;
   if (moved) {
     el.classList.remove('is-dragging');
-    api.tabs.move(id, order.indexOf(id));
+    api.tabs.move(id, order.indexOf(id), block.length === 2 ? (block[0] === id ? 'a' : 'b') : null);
   }
   layout();
 }

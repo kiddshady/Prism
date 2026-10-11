@@ -37,7 +37,7 @@ npm run release # publica en GitHub (ver abajo)
   enlace al costado*. La barra de direcciones maneja la mitad activa (la del
   canto de luz); un clic en la otra la vuelve la activa. El divisor se
   arrastra (doble clic: mitad y mitad), el par se arrastra entero y la sesión
-  lo recuerda. Cerrar una mitad o *Separar* lo deshace.
+  lo recuerda. Arrastrar una mitad sobre la otra las cambia de lado. Cerrar una mitad o *Separar* lo deshace.
 - **Omnibox**: dirección o búsqueda en un solo campo, autocompleta en línea los
   sitios que ya visitaste, sugiere de tu historial, tus favoritos y el buscador.
   Sin foco muestra la dirección partida — el host claro, el resto atenuado.

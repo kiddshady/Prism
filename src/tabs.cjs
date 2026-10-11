@@ -917,17 +917,22 @@ function createTabs(ctx) {
     for (const t of tabs.slice(i + 1)) if (!t.pinned) close(t.id);
   }
 
-  /** Mueve una pestaña; si es de un par, se mueve el par entero y `id` cae en `toIndex`. */
-  function move(id, toIndex) {
+  /** Mueve una pestaña; si es de un par, se mueve el par entero y `id` cae en `toIndex`.
+      Con `side` ('a' o 'b') además queda de ese lado de su par: arrastrar una
+      mitad sobre la otra da vuelta el par. */
+  function move(id, toIndex, side = null) {
     const i = indexOf(id);
     if (i < 0) return;
     const x = pairOf(id);
+    const flip = !!x && (side === 'a' || side === 'b') && (x.a === Number(id)) !== (side === 'a');
+    if (flip) flipPair(x);
     const block = x ? [get(x.a), get(x.b)] : [tabs[i]];
     const offset = block.findIndex((b) => b.id === Number(id));
     for (const b of block) tabs.splice(indexOf(b.id), 1);
     const at = clampIndex((Number(toIndex) || 0) - offset, block[0].pinned);
     tabs.splice(block[0].pinned ? at : notInsidePair(at), 0, ...block);
     for (const b of block) b.openerId = null;
+    if (flip) syncAttached();
     emit();
   }
 
@@ -996,11 +1001,15 @@ function createTabs(ctx) {
   }
 
   /** Da vuelta el par: cada página conserva su ancho, cambia de lado. */
+  function flipPair(x) {
+    [x.a, x.b] = [x.b, x.a];
+    x.ratio = clampRatio(1 - x.ratio);
+  }
+
   function swapSplit(id) {
     const x = pairOf(id);
     if (!x) return;
-    [x.a, x.b] = [x.b, x.a];
-    x.ratio = clampRatio(1 - x.ratio);
+    flipPair(x);
     normalizeSplits();
     syncAttached();
     emit();

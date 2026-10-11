@@ -728,6 +728,19 @@ app.whenReady().then(async () => {
   const otra = T.create({ url: `${BASE}/dos`, active: false });
   T.move(sn, T.list.length - 1);
   ok('mover una mueve el par entero', T.list.at(-1) === tx && T.list.at(-2) === tn);
+  T.move(sn, T.list.indexOf(tx), 'b');
+  ok('moverla al otro lado de su par da vuelta el par', T.snapshot().split.a === sx && T.list.at(-2) === tx && T.list.at(-1) === tn);
+  ok('y las vistas lo acompañan', await until(async () => same(tx.view.getBounds(), await paneRect(0)) && same(tn.view.getBounds(), await paneRect(1))));
+  /* Con el mouse, en la tira: arrastrar la izquierda sobre la derecha. */
+  await until(() => tabEl(sx, `el.classList.contains('is-split-a')`));
+  const arr = await tabEl(sx, `(() => { const r = el.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), w: Math.round(r.width) }; })()`);
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: arr.x, y: arr.y });
+  win.webContents.sendInputEvent({ type: 'mouseDown', x: arr.x, y: arr.y, button: 'left', clickCount: 1 });
+  for (let k = 1; k <= 6; k++) { win.webContents.sendInputEvent({ type: 'mouseMove', x: arr.x + Math.round(k * arr.w * 0.8 / 6), y: arr.y, button: 'left', modifiers: ['leftButtonDown'] }); await sleep(30); }
+  ok('arrastrar una mitad sobre la otra las cambia de lado ya en la tira', await until(() => tabEl(sn, `el.classList.contains('is-split-a')`) && tabEl(sx, `el.classList.contains('is-split-b')`)));
+  win.webContents.sendInputEvent({ type: 'mouseUp', x: arr.x + Math.round(arr.w * 0.8), y: arr.y, button: 'left', clickCount: 1 });
+  ok('y al soltar, el par queda dado vuelta', await until(() => T.snapshot().split?.a === sn && T.list.at(-2) === tn && T.list.at(-1) === tx), JSON.stringify(T.snapshot().split));
+  ok('con cada página en su nuevo lado', await until(async () => same(tn.view.getBounds(), await paneRect(0)) && same(tx.view.getBounds(), await paneRect(1))));
   const metida = T.create({ url: '', index: T.list.indexOf(tx), active: false });
   ok('una pestaña nueva no se mete entre las dos: va después', T.list[T.list.indexOf(tn) + 1] === tx && T.list[T.list.indexOf(tx) + 1]?.id === metida);
   T.close(metida);

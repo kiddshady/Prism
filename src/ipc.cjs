@@ -78,7 +78,7 @@ function register() {
   });
   on('tabs:close', (ctx, id) => ctx.tabs.close(num(id)));
   on('tabs:activate', (ctx, id) => ctx.tabs.activate(num(id)));
-  on('tabs:move', (ctx, id, to) => ctx.tabs.move(num(id), num(to)));
+  on('tabs:move', (ctx, id, to, side) => ctx.tabs.move(num(id), num(to), side === 'a' || side === 'b' ? side : null));
   on('tabs:duplicate', (ctx, id) => ctx.tabs.duplicate(num(id)));
   on('tabs:mute', (ctx, id) => ctx.tabs.mute(num(id)));
   on('tabs:pin', (ctx, id, pinned) => ctx.tabs.pin(num(id), !!pinned));
