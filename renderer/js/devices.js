@@ -233,7 +233,10 @@ export function devicesPage() {
     reconcile(body, items, {
       enter: painted,
       update: (sec, it) => fill(sec, it, s),
-      created: (sec, it) => fill(sec, it, s),
+      /* Una sección nace después de montar la página: sus <i data-icon> hay
+         que dibujarlos acá. Sin esto el lápiz de «Renombrar» quedaba vacío,
+         y el gap del botón empujaba el texto (16 px a la izquierda, 8 a la derecha). */
+      created: (sec, it) => { Icons.mount(sec); fill(sec, it, s); },
     });
     painted = true;
   }
