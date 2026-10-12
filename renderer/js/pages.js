@@ -1059,7 +1059,7 @@ function settingsPage() {
   function syncChips(id, list, attr, label, enter) {
     const set = col.querySelector(id);
     set.classList.toggle('is-open', list.length > 0);
-    reconcile(set.querySelector('.pr-chips'), list.map((h) => ({ key: h, html: chipHTML(h, attr, label) })), { enter });
+    reconcile(set.querySelector('.pr-chips'), list.map((h) => ({ key: h, html: chipHTML(h, attr, label) })), { enter, height: enter });
   }
 
   function sync({ first = false } = {}) {
@@ -1087,11 +1087,11 @@ function settingsPage() {
     const hintEl = col.querySelector('#s-perms-hint');
     if (first) hintEl.textContent = hint;
     else swapText(hintEl, hint, { size: true });
-    reconcile(col.querySelector('#s-perms'), perms.map(([origin, map]) => ({ key: origin, html: permRowHTML(origin, map) })), { enter });
-    reconcile(col.querySelector('#s-cmds'), (s.commands || []).map((c) => ({ key: `${c.word} ${c.url}`, html: commandRowHTML(c) })), { enter });
+    reconcile(col.querySelector('#s-perms'), perms.map(([origin, map]) => ({ key: origin, html: permRowHTML(origin, map) })), { enter, height: enter });
+    reconcile(col.querySelector('#s-cmds'), (s.commands || []).map((c) => ({ key: `${c.word} ${c.url}`, html: commandRowHTML(c) })), { enter, height: enter });
     const certs = s.certAllow || [];
     col.querySelector('#s-certs-head').classList.toggle('is-open', certs.length > 0);
-    reconcile(col.querySelector('#s-certs'), certs.map((c) => ({ key: c.host, html: certRowHTML(c) })), { enter });
+    reconcile(col.querySelector('#s-certs'), certs.map((c) => ({ key: c.host, html: certRowHTML(c) })), { enter, height: enter });
 
     // Arrancar con Windows cambia de forma solo si cambia lo que Windows deja hacer.
     const auto = col.querySelector('.pr-auto');

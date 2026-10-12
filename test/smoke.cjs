@@ -1617,6 +1617,29 @@ app.whenReady().then(async () => {
   ok('y el switch que cambió se desliza, no salta', repinte.knob.length > 2, JSON.stringify(repinte.knob));
   await ctx.saveSettings({ askDownload: antesAsk, sleepTabs: previoSleep });
 
+  /* Borrar la última fila de una lista de Ajustes (un comando): la fila sale
+     del flujo al toque, y sin plegar la caja la sección de abajo subía de un
+     cuadro al otro. Ahora espera a que la fila se esfume y baja deslizándose. */
+  const previosCmds = ctx.settings.commands;
+  await ctx.saveSettings({ commands: [...(previosCmds || []), { word: 'humo-a', url: 'https://a.example' }, { word: 'humo-b', url: 'https://b.example' }] });
+  await sleep(900);
+  const pliegue = await js(`new Promise((res) => {
+    const list = document.querySelector('.pr-view[data-page="ajustes"] #s-cmds');
+    const next = list.closest('.pr-set').nextElementSibling;
+    const y0 = next.getBoundingClientRect().top;
+    const ys = []; const t0 = performance.now();
+    list.querySelector('[data-cmd-del="humo-b"]').click();
+    const tick = () => {
+      ys.push(Math.round((next.getBoundingClientRect().top - y0) * 10) / 10);
+      if (performance.now() - t0 < 700) return requestAnimationFrame(tick);
+      res(ys);
+    };
+    requestAnimationFrame(tick);
+  })`);
+  const fin = pliegue.at(-1);
+  ok('borrar la última fila de una lista no hace saltar lo de abajo', fin < -20 && pliegue[0] === 0 && new Set(pliegue.filter((y) => y < 0 && y > fin)).size >= 3, JSON.stringify(pliegue));
+  await ctx.saveSettings({ commands: previosCmds });
+
   /* Cambiar de página propia: la que se va se desvanece (antes un estilo en
      línea le apagaba la animación y quedaba entera encima de la nueva), y la
      nueva espera su turno. */
