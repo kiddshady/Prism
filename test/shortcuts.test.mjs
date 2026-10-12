@@ -6,7 +6,7 @@
 
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const { match, forShell, TABLE } = require('../src/shortcuts.cjs');
+const { match, forShell, forTerm, TABLE } = require('../src/shortcuts.cjs');
 
 let pass = 0; let fail = 0;
 const ok = (n, c, x = '') => { if (c) { pass++; console.log(`  ok   ${n}`); } else { fail++; console.log(`  FALLA ${n} ${x}`); } };
@@ -86,6 +86,17 @@ shell('Ctrl+Ñ sigue siendo de Prism', key('ñ', { control: true }, 'Semicolon')
 shell('Ctrl+Mayús+R sigue siendo de Prism', key('R', { control: true, shift: true }), false);
 shell('F5 sigue siendo de Prism', key('F5', {}, 'F5'), false);
 shell('F6 sigue siendo de Prism (para salir a la barra)', key('F6', {}, 'F6'), false);
+
+console.log('\n3d. Los de la terminal (con ella enfocada)');
+const term = (name, input, expected) => ok(`${name} → ${expected}`, forTerm(input) === expected, String(forTerm(input)));
+term('Alt+Mayús+D divide', key('D', { alt: true, shift: true }), 'term:split');
+term('Alt+Mayús+Izquierda va a la mitad de la izquierda', key('ArrowLeft', { alt: true, shift: true }, 'ArrowLeft'), 'term:prev');
+term('Alt+Mayús+Derecha va a la de la derecha', key('ArrowRight', { alt: true, shift: true }, 'ArrowRight'), 'term:next');
+term('Alt+D solo sigue siendo de la shell', key('d', { alt: true }), null);
+term('Alt+Izquierda solo sigue siendo de la shell', key('ArrowLeft', { alt: true }, 'ArrowLeft'), null);
+term('Ctrl+Alt+Mayús+D no', key('D', { alt: true, shift: true, control: true }), null);
+term('dejar apretado Alt+Mayús+D no divide en ráfaga', { ...key('D', { alt: true, shift: true }), isAutoRepeat: true }, null);
+ok('en la tabla de Ajustes', TABLE.some(([, k]) => k === 'Alt+Mayús+D'));
 
 console.log('\n4. La tabla de Ajustes');
 ok('tiene filas', TABLE.length > 10);

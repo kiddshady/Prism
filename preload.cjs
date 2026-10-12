@@ -264,14 +264,19 @@ contextBridge.exposeInMainWorld('prism', {
     onChanged: listen('pass:changed'),
   },
 
-  /** La terminal: una sola PowerShell, que vive en el proceso principal. */
+  /** La terminal: una PowerShell por mitad («a», y «b» si está dividida),
+      que viven en el proceso principal. */
   term: {
-    /** Abre la shell o se engancha a la que corre: { session, started, backlog }. */
-    open: (cols, rows, fresh = false) => call('term:open', { cols, rows, fresh }),
-    /** Cierra la shell y abre otra. */
-    restart: (cols, rows) => call('term:restart', { cols, rows }),
-    write: (data) => send('term:write', data),
-    resize: (cols, rows) => send('term:resize', cols, rows),
+    /** Abre la shell de la mitad o se engancha a la que corre: { pane, session, started, backlog }. */
+    open: (pane, cols, rows, fresh = false) => call('term:open', { pane, cols, rows, fresh }),
+    /** Cierra la shell de la mitad y abre otra. */
+    restart: (pane, cols, rows) => call('term:restart', { pane, cols, rows }),
+    /** Cierra la shell de la mitad, sin abrir otra (la división que se deshace). */
+    close: (pane) => call('term:close', pane),
+    /** Las mitades con su shell viva. */
+    panes: () => call('term:panes'),
+    write: (pane, data) => send('term:write', data, pane),
+    resize: (pane, cols, rows) => send('term:resize', cols, rows, pane),
     focused: (on) => send('term:focus', !!on),
     stats: () => call('term:stats'),
     branch: (dir) => call('term:branch', dir),

@@ -108,6 +108,20 @@ function forShell(i) {
   return (ctrl || !!i.alt) && !i.shift;
 }
 
+/* Con la terminal enfocada, sus propios atajos (los de Windows Terminal):
+   Alt+Mayús+D la divide en dos, y Alt+Mayús con las flechas pasa de una
+   mitad a la otra. Solo valen ahí: en una página, Alt+Mayús+Izq sigue
+   siendo «atrás». */
+function forTerm(i) {
+  if (!i || i.type !== 'keyDown' || i.isAutoRepeat) return null;
+  if (!i.alt || !i.shift || i.control || i.meta) return null;
+  const k = String(i.key || '').toLowerCase();
+  if (k === 'd' || i.code === 'KeyD') return 'term:split';
+  if (k === 'arrowleft' || k === 'arrowup') return 'term:prev';
+  if (k === 'arrowright' || k === 'arrowdown') return 'term:next';
+  return null;
+}
+
 /** La tabla que muestra Ajustes: se deriva del mismo lugar para no mentir. */
 const TABLE = [
   ['Nueva pestaña', 'Ctrl+T'],
@@ -133,6 +147,8 @@ const TABLE = [
   ['Código fuente', 'Ctrl+U'],
   ['Herramientas de desarrollo', 'F12'],
   ['Terminal (o volver a donde estabas)', 'Ctrl+Ñ'],
+  ['Dividir la terminal en dos (con ella enfocada)', 'Alt+Mayús+D'],
+  ['Pasar a la otra mitad de la terminal', 'Alt+Mayús+Izq · Alt+Mayús+Der'],
   ['Pantalla completa', 'F11'],
   ['Salir de Prism (cerrar lo manda a la bandeja)', 'Ctrl+Mayús+Q'],
   ['Mostrar u ocultar Prism, desde cualquier lado de Windows', 'Ctrl+Alt+P'],
@@ -142,4 +158,4 @@ const TABLE = [
     (ver main.cjs). En formato de Electron, no el de la tabla. */
 const GLOBAL_TOGGLE = 'CommandOrControl+Alt+P';
 
-module.exports = { match, forShell, TABLE, GLOBAL_TOGGLE };
+module.exports = { match, forShell, forTerm, TABLE, GLOBAL_TOGGLE };

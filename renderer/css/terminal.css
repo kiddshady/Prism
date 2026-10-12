@@ -19,6 +19,30 @@
   flex-direction: column;
 }
 
+/* ── Las mitades ─────────────────────────────────────────────────────────
+   Una sola, o dos lado a lado (dividida). Cada una lleva su pestaña y su
+   pantalla; las separa una línea vertical igual a las otras dos, que nace en
+   la de arriba y llega a la de abajo. */
+.pr-term__panes {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.pr-term__pane {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pr-term__pane + .pr-term__pane { box-shadow: inset 1px 0 0 var(--pr-term-line); }
+/* La mitad nueva aparece; la que se cierra se esfuma antes de irse. */
+.pr-term__pane.is-entering { animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both; }
+.pr-term__pane[data-state='closing'] {
+  animation: op-fade-out 160ms var(--op-ease-both) both;
+  pointer-events: none;
+}
+
 /* ── Arriba: la pestaña de la shell, apoyada en su línea ─────────────────── */
 .pr-term__head {
   flex: 0 0 auto;
@@ -32,6 +56,7 @@
 .pr-term__tab {
   position: relative;
   display: flex;
+  cursor: default;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -53,8 +78,8 @@
   box-shadow: 0 0 10px rgb(var(--op-accent-rgb) / .18);
   transition: background-color var(--op-t-2) var(--op-ease-soft), box-shadow var(--op-t-2) var(--op-ease-soft);
 }
-.pr-view.is-focus .pr-term__tab { color: var(--op-text); }
-.pr-view.is-focus .pr-term__tab::after {
+.pr-term__pane.is-focus .pr-term__tab { color: var(--op-text); }
+.pr-term__pane.is-focus .pr-term__tab::after {
   background: rgb(var(--op-accent-rgb) / .92);
   box-shadow: 0 0 10px rgb(var(--op-accent-rgb) / .38);
 }
@@ -73,7 +98,7 @@
   filter: drop-shadow(0 0 3px rgb(var(--op-accent-rgb) / .7));
   transition: color var(--op-t-3) var(--op-ease-soft), filter var(--op-t-3) var(--op-ease-soft);
 }
-.pr-view.is-dead .pr-term__tri { color: var(--op-text-4); filter: drop-shadow(0 0 3px rgb(var(--op-accent-rgb) / 0)); }
+.pr-term__pane.is-dead .pr-term__tri { color: var(--op-text-4); filter: drop-shadow(0 0 3px rgb(var(--op-accent-rgb) / 0)); }
 .pr-term__num {
   font-family: var(--op-mono);
   font-size: var(--op-fs-11);
@@ -101,6 +126,43 @@
   white-space: nowrap;
   user-select: text;
 }
+
+/* Dividir (con una mitad) y cerrar esta mitad (con dos), a la derecha de la
+   pestaña. El que no va se pliega: ancho y opacidad, nunca display. */
+.pr-term__act {
+  appearance: none;
+  align-self: center;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  max-width: 22px;
+  height: 22px;
+  margin: 0 0 0 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--op-r-xs, 6px);
+  background: transparent;
+  color: var(--op-text-3);
+  font: inherit;
+  overflow: hidden;
+  cursor: pointer;
+  transition: color var(--op-t-1) var(--op-ease-soft), background-color var(--op-t-1) var(--op-ease-soft),
+    max-width var(--op-t-2) var(--op-ease), margin var(--op-t-2) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft);
+}
+.pr-term__act:first-of-type { margin-left: auto; }
+.pr-term__act:hover { color: var(--op-text); background-color: rgb(255 255 255 / .06); }
+.pr-term__act:active { background-color: rgb(255 255 255 / .1); }
+.pr-term__act .op-icon { width: 14px; height: 14px; }
+.pr-term:not(.is-split) .pr-term__act[data-act='close'],
+.pr-term.is-split .pr-term__act[data-act='split'] {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Plegado el de dividir, el de cerrar es el que empuja a la derecha. */
+.pr-term.is-split .pr-term__act[data-act='close'] { margin-left: auto; }
 
 /* ── La pantalla ─────────────────────────────────────────────────────────── */
 .pr-term__body {
@@ -165,7 +227,7 @@
   color: var(--pr-term-fg);
 }
 /* La sesión terminó: el cursor se apaga del todo. */
-.pr-view.is-dead .pr-term__screen .xterm .xterm-rows .xterm-cursor {
+.pr-term__pane.is-dead .pr-term__screen .xterm .xterm-rows .xterm-cursor {
   animation: none;
   background-color: transparent;
   box-shadow: none;

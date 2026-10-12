@@ -1650,6 +1650,39 @@ app.whenReady().then(async () => {
     ok('un comando que tarda muestra el «run» con su tiempo (OSC 133)', await until(() => js(`(() => { const r = document.querySelector('.pr-view[data-page="terminal"] .pr-term__run'); return r.classList.contains('is-on') && /\\d+s/.test(r.innerText); })()`), 5000));
     ok('y se va cuando termina', await until(() => js(`!document.querySelector('.pr-view[data-page="terminal"] .pr-term__run.is-on')`), 5000));
     ok('el cursor es un bloque con aura', await js(`(() => { const c = document.querySelector('.pr-view[data-page="terminal"] .xterm-cursor'); return !!c && c.classList.contains('xterm-cursor-block') && getComputedStyle(c).boxShadow !== 'none'; })()`));
+
+    /* Dividida en dos: cada mitad con su shell, lo de una no cae en la otra,
+       la barra de abajo sigue a la que tiene el teclado y un `exit` la junta. */
+    const T = `.pr-view[data-page="terminal"]`;
+    const mitades = () => js(`document.querySelectorAll('${T} .pr-term__pane:not([data-state="closing"])').length`);
+    const filas = (n) => `document.querySelectorAll('${T} .pr-term__pane')[${n}].querySelector('.xterm-rows').innerText`;
+    ok('con una sola, el botón de dividir está y el de cerrar no', await js(`(() => { const s = getComputedStyle(document.querySelector('${T} [data-act="split"]')); const c = getComputedStyle(document.querySelector('${T} [data-act="close"]')); return s.opacity === '1' && c.pointerEvents === 'none'; })()`));
+    ctx.send('cmd', 'term:split');
+    ok('Alt+Mayús+D la divide en dos mitades', await until(async () => (await mitades()) === 2));
+    ok('cada mitad con su shell', await until(() => ctx.term.panes().join() === 'a,b', 8000), ctx.term.panes().join());
+    ok('la nueva dibuja su prompt', await until(() => js(`${filas(1)}.trim().length > 0`), 15000));
+    ok('y se lleva el teclado', await until(() => js(`document.querySelectorAll('${T} .pr-term__pane')[1].classList.contains('is-focus')`), 3000));
+    ok('las dos lado a lado, mitad y mitad', await js(`(() => { const [a, b] = [...document.querySelectorAll('${T} .pr-term__pane')].map((e) => e.getBoundingClientRect()); return Math.abs(a.width - b.width) <= 1 && a.top === b.top && a.height === b.height && b.left >= a.right - 1; })()`));
+    ok('las pestañas se numeran 01 y 02', await until(() => js(`[...document.querySelectorAll('${T} .pr-term__num')].map((e) => e.textContent.trim()).join() === '01,02'`), 3000));
+    ctx.term.write(ctx, 'echo prism-mitad-b\r', 'b');
+    ok('lo de la derecha corre en la derecha', await until(() => js(`${filas(1)}.includes('prism-mitad-b')`), 8000));
+    ok('y no cae en la izquierda', !(await js(`${filas(0)}.includes('prism-mitad-b')`)));
+    ctx.term.write(ctx, 'cd C:\\Windows\r', 'b');
+    ok('la barra de abajo sigue a la mitad con el teclado', await until(() => js(`document.querySelector('${T} .pr-term__cwd').dataset.tip === 'C:\\\\Windows'`), 8000));
+    ctx.send('cmd', 'term:prev');
+    ok('Alt+Mayús+Izq le pasa el teclado a la izquierda', await until(() => js(`document.querySelectorAll('${T} .pr-term__pane')[0].classList.contains('is-focus')`), 3000));
+    ok('y la barra de abajo pasa a su carpeta', await until(() => js(`document.querySelector('${T} .pr-term__cwd').dataset.tip !== 'C:\\\\Windows'`), 3000));
+    ctx.term.write(ctx, 'exit\r', 'b');
+    ok('un exit en una mitad la cierra', await until(async () => (await mitades()) === 1 && ctx.term.panes().join() === 'a', 8000), ctx.term.panes().join());
+    ok('y la otra se queda con toda la pestaña', await until(() => js(`(() => { const p = document.querySelector('${T} .pr-term__pane'); return document.querySelectorAll('${T} .pr-term__pane').length === 1 && Math.abs(p.getBoundingClientRect().width - p.parentElement.getBoundingClientRect().width) <= 1; })()`), 3000));
+    ok('con su shell viva', ctx.term.alive && await js(`!document.querySelector('${T} .pr-term__pane').classList.contains('is-dead')`));
+    await js(`document.querySelector('${T} [data-act="split"]').click()`);
+    ok('el botón de arriba también la divide', await until(() => ctx.term.panes().join() === 'a,b', 8000));
+    ok('y con dos, el de cerrar está', await until(() => js(`document.querySelector('${T} .pr-term').classList.contains('is-split') && getComputedStyle(document.querySelectorAll('${T} [data-act="close"]')[1]).pointerEvents !== 'none'`), 3000));
+    await js(`document.querySelectorAll('${T} [data-act="close"]')[0].click()`);
+    ok('cerrar la de la izquierda deja la de la derecha', await until(async () => (await mitades()) === 1 && ctx.term.panes().join() === 'b', 8000), ctx.term.panes().join());
+    ok('que pasa a ser la 01', await until(() => js(`[...document.querySelectorAll('${T} .pr-term__num')].map((e) => e.textContent.trim()).join() === '01'`), 3000));
+
     const termId = ctx.tabs.active.id;
     ok('pedir otra terminal lleva a la misma', ctx.tabs.create({ url: 'prism://terminal' }) === termId && ctx.tabs.list.filter((t) => t.internal === 'terminal').length === 1);
     ctx.command('term:toggle');

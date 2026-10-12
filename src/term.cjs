@@ -2,8 +2,9 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PRISM — la terminal
-   Una sola shell: PowerShell 7 en una pty (node-pty sobre ConPTY), dibujada
-   por xterm.js en la pestaña prism://terminal de la ventana normal. Vive acá,
+   PowerShell 7 en una pty (node-pty sobre ConPTY), dibujada por xterm.js en
+   la pestaña prism://terminal de la ventana normal. Una shell por mitad: la
+   pestaña se puede dividir en dos («a» y «b»), cada una con la suya. Vive acá,
    en el proceso principal, y no en la pestaña: si la interfaz se recarga (se
    cayó y recover.cjs la levanta) la shell sigue, y al volver se le repasa lo
    último que escribió.
@@ -96,42 +97,43 @@ function cpuSample() {
   return { idle, total };
 }
 
+/** Las mitades: la terminal se divide en dos y no más. */
+const PANES = ['a', 'b'];
+const paneOf = (id) => (PANES.includes(id) ? id : 'a');
+
 function createTerm(ctx) {
   let pty = null;        // node-pty, cargado recién cuando se abre la primera shell
-  let proc = null;
-  let session = 0;
-  let backlog = '';
-  let pending = '';
-  let flushTimer = null;
+  let seq = 0;           // las sesiones se numeran para toda la ventana
   let lastCpu = cpuSample();
-  let alive = false;
+  /** Una shell por mitad: { proc, session, backlog, pending, flushTimer }. */
+  const shells = new Map();
 
   const mine = (w) => {
     if (w.private) throw new Error('La terminal vive en la ventana normal.');
   };
 
-  function flush() {
-    flushTimer = null;
-    if (!pending) return;
-    const chunk = pending;
-    pending = '';
-    ctx.send('term:data', { session, data: chunk });
+  function flush(pane, sh) {
+    sh.flushTimer = null;
+    if (!sh.pending) return;
+    const chunk = sh.pending;
+    sh.pending = '';
+    ctx.send('term:data', { pane, session: sh.session, data: chunk });
   }
 
-  function onData(data) {
-    backlog += data;
-    if (backlog.length > BACKLOG_MAX) {
+  function onData(pane, sh, data) {
+    sh.backlog += data;
+    if (sh.backlog.length > BACKLOG_MAX) {
       // Se corta en un salto de línea: cortando en cualquier lado podía quedar
       // media secuencia de escape al principio, y el repaso la dibujaba.
-      const from = backlog.length - BACKLOG_MAX * 0.75;
-      const nl = backlog.indexOf('\n', from);
-      backlog = backlog.slice(nl < 0 ? from : nl + 1);
+      const from = sh.backlog.length - BACKLOG_MAX * 0.75;
+      const nl = sh.backlog.indexOf('\n', from);
+      sh.backlog = sh.backlog.slice(nl < 0 ? from : nl + 1);
     }
-    pending += data;
-    if (!flushTimer) flushTimer = setTimeout(flush, FLUSH_MS);
+    sh.pending += data;
+    if (!sh.flushTimer) sh.flushTimer = setTimeout(() => flush(pane, sh), FLUSH_MS);
   }
 
-  function spawn(cols, rows) {
+  function spawn(pane, cols, rows) {
     const exe = findPwsh();
     if (!exe) throw new Error('No encontré PowerShell 7 (pwsh.exe). Se instala con: winget install Microsoft.PowerShell');
     pty = pty || require('node-pty');
@@ -148,11 +150,9 @@ function createTerm(ctx) {
       PRISM_TERM_INIT: INIT,
       NTX_ACCENT: '#f0f3f7',   // la esquina del prompt de NTX, en la luz de Prism
     });
-    session += 1;
-    backlog = '';
-    pending = '';
-    const mySession = session;
-    proc = pty.spawn(exe, ['-NoLogo', '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command', '. $env:PRISM_TERM_INIT'], {
+    seq += 1;
+    const sh = { proc: null, session: seq, backlog: '', pending: '', flushTimer: null };
+    sh.proc = pty.spawn(exe, ['-NoLogo', '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command', '. $env:PRISM_TERM_INIT'], {
       name: 'xterm-256color',
       cols: Math.max(20, cols | 0),
       rows: Math.max(5, rows | 0),
@@ -161,57 +161,68 @@ function createTerm(ctx) {
       useConpty: true,
       useConptyDll: true,
     });
-    alive = true;
-    proc.onData(onData);
-    proc.onExit(({ exitCode }) => {
-      if (mySession !== session) return;
-      flush();
-      alive = false;
-      proc = null;
-      ctx.send('term:exit', { session: mySession, code: exitCode });
+    shells.set(pane, sh);
+    // Lo que todavía escriba una shell que ya se fue (o que reemplazaron) no es de nadie.
+    const current = () => shells.get(pane) === sh;
+    sh.proc.onData((data) => { if (current()) onData(pane, sh, data); });
+    sh.proc.onExit(({ exitCode }) => {
+      if (!current()) return;
+      clearTimeout(sh.flushTimer);
+      flush(pane, sh);
+      shells.delete(pane);
+      ctx.send('term:exit', { pane, session: sh.session, code: exitCode });
     });
+    return sh;
   }
 
-  function kill() {
-    if (!proc) return;
-    const p = proc;
-    proc = null;
-    alive = false;
-    session += 1;      // lo que todavía escriba la que se va, ya no es de nadie
-    clearTimeout(flushTimer);
-    flushTimer = null;
-    pending = '';
-    backlog = '';
-    try { p.kill(); } catch { /* ya se había ido */ }
+  function killPane(pane) {
+    const sh = shells.get(pane);
+    if (!sh) return;
+    shells.delete(pane);
+    clearTimeout(sh.flushTimer);
+    try { sh.proc.kill(); } catch { /* ya se había ido */ }
   }
+
+  const kill = () => [...shells.keys()].forEach(killPane);
 
   return {
-    /** Abre la shell (o se engancha a la que ya corre). `fresh`: la interfaz
-        no tiene nada dibujado, así que vuelve lo último que se escribió. */
-    open(w, { cols = 80, rows = 24, fresh = false } = {}) {
+    /** Abre la shell de una mitad (o se engancha a la que ya corre). `fresh`:
+        la interfaz no tiene nada dibujado, así que vuelve lo último que se escribió. */
+    open(w, { pane, cols = 80, rows = 24, fresh = false } = {}) {
       mine(w);
-      if (!alive) {
-        spawn(cols, rows);
-        return { session, started: true, backlog: '' };
+      const id = paneOf(pane);
+      const sh = shells.get(id);
+      if (!sh) {
+        const born = spawn(id, cols, rows);
+        return { pane: id, session: born.session, started: true, backlog: '' };
       }
-      try { proc.resize(Math.max(20, cols | 0), Math.max(5, rows | 0)); } catch { /* se estaba yendo */ }
-      return { session, started: false, backlog: fresh ? backlog : '' };
+      try { sh.proc.resize(Math.max(20, cols | 0), Math.max(5, rows | 0)); } catch { /* se estaba yendo */ }
+      return { pane: id, session: sh.session, started: false, backlog: fresh ? sh.backlog : '' };
     },
     restart(w, size = {}) {
       mine(w);
-      kill();
+      killPane(paneOf(size.pane));
       return this.open(w, size);
     },
-    write(w, data) {
-      if (w.private || !proc) return;
-      proc.write(String(data));
+    write(w, data, pane) {
+      const sh = shells.get(paneOf(pane));
+      if (w.private || !sh) return;
+      sh.proc.write(String(data));
     },
-    resize(w, cols, rows) {
-      if (w.private || !proc) return;
+    resize(w, cols, rows, pane) {
+      const sh = shells.get(paneOf(pane));
+      if (w.private || !sh) return;
       const c = Math.max(20, Math.min(1000, cols | 0));
       const r = Math.max(5, Math.min(500, rows | 0));
-      try { proc.resize(c, r); } catch { /* se estaba yendo */ }
+      try { sh.proc.resize(c, r); } catch { /* se estaba yendo */ }
     },
+    /** Cierra una mitad (su cruz, o la división que se deshace). */
+    close(w, pane) {
+      if (w.private) return;
+      killPane(paneOf(pane));
+    },
+    /** Las mitades con su shell viva: la interfaz que vuelve de cero se arma con estas. */
+    panes: () => PANES.filter((id) => shells.has(id)),
     kill,
     branch: (dir) => branchFor(dir),
     stats() {
@@ -223,13 +234,13 @@ function createTerm(ctx) {
       const mem = Math.round(((os.totalmem() - os.freemem()) / os.totalmem()) * 100);
       return { cpu: Math.max(0, Math.min(100, cpu)), mem };
     },
-    /** Sin la pestaña de la terminal, la shell se cierra (la pestaña cerrada,
+    /** Sin la pestaña de la terminal, las shells se cierran (la pestaña cerrada,
         o navegada a otra página). Lo llama tabs.cjs con cada cambio. */
     sync(w, tabs) {
-      if (w.private || !proc) return;
+      if (w.private || !shells.size) return;
       if (!tabs.some((t) => t.internal === 'terminal')) kill();
     },
-    get alive() { return alive; },
+    get alive() { return shells.size > 0; },
   };
 }
 

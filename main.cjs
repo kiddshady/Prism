@@ -428,6 +428,13 @@ function createWindow(w, state) {
   win.on('focus', () => { if (focusAtBlur === 'page') w.tabs?.focusPage(); });
 
   win.webContents.on('before-input-event', (e, input) => {
+    // Los atajos de la terminal (dividirla, cambiar de mitad), solo con ella enfocada.
+    const term = w.termFocus && shortcuts.forTerm(input);
+    if (term) {
+      e.preventDefault();
+      w.send('cmd', term);
+      return;
+    }
     const cmd = shortcuts.match(input);
     if (!cmd) return;
     // Con la terminal enfocada, Ctrl+R, Ctrl+L, Ctrl+W… son de la shell.

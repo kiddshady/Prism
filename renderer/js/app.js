@@ -113,6 +113,9 @@ function onCommand(cmd) {
   else if (cmd === 'print:open') openPrint();
   else if (cmd === 'print:page') openPrint({ fromPage: true });
   else if (cmd === 'term:focus') Terminal.focus();
+  else if (cmd === 'term:split') Terminal.split();
+  else if (cmd === 'term:prev') Terminal.cycle(-1);
+  else if (cmd === 'term:next') Terminal.cycle(1);
 }
 
 /* ── Arranque ────────────────────────────────────────────────────────────── */

@@ -126,9 +126,13 @@ npm run release # publica en GitHub (ver abajo)
   (git, carpetas, avisos, errores, el resaltado de PSReadLine), con color
   de verdad. Arriba, la pestaña de la shell con su carpeta; abajo, cpu,
   memoria, branch, carpeta, lo que lleva el comando que corre (pasado el
-  primer segundo) y la hora. Una sola shell: vive mientras
-  viva su pestaña, sigue si la interfaz se recarga y entra en la vista
-  dividida al lado de una página. Con ella enfocada, Ctrl+R, Ctrl+L, Ctrl+W y
+  primer segundo) y la hora. Se divide en dos (Alt+Mayús+D, el botón de
+  arriba a la derecha o el menú del click derecho): dos mitades lado a lado,
+  cada una con su shell, y Alt+Mayús+flechas pasa el teclado de una a la
+  otra. La barra de abajo muestra lo de la mitad con el teclado; la cruz de
+  una mitad (o un `exit` en ella) la cierra. Las shells viven mientras viva
+  su pestaña, siguen si la interfaz se recarga (vuelve dividida) y la
+  pestaña entra en la vista dividida al lado de una página. Con ella enfocada, Ctrl+R, Ctrl+L, Ctrl+W y
   Alt+flechas son de la shell, y Ctrl++ / Ctrl+- cambian la letra.
 - **Atajos** de Chrome (la tabla completa está en Ajustes).
 - **Vive en la bandeja.** Cerrar la ventana no cierra Prism: se esconde con
@@ -366,7 +370,7 @@ src/
   bookmarks-import.cjs  Favoritos de Chrome/Edge/Brave o de un HTML. Puro, con tests.
   prompts.cjs         Preguntas que nacen acá y se contestan en el cromo.
   shortcuts.cjs       Atajos. Puro, con tests.
-  term.cjs            La terminal: PowerShell 7 en una pty, la salida por tandas,
+  term.cjs            La terminal: una PowerShell 7 por mitad en una pty, la salida por tandas,
                       el branch sin correr git, cpu y memoria.
   term-init.ps1       Lo que corre después del $PROFILE: UTF-8, el prompt en grises,
                       OSC 7 (la carpeta) y OSC 133 (el «run»).
@@ -387,7 +391,7 @@ renderer/
   js/toolbar.js       Navegación, buscar en la página, escudo, descargas.
   js/pages.js         Nueva pestaña, historial, favoritos, descargas, ajustes.
   js/bmbar.js         La barra de favoritos.
-  js/terminal.js      La terminal: una sola xterm que pasa de página en página.
+  js/terminal.js      La terminal: una xterm por mitad, que pasan de página en página.
   css/terminal.css    Sus dos líneas de luz y el cursor de bloque.
   vendor/xterm/       xterm.js, copiado de node_modules (tools/vendor-xterm.mjs).
   js/print.js         La pantalla de impresión: opciones y hojas (con pdf.js).

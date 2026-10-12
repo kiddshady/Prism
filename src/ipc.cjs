@@ -128,14 +128,17 @@ function register() {
   on('page:photo-ready', (ctx, nonce) => ctx.tabs.photoReady(num(nonce)));
 
   /* ── La terminal (src/term.cjs) ────────────────────────────────────────── */
-  handle('term:open', (ctx, opts = {}) => ctx.term.open(ctx, { cols: num(opts.cols), rows: num(opts.rows), fresh: !!opts.fresh }));
-  on('term:write', (ctx, data) => ctx.term.write(ctx, str(data, 1 << 20)));
-  on('term:resize', (ctx, cols, rows) => ctx.term.resize(ctx, num(cols), num(rows)));
+  // La mitad («a» o «b») la valida term.cjs: cualquier otra cosa es la «a».
+  handle('term:open', (ctx, opts = {}) => ctx.term.open(ctx, { pane: str(opts.pane, 4), cols: num(opts.cols), rows: num(opts.rows), fresh: !!opts.fresh }));
+  on('term:write', (ctx, data, pane) => ctx.term.write(ctx, str(data, 1 << 20), str(pane, 4)));
+  on('term:resize', (ctx, cols, rows, pane) => ctx.term.resize(ctx, num(cols), num(rows), str(pane, 4)));
   // Mientras la terminal tenga el foco, los Ctrl+letra son de la shell (main.cjs).
   on('term:focus', (ctx, focused) => { ctx.termFocus = !!focused; });
   handle('term:stats', (ctx) => ctx.term.stats());
   handle('term:branch', (ctx, dir) => ctx.term.branch(str(dir, 1024)));
-  handle('term:restart', (ctx, opts = {}) => ctx.term.restart(ctx, { cols: num(opts.cols), rows: num(opts.rows) }));
+  handle('term:restart', (ctx, opts = {}) => ctx.term.restart(ctx, { pane: str(opts.pane, 4), cols: num(opts.cols), rows: num(opts.rows) }));
+  handle('term:close', (ctx, pane) => ctx.term.close(ctx, str(pane, 4)));
+  handle('term:panes', (ctx) => (ctx.private ? [] : ctx.term.panes()));
 
   /* ── La página y los overlays ──────────────────────────────────────────── */
   on('page:insets', (ctx, i) => ctx.tabs.setInsets(i));
