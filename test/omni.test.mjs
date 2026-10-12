@@ -84,5 +84,27 @@ console.log('\n6. Sugerencias remotas');
 ok('formato OpenSearch', JSON.stringify(omni.parseRemoteSuggest(['q', ['a', ' b ', 3, '']])) === '["a","b"]');
 ok('basura → vacío', omni.parseRemoteSuggest({ x: 1 }).length === 0 && omni.parseRemoteSuggest(null).length === 0);
 
+console.log('\n7. Comandos');
+const cmds = [{ word: 'moodle', url: 'https://sied.umaza.edu.ar/' }, { word: 'gh', url: 'https://github.com/' }, { word: 'mail', url: 'https://mail.google.com/' }];
+const c1 = omni.classify('moodle', 'google', cmds);
+ok('la palabra sola lleva a su dirección', c1?.type === 'url' && c1.url === 'https://sied.umaza.edu.ar/' && c1.command === 'moodle', JSON.stringify(c1));
+ok('sin importar mayúsculas ni espacios', omni.classify('  Moodle ', 'google', cmds)?.command === 'moodle');
+ok('con algo más es una búsqueda (no se combinan)', omni.classify('moodle farmaco', 'google', cmds)?.type === 'search');
+ok('un sitio con punto sigue siendo un sitio', omni.classify('gh.io', 'google', cmds)?.url === 'https://gh.io');
+ok('sin comandos, la palabra se busca', omni.classify('moodle')?.type === 'search');
+ok('una palabra que no es comando se busca', omni.classify('moodl', 'google', cmds)?.type === 'search');
+ok('commandsStarting sugiere por el principio', JSON.stringify(omni.commandsStarting('m', cmds).map((c) => c.word)) === '["moodle","mail"]');
+ok('y no repite el exacto', omni.commandsStarting('gh', cmds).length === 0);
+ok('ni sugiere con espacios', omni.commandsStarting('m x', cmds).length === 0);
+const cc = omni.cleanCommand({ word: ' Moodle ', url: 'sied.umaza.edu.ar' });
+ok('cleanCommand normaliza palabra y dirección', cc.word === 'moodle' && cc.url === 'https://sied.umaza.edu.ar', JSON.stringify(cc));
+ok('acepta páginas propias', omni.cleanCommand({ word: 'h', url: 'prism://historial' }).url === 'prism://historial');
+const bad = (w, u) => { try { omni.cleanCommand({ word: w, url: u }); return false; } catch { return true; } };
+ok('rechaza palabra con espacio', bad('mi campus', 'umaza.edu.ar'));
+ok('rechaza palabra con punto', bad('a.b', 'umaza.edu.ar'));
+ok('rechaza dirección que es una búsqueda', bad('x', 'hola que tal'));
+ok('rechaza javascript:', bad('x', 'javascript:alert(1)'));
+ok('rechaza vacíos', bad('', 'umaza.edu.ar') && bad('x', ''));
+
 console.log(`\n═══ ${pass} ok · ${fail} fallas ═══`);
 process.exit(fail ? 1 : 0);

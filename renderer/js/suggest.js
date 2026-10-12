@@ -12,6 +12,8 @@
    · La primera fila es SIEMPRE lo que va a hacer Enter.
    · Si lo tipeado es una cuenta o una conversión ("250/3", "500 mg a g"),
      la segunda fila es el resultado (calc.cjs). Elegirla lo copia.
+   · Un comando tuyo (Ajustes → Búsqueda) escrito entero es lo que hace Enter;
+     los que empiezan con lo tipeado se ofrecen abajo, antes del historial.
    · Flechas recorren la lista y muestran en el campo a dónde lleva cada fila.
    · Tab acepta el autocompletado; Escape cierra la lista primero.
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -92,13 +94,20 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
     const c = local.classified;
     if (c?.type === 'url') {
       const p = splitUrl(c.url);
-      out.push({ kind: 'go', icon: 'globe', main: (p.host || '') + p.rest || c.url, sub: 'Ir al sitio', value: text, url: c.url });
+      const sub = c.command ? `Comando «${c.command}»` : 'Ir al sitio';
+      out.push({ kind: 'go', icon: c.command ? 'zap' : 'globe', main: (p.host || '') + p.rest || c.url, sub, value: text, url: c.url });
     } else {
       out.push({ kind: 'search', icon: 'search', main: text, sub: `Buscar en ${engineName()}`, value: text });
     }
     const a = local.answer;
     if (a) out.push({ kind: 'answer', icon: a.kind === 'convert' ? 'swap' : 'calc', answer: a, sub: 'Copiar el resultado', value: text });
+    // Los comandos que empiezan con lo tipeado, antes que el historial: son los tuyos.
     const seen = new Set([c?.url]);
+    for (const cmd of local.commands || []) {
+      const p = splitUrl(cmd.url);
+      seen.add(cmd.url);
+      out.push({ kind: 'command', icon: 'zap', main: cmd.word, word: cmd.word, sub: (p.host || '') + p.rest || cmd.url, value: cmd.url, url: cmd.url });
+    }
     for (const it of local.items) {
       if (seen.has(it.url)) continue;
       seen.add(it.url);
@@ -141,7 +150,7 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
     return `<button class="pr-sugg${i === sel ? ' is-active' : ''}" data-i="${i}" tabindex="-1">
         <span class="pr-sugg__icon">${icon}</span>
         <span class="pr-sugg__main">${r.kind === 'remote' ? highlightRest(r.main, q) : highlight(r.main, q)}</span>
-        ${r.sub ? `<span class="pr-sugg__sub">${highlight(r.sub, r.kind === 'search' || r.kind === 'go' ? '' : q)}</span>` : ''}
+        ${r.sub ? `<span class="pr-sugg__sub">${highlight(r.sub, r.kind === 'search' || r.kind === 'go' || r.kind === 'command' ? '' : q)}</span>` : ''}
       </button>`;
   }
 
@@ -283,7 +292,7 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
       const again = await api.omni.suggest(input.value).catch(() => null);
       if (my !== seq) return;
       // La cuenta es la de lo que tipeaste, no la del sitio que se completó.
-      if (again) local = { ...again, items: r.items, answer: r.answer };
+      if (again) local = { ...again, items: r.items, answer: r.answer, commands: r.commands };
     }
 
     buildRows();
@@ -309,6 +318,8 @@ export function attachSuggest(input, { anchor, onType, onGo, onEscape } = {}) {
     if (sel === 0) input.value = typed + (local.inline && local.inline.toLowerCase().startsWith(typed.toLowerCase()) ? local.inline.slice(typed.length) : '');
     // Pararse en el resultado no pisa la cuenta: el número se copia, no se busca.
     else if (r.kind === 'answer') input.value = typed;
+    // Un comando se muestra como se escribe: la palabra, no su dirección.
+    else if (r.kind === 'command') input.value = r.word;
     else input.value = r.kind === 'remote' || r.kind === 'search' ? r.value : safeDecode(r.url || r.value);
     input.setSelectionRange(input.value.length, input.value.length);
     markSel();

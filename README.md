@@ -41,6 +41,11 @@ npm run release # publica en GitHub (ver abajo)
 - **Omnibox**: dirección o búsqueda en un solo campo, autocompleta en línea los
   sitios que ya visitaste, sugiere de tu historial, tus favoritos y el buscador.
   Sin foco muestra la dirección partida — el host claro, el resto atenuado.
+- **Comandos**: una palabra sola + Enter lleva a una dirección fija (`moodle`
+  → el campus, `h` → `prism://historial`). Se editan en Ajustes → Búsqueda.
+  No se combinan con una búsqueda (`yt lofi` se busca), la palabra no lleva
+  puntos (así nunca tapa un sitio) y los que empiezan con lo tipeado se
+  sugieren antes que el historial.
 - **Cuentas y conversiones** en la barra: `250/3`, `15% de 300`,
   `1000 + 21%`, `-log(1,8e-5)`, `500 mg a g`, `37 c a f`, `5 mg/ml a g/l`.
   El resultado aparece como segunda fila (la primera sigue siendo lo que hace

@@ -851,7 +851,7 @@ function createTabs(ctx) {
   function navigate(id, input) {
     const t = get(id) || active();
     if (!t) return null;
-    const r = omni.classify(input, ctx.settings.searchEngine);
+    const r = omni.classify(input, ctx.settings.searchEngine, ctx.settings.commands);
     if (!r) return null;
     load(t, r.url);
     if (t.id === activeId && t.view && !t.away) t.view.webContents.focus();

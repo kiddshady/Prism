@@ -101,6 +101,14 @@ const DEFAULT_SETTINGS = {
   certAllow: [],
   /** El tamaño de la letra de la terminal (Ctrl++ y Ctrl+- con ella enfocada). */
   termFontSize: 13,
+  /** Comandos de la barra: una palabra sola + Enter lleva a su dirección
+      (ver omni.cjs → commandFor). Se editan en Ajustes → Búsqueda. */
+  commands: [
+    { word: 'moodle', url: 'https://sied.umaza.edu.ar/' },
+    { word: 'mail', url: 'https://mail.google.com/' },
+    { word: 'yt', url: 'https://www.youtube.com/' },
+    { word: 'gh', url: 'https://github.com/' },
+  ],
 };
 
 /** Migraciones: cada función lleva el archivo de la versión N a la N+1.

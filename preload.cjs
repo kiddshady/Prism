@@ -198,6 +198,12 @@ contextBridge.exposeInMainWorld('prism', {
     onChange: listen('settings:changed'),
   },
 
+  /** Los comandos de la barra. `prev` es la palabra que se edita (null = uno nuevo). */
+  commands: {
+    save: (prev, cmd) => call('commands:save', prev, cmd),
+    remove: (word) => call('commands:remove', word),
+  },
+
   adblock: {
     toggleSite: (url) => call('adblock:toggle-site', url),
     stats: () => call('adblock:stats'),

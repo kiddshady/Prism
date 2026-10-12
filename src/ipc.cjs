@@ -160,9 +160,20 @@ function register() {
   // Desde Electron 44 el portapapeles es asíncrono, como el de la web.
   handle('clip:read', async () => (await clipboard.readText()).slice(0, 100000));
   handle('omni:suggest', (ctx, q) => {
-    const r = ctx.library.suggest(str(q, 500), 6, { history: ctx.settings.historySuggest !== false });
-    // Una cuenta o una conversión ("250/3", "500 mg a g") trae su resultado (calc.cjs).
-    return { ...r, classified: omni.classify(str(q, 500), ctx.settings.searchEngine), answer: calc.answer(str(q, 500)) };
+    const text = str(q, 500);
+    const r = ctx.library.suggest(text, 6, { history: ctx.settings.historySuggest !== false });
+    const cmds = ctx.settings.commands || [];
+    const classified = omni.classify(text, ctx.settings.searchEngine, cmds);
+    return {
+      ...r,
+      // Un comando tipeado entero no se autocompleta con un sitio del historial
+      // que empiece igual: "gh" + Enter va al comando, no a gh.io.
+      inline: classified?.command ? null : r.inline,
+      classified,
+      commands: omni.commandsStarting(text, cmds),
+      // Una cuenta o una conversión ("250/3", "500 mg a g") trae su resultado (calc.cjs).
+      answer: calc.answer(text),
+    };
   });
 
   handle('omni:remote', async (ctx, q) => {
@@ -305,6 +316,25 @@ function register() {
     if (!LISTS.has(k)) throw new Error('Esa lista no existe.');
     const v = str(value, 400);
     return ctx.updateSettings((s) => ({ [k]: (s[k] || []).filter((x) => x !== v) }));
+  });
+
+  /* Comandos de la barra (omni.cjs). Se limpian acá: lo que llega de la
+     ventana es lo que tipeó la persona. Editar uno lo deja en su lugar de la
+     lista; uno nuevo va al final. */
+  handle('commands:save', (ctx, prev, cmd = {}) => {
+    const c = omni.cleanCommand({ word: str(cmd.word, 40), url: str(cmd.url, 2000) });
+    const was = prev == null ? null : str(prev, 40);
+    return ctx.updateSettings((s) => {
+      const list = [...(s.commands || [])];
+      if (list.some((x) => x.word === c.word && x.word !== was)) throw new Error(`Ya hay un comando «${c.word}».`);
+      const i = was == null ? -1 : list.findIndex((x) => x.word === was);
+      if (i >= 0) list[i] = c; else list.push(c);
+      return { commands: list };
+    });
+  });
+  handle('commands:remove', (ctx, word) => {
+    const w = str(word, 40);
+    return ctx.updateSettings((s) => ({ commands: (s.commands || []).filter((x) => x.word !== w) }));
   });
 
   handle('adblock:toggle-site', (ctx, url) => {

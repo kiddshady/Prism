@@ -876,6 +876,37 @@ function certRowHTML(c) {
       <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-uncert="${esc(c.host)}">Olvidar</button></div></div>`;
 }
 
+/** Una fila de comando: la palabra como se escribe y a dónde lleva. */
+function commandRowHTML(c) {
+  const p = c.url.startsWith('prism://') ? c.url : c.url.replace(/^https:\/\//, '').replace(/\/$/, '');
+  return `<div class="pr-opt pr-opt--item">
+      <div class="pr-opt__text"><div class="pr-opt__label"><span class="op-kbd">${esc(c.word)}</span></div>
+        <div class="pr-opt__path">${esc(p)}</div></div>
+      <div class="pr-opt__ctl"><button class="op-btn op-btn--ghost op-btn--sm" data-cmd-edit="${esc(c.word)}">Editar</button>
+        <button class="op-btn op-btn--ghost op-btn--sm" data-cmd-del="${esc(c.word)}">Borrar</button></div></div>`;
+}
+
+/** Crear (sin `c`) o editar un comando. Devuelve los ajustes nuevos, o null. */
+async function commandModal(c = null) {
+  const body = document.createElement('div');
+  body.className = 'op-col';
+  body.style.gap = '14px';
+  body.innerHTML = `
+    <div class="op-field"><label class="op-field__label">Palabra</label><input class="op-input op-input--mono" id="c-word" spellcheck="false" maxlength="24" placeholder="moodle"></div>
+    <div class="op-field"><label class="op-field__label">Dirección</label><input class="op-input op-input--mono" id="c-url" spellcheck="false" placeholder="sied.umaza.edu.ar"></div>`;
+  body.querySelector('#c-word').value = c?.word || '';
+  body.querySelector('#c-url').value = c?.url || '';
+  const ok = await modal({
+    title: c ? 'Editar comando' : 'Nuevo comando',
+    body,
+    width: 460,
+    actions: [{ label: 'Cancelar', value: false }, { label: 'Guardar', value: true, variant: 'primary' }],
+  });
+  if (!ok) return null;
+  return api.commands.save(c ? c.word : null, { word: body.querySelector('#c-word').value, url: body.querySelector('#c-url').value })
+    .catch((err) => { say(err.message, { icon: 'alert', tone: 'error' }); return null; });
+}
+
 function settingsPage() {
   if (launchForceDark == null) launchForceDark = !!S.settings.forceDark;
   const el = mount('<div class="op-scroll op-scroll--line-top op-scroll--line-bottom pr-view__scroll" id="set-scroll"><div class="pr-view__col" id="set-col"></div></div>', 'ajustes');
@@ -901,6 +932,10 @@ function settingsPage() {
         <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Sugerir sitios del historial</div>
           <div class="pr-opt__hint">Apagado, la barra no te muestra ni completa lo que visitaste: solo tus favoritos. El historial se sigue guardando.</div></div>
           <div class="pr-opt__ctl">${toggle('historySuggest', 'Sugerir del historial')}</div></div>
+        <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Comandos</div>
+          <div class="pr-opt__hint">Escribís la palabra sola en la barra, apretás Enter y vas a su dirección. No se combinan con una búsqueda: «yt lofi» se busca en el buscador.</div></div>
+          <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-cmd-add"><i data-icon="plus"></i> Agregar</button></div></div>
+        <div class="pr-optlist" id="s-cmds"></div>
       </section>
 
       <section class="pr-set" style="--i:1">
@@ -1053,6 +1088,7 @@ function settingsPage() {
     if (first) hintEl.textContent = hint;
     else swapText(hintEl, hint, { size: true });
     reconcile(col.querySelector('#s-perms'), perms.map(([origin, map]) => ({ key: origin, html: permRowHTML(origin, map) })), { enter });
+    reconcile(col.querySelector('#s-cmds'), (s.commands || []).map((c) => ({ key: `${c.word} ${c.url}`, html: commandRowHTML(c) })), { enter });
     const certs = s.certAllow || [];
     col.querySelector('#s-certs-head').classList.toggle('is-open', certs.length > 0);
     reconcile(col.querySelector('#s-certs'), certs.map((c) => ({ key: c.host, html: certRowHTML(c) })), { enter });
@@ -1116,6 +1152,15 @@ function settingsPage() {
     if (un) return removeFrom('adblockAllow', un.dataset.unallow);
     const nv = e.target.closest('[data-unnever]');
     if (nv) return removeFrom('passNever', nv.dataset.unnever);
+    const ce = e.target.closest('[data-cmd-edit]');
+    if (ce) {
+      const c = (S.settings.commands || []).find((x) => x.word === ce.dataset.cmdEdit);
+      const next = c && await commandModal(c);
+      if (next) { quietUntil = Date.now() + 600; S.settings = next; sync(); }
+      return;
+    }
+    const cd = e.target.closest('[data-cmd-del]');
+    if (cd) { quietUntil = Date.now() + 600; S.settings = await api.commands.remove(cd.dataset.cmdDel); return sync(); }
     const fg = e.target.closest('[data-forget]');
     if (fg) { await api.permissions.revoke(fg.dataset.forget); S.settings = await api.settings.get(); return sync(); }
     const uc = e.target.closest('[data-uncert]');
@@ -1131,6 +1176,11 @@ function settingsPage() {
     }
     if (id === 's-relaunch') return api.relaunch();
     if (id === 's-clear') return clearDataModal();
+    if (id === 's-cmd-add') {
+      const next = await commandModal();
+      if (next) { quietUntil = Date.now() + 600; S.settings = next; sync(); }
+      return;
+    }
     if (id === 's-data') return api.openData();
     if (id === 's-pass') return openPasswords();
     if (id === 's-bk-setup') return backupSetupModal();

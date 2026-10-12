@@ -81,13 +81,56 @@ function isIPv4(host) {
 const DOMAIN = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+([a-z]{2,63}|xn--[a-z0-9-]{2,59})$/i;
 const FILE_EXT = new Set(['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg', 'gif', 'exe', 'js', 'json', 'md', 'py', 'zip', 'mp3', 'mp4', 'csv', 'html', 'htm', 'css']);
 
+/* ── Comandos ────────────────────────────────────────────────────────────────
+   Una palabra que, escrita SOLA en la barra, lleva a una dirección fija:
+   "moodle" + Enter → el campus. No se combinan con una búsqueda ("yt gatitos"
+   sigue yendo al buscador): son atajos para ir a lugares, nada más.
+   La palabra no lleva puntos, dos puntos ni espacios, así que no se puede
+   confundir con una dirección: "gh" es un comando, "gh.io" sigue siendo un sitio. */
+const COMMAND_WORD = /^[a-z0-9ñ][a-z0-9ñ_-]{0,23}$/;
+
+/** El comando de esa palabra exacta (sin importar mayúsculas), o null. */
+function commandFor(text, commands = []) {
+  const word = String(text ?? '').trim().toLowerCase();
+  if (!COMMAND_WORD.test(word)) return null;
+  return (Array.isArray(commands) ? commands : []).find((c) => c?.word === word) || null;
+}
+
+/** Los comandos que empiezan con lo tipeado (sin el exacto): para sugerirlos. */
+function commandsStarting(text, commands = []) {
+  const q = String(text ?? '').trim().toLowerCase();
+  if (!q || !/^[a-z0-9ñ_-]+$/.test(q)) return [];
+  return (Array.isArray(commands) ? commands : []).filter((c) => c?.word?.startsWith(q) && c.word !== q).slice(0, 4);
+}
+
+/**
+ * Un comando como lo escribió la persona en Ajustes → { word, url } limpio.
+ * La dirección pasa por classify (sin comandos): "sied.umaza.edu.ar" queda
+ * https://sied.umaza.edu.ar, y lo que no es una dirección se rechaza con un
+ * mensaje que se puede mostrar tal cual.
+ */
+function cleanCommand(input = {}) {
+  const word = String(input.word ?? '').trim().toLowerCase();
+  if (!word) throw new Error('Falta la palabra.');
+  if (!COMMAND_WORD.test(word)) throw new Error('La palabra va sin espacios ni puntos: letras, números, - o _ (hasta 24).');
+  const raw = String(input.url ?? '').trim();
+  if (!raw) throw new Error('Falta la dirección.');
+  const r = classify(raw);
+  if (r?.type !== 'url' || !/^(https?|file|prism):/i.test(r.url)) throw new Error('Esa dirección no es válida.');
+  return { word, url: r.url };
+}
+
 /**
  * Clasifica lo tipeado.
- * → { type: 'url', url } | { type: 'search', url, query } | null (vacío)
+ * → { type: 'url', url, command? } | { type: 'search', url, query } | null (vacío)
+ * `commands` son los de Ajustes: una palabra suya, sola, gana sobre todo lo demás.
  */
-function classify(input, engineId = 'google') {
+function classify(input, engineId = 'google', commands = []) {
   const text = String(input ?? '').trim();
   if (!text) return null;
+
+  const cmd = commandFor(text, commands);
+  if (cmd) return { type: 'url', url: cmd.url, command: cmd.word };
 
   const search = () => ({
     type: 'search',
@@ -201,5 +244,5 @@ function parseRemoteSuggest(json) {
 
 module.exports = {
   ENGINES, engine, INTERNAL, internalPage, internalUrl,
-  classify, splitForDisplay, bareHost, originOf, parseRemoteSuggest,
+  classify, commandFor, commandsStarting, cleanCommand, splitForDisplay, bareHost, originOf, parseRemoteSuggest,
 };
