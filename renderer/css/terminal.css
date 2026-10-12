@@ -1,32 +1,48 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    PRISM — la terminal (renderer/js/terminal.js)
-   Va directo sobre la hoja de la página, sin un pozo adentro: la hoja ES la
-   terminal. La enmarcan dos líneas de luz, la pestaña de la shell arriba y los
-   datos abajo. La luz no rellena, talla: el acento vive en esas dos líneas, el
-   subrayado de la pestaña, su punto y el cursor. Todo lo demás es gris.
+   No va sobre la hoja de la página: en esta pestaña esa hoja se apaga
+   (prism.css) y cada shell flota sobre la niebla en su propia hoja de vidrio,
+   con aire alrededor. Dividida son dos hojas lado a lado, con el anillo de la
+   vista dividida web en la que tiene el teclado. Los datos van abajo en una
+   hoja chica aparte, compartida: sigue a la mitad con el teclado. Fran la
+   eligió en una maqueta (S:\mockups\prism\terminal-en-hojas.html, 12/10/2026).
 
-   Las líneas son el límite del scroll: arriba y abajo la salida corta limpio
-   contra ellas, sin esfumado (una línea ya dice dónde termina).
+   Adentro de cada hoja, una línea de luz separa la pestaña de la shell de la
+   pantalla. La luz no rellena, talla: el acento vive en esa línea, el
+   subrayado de la pestaña, su punto y el cursor. Todo lo demás es gris.
+   La línea es el límite del scroll: la salida corta limpio contra ella.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .pr-term {
-  --pr-term-line: rgb(var(--op-accent-rgb) / .26);
+  --pr-term-line: rgb(var(--op-accent-rgb) / .16);
   --pr-term-fg: #e8e8ea;
+  --pr-term-air: 14px;   /* contra el borde de la página y entre las hojas */
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding: var(--pr-term-air);
+}
+
+/* La receta de una hoja que flota directo sobre la niebla: luz, vidrio y el
+   canto encendido (las sombras, en cada una). */
+.pr-term__pane,
+.pr-term__foot {
+  border-radius: var(--pr-page-r);
+  background: rgb(255 255 255 / .035);
+  backdrop-filter: var(--op-glass);
 }
 
 /* ── Las mitades ─────────────────────────────────────────────────────────
-   Una sola, o dos lado a lado (dividida). Cada una lleva su pestaña y su
-   pantalla; las separa una línea vertical igual a las otras dos, que nace en
-   la de arriba y llega a la de abajo. */
+   Una sola, o dos hojas lado a lado (dividida), cada una con su pestaña y su
+   pantalla. Con dos, la que tiene el teclado lleva el anillo de la vista
+   dividida web: despegado 2 px del fondo y de 2 px enteros. */
 .pr-term__panes {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  gap: var(--pr-term-air);
 }
 .pr-term__pane {
   position: relative;
@@ -34,8 +50,13 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  /* Con el lugar del anillo ya puesto (transparente): entra y sale sin saltar. */
+  box-shadow: var(--op-sheet), var(--op-e4), 0 0 0 0 transparent, 0 0 0 0 transparent;
+  transition: box-shadow var(--op-t-2) var(--op-ease-soft);
 }
-.pr-term__pane + .pr-term__pane { box-shadow: inset 1px 0 0 var(--pr-term-line); }
+.pr-term.is-split .pr-term__pane.is-focus {
+  box-shadow: var(--op-sheet), var(--op-e4), 0 0 0 2px var(--op-bg), 0 0 0 4px rgb(var(--op-accent-rgb) / .62);
+}
 /* La mitad nueva aparece; la que se cierra se esfuma antes de irse. */
 .pr-term__pane.is-entering { animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both; }
 .pr-term__pane[data-state='closing'] {
@@ -234,14 +255,15 @@
   color: inherit;
 }
 
-/* ── Abajo: los datos, sobre su línea ────────────────────────────────────── */
+/* ── Abajo: los datos, en su hoja ────────────────────────────────────────── */
 .pr-term__foot {
   flex: 0 0 auto;
-  height: 28px;
+  height: 30px;
+  margin-top: var(--pr-term-air);
   display: flex;
   align-items: center;
   padding: 0 14px;
-  box-shadow: inset 0 1px 0 var(--pr-term-line);
+  box-shadow: var(--op-sheet), var(--op-e3);
   font-size: var(--op-fs-11);
   color: var(--op-text-3);
   white-space: nowrap;

@@ -1650,6 +1650,10 @@ app.whenReady().then(async () => {
     ok('un comando que tarda muestra el «run» con su tiempo (OSC 133)', await until(() => js(`(() => { const r = document.querySelector('.pr-view[data-page="terminal"] .pr-term__run'); return r.classList.contains('is-on') && /\\d+s/.test(r.innerText); })()`), 5000));
     ok('y se va cuando termina', await until(() => js(`!document.querySelector('.pr-view[data-page="terminal"] .pr-term__run.is-on')`), 5000));
     ok('el cursor es un bloque con aura', await js(`(() => { const c = document.querySelector('.pr-view[data-page="terminal"] .xterm-cursor'); return !!c && c.classList.contains('xterm-cursor-block') && getComputedStyle(c).boxShadow !== 'none'; })()`));
+    /* La shell flota en su propia hoja: la de la página se apaga (sin luz, sin
+       vidrio y sin recorte, o el vidrio de adentro no muestrearía la niebla). */
+    ok('con la terminal a la vista, la hoja de la página se apaga', await until(() => js(`(() => { const p = getComputedStyle(document.querySelector('.pr-view[data-page="terminal"]').closest('.pr-pane')); return p.backgroundColor === 'rgba(255, 255, 255, 0)' && p.backdropFilter === 'none' && p.overflow === 'visible'; })()`), 3000));
+    ok('y la shell y los datos van en hojas de vidrio con aire alrededor', await js(`(() => { const T = '.pr-view[data-page="terminal"]'; const term = document.querySelector(T + ' .pr-term').getBoundingClientRect(); const pane = document.querySelector(T + ' .pr-term__pane'); const r = pane.getBoundingClientRect(); return [pane, document.querySelector(T + ' .pr-term__foot')].every((e) => getComputedStyle(e).backdropFilter.includes('blur')) && r.left - term.left >= 8 && r.top - term.top >= 8; })()`));
 
     /* Dividida en dos: cada mitad con su shell, lo de una no cae en la otra,
        la barra de abajo sigue a la que tiene el teclado y un `exit` la junta. */

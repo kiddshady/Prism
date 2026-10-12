@@ -120,17 +120,19 @@ npm run release # publica en GitHub (ver abajo)
   para oscurecer también los que no tienen modo oscuro. Lo de Prism, los PDF
   y las hojas para imprimir no se tocan.
 - **Terminal** (Ctrl+Ñ, y otra vez para volver adonde estabas): una
-  PowerShell 7 de verdad en la pestaña `prism://terminal`, dibujada directo
-  sobre la hoja, con el `$PROFILE` de siempre (el core-profile y el prompt de
+  PowerShell 7 de verdad en la pestaña `prism://terminal`, en su propia hoja
+  de vidrio que flota sobre la niebla (la de la página se apaga en esta
+  pestaña), con el `$PROFILE` de siempre (el core-profile y el prompt de
   NTX, en grises). Lo demás lleva los colores de siempre de una terminal
   (git, carpetas, avisos, errores, el resaltado de PSReadLine), con color
   de verdad. Arriba, la pestaña de la shell con su carpeta; abajo, cpu,
   memoria, branch, carpeta, lo que lleva el comando que corre (pasado el
   primer segundo) y la hora. Se divide en dos (Alt+Mayús+D, el botón de
-  arriba a la derecha o el menú del click derecho): dos mitades lado a lado,
-  cada una con su shell, y Alt+Mayús+flechas pasa el teclado de una a la
-  otra. La barra de abajo muestra lo de la mitad con el teclado; la cruz de
-  una mitad (o un `exit` en ella) la cierra. Las shells viven mientras viva
+  arriba a la derecha o el menú del click derecho): dos hojas lado a lado,
+  cada una con su shell y el anillo de la vista dividida en la del
+  teclado, y Alt+Mayús+flechas pasa el teclado de una a la otra. La barra
+  de abajo, en una hoja chica aparte, muestra lo de la mitad con el
+  teclado; la cruz de una mitad (o un `exit` en ella) la cierra. Las shells viven mientras viva
   su pestaña, siguen si la interfaz se recarga (vuelve dividida) y la
   pestaña entra en la vista dividida al lado de una página. Con ella enfocada, Ctrl+R, Ctrl+L, Ctrl+W y
   Alt+flechas son de la shell, y Ctrl++ / Ctrl+- cambian la letra.
@@ -392,7 +394,7 @@ renderer/
   js/pages.js         Nueva pestaña, historial, favoritos, descargas, ajustes.
   js/bmbar.js         La barra de favoritos.
   js/terminal.js      La terminal: una xterm por mitad, que pasan de página en página.
-  css/terminal.css    Sus dos líneas de luz y el cursor de bloque.
+  css/terminal.css    Las hojas de las mitades y de la barra, su línea de luz y el cursor de bloque.
   vendor/xterm/       xterm.js, copiado de node_modules (tools/vendor-xterm.mjs).
   js/print.js         La pantalla de impresión: opciones y hojas (con pdf.js).
   vendor/pdfjs/       pdf.js, copiado de node_modules (tools/vendor-pdfjs.mjs).
