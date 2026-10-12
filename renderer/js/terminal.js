@@ -66,6 +66,7 @@ const panes = [];
 let current = null;        // la mitad que tiene (o tuvo último) el teclado
 let page = null;           // la .pr-view montada ahora, o null
 let mounted = null;        // lo de este montaje: { ro, gone }
+let stats = { cpu: 0, mem: 0 };   // lo último que se midió: la barra de una mitad nueva arranca con eso
 
 /* El «run» aparece recién pasado el primer segundo: un cd o un ls no tienen
    por qué hacer parpadear un «run 0s» en la barra. */
@@ -74,19 +75,13 @@ const RUN_SHOW = 1000;
 const html = () => `
   <div class="pr-term">
     <div class="pr-term__panes"></div>
-    <footer class="pr-term__foot">
-      <span class="pr-term__stat"><b>cpu</b><span class="pr-term__gauge op-num" data-k="cpu">0%</span></span>
-      <span class="pr-term__stat"><b>mem</b><span class="pr-term__gauge op-num" data-k="mem">0%</span></span>
-      <span class="pr-term__stat pr-term__branch">${Icons.svg('branch')}<span class="pr-term__val op-swap--truncate"></span></span>
-      <span class="pr-term__stat pr-term__cwd">${Icons.svg('folder')}<span class="pr-term__val op-swap--truncate"></span></span>
-      <span class="pr-term__stat pr-term__run"><b>run</b><span class="pr-term__val op-num"></span></span>
-      <span class="pr-term__end"><span class="pr-term__live"></span><span class="pr-term__clock op-num"></span></span>
-    </footer>
   </div>`;
 
-/* Una mitad: su pestaña arriba, apoyada en la línea, y la pantalla. A la
-   derecha de la pestaña, dividir (con una sola) o cerrar esta mitad (con
-   dos): el CSS pliega el que no va. */
+/* Una mitad: su pestaña arriba, apoyada en la línea, la pantalla y su barra
+   de datos abajo (branch, carpeta y «run» de ESTA shell). Cpu, memoria y la
+   hora son de la compu: van una sola vez, en la de la derecha (el CSS pliega
+   los de la izquierda). A la derecha de la pestaña, dividir (con una sola) o
+   cerrar esta mitad (con dos): el CSS pliega el que no va. */
 const paneHtml = (n) => `
   <section class="pr-term__pane">
     <header class="pr-term__head">
@@ -100,7 +95,19 @@ const paneHtml = (n) => `
       <button class="pr-term__act" data-act="close" tabindex="-1" data-tip="Cerrar esta mitad" aria-label="Cerrar esta mitad">${Icons.svg('close')}</button>
     </header>
     <div class="pr-term__body"></div>
+    <footer class="pr-term__foot">
+      <span class="pr-term__stat pr-term__branch">${Icons.svg('branch')}<span class="pr-term__val op-swap--truncate"></span></span>
+      <span class="pr-term__stat pr-term__cwd">${Icons.svg('folder')}<span class="pr-term__val op-swap--truncate"></span></span>
+      <span class="pr-term__stat pr-term__run"><b>run</b><span class="pr-term__val op-num"></span></span>
+      <span class="pr-term__end">
+        <span class="pr-term__stat"><b>cpu</b><span class="pr-term__gauge op-num" data-k="cpu">${pct(stats.cpu)}</span></span>
+        <span class="pr-term__stat"><b>mem</b><span class="pr-term__gauge op-num" data-k="mem">${pct(stats.mem)}</span></span>
+        <span class="pr-term__live"></span><span class="pr-term__clock op-num">${clock()}</span>
+      </span>
+    </footer>
   </section>`;
+
+const pct = (v) => `${Math.round(v)}%`;
 
 const num = (n) => String(n).padStart(2, '0');
 
@@ -250,7 +257,7 @@ function makePane(id) {
   ta.addEventListener('focus', () => {
     api.term.focused(true);
     p.el?.classList.add('is-focus');
-    if (current !== p) { current = p; paintFoot(); }
+    current = p;
   });
   ta.addEventListener('blur', () => { api.term.focused(false); p.el?.classList.remove('is-focus'); });
 
@@ -465,7 +472,7 @@ export function closePane(p) {
   setRun(p, false);
   const rest = panes[0];
   const hadKeys = current === p || p.el?.classList.contains('is-focus');
-  if (current === p) { current = rest; paintFoot(); }
+  if (current === p) current = rest;
   const dispose = () => { try { p.xterm.dispose(); } catch { /* ya estaba */ } };
   if (p.el?.isConnected) {
     exit(p.el, { fallback: 260, onDone: () => { dispose(); renumber(); panes.forEach(refit); } });
@@ -500,33 +507,33 @@ function setBranch(p, b) {
   paintPlace(p);
 }
 
-/** Relevo, no salto: la ruta de la pestaña cambia en su lugar. Y si es la
-    mitad que tiene el teclado, también la barra de abajo. */
+/** Relevo, no salto: la ruta de la pestaña y la barra de abajo de la mitad
+    cambian en su lugar. */
 function paintPlace(p) {
   const where = p.el?.querySelector('.pr-term__where');
   if (where) {
     where.classList.toggle('is-on', !!p.cwd);
     if (p.cwd) swapText(p.el.querySelector('.pr-term__short'), tail(p.cwd));
   }
-  if (p === (current || panes[0])) paintFoot();
+  paintFoot(p);
 }
 
-/** La barra de abajo: carpeta, branch y «run» de la mitad con el teclado. */
-function paintFoot() {
-  if (!page) return;
-  const p = current || panes[0];
-  const cwd = p?.cwd || '';
-  const branch = p?.branch || null;
-  const cwdEl = page.querySelector('.pr-term__cwd');
+/** La barra de abajo de una mitad: su carpeta, su branch y su «run». */
+function paintFoot(p) {
+  const foot = p.el?.querySelector('.pr-term__foot');
+  if (!foot) return;
+  const cwd = p.cwd || '';
+  const branch = p.branch || null;
+  const cwdEl = foot.querySelector('.pr-term__cwd');
   cwdEl.classList.toggle('is-on', !!cwd);
   if (cwd) {
     swapText(cwdEl.querySelector('.pr-term__val'), tilde(cwd));
     cwdEl.dataset.tip = cwd;
   }
-  const br = page.querySelector('.pr-term__branch');
+  const br = foot.querySelector('.pr-term__branch');
   br.classList.toggle('is-on', !!branch);
   if (branch) swapText(br.querySelector('.pr-term__val'), branch);
-  paintRun();
+  paintRun(p);
 }
 
 /** 6s · 1m 14s · 1h 03m: segundos enteros, que es lo que corre. */
@@ -538,13 +545,12 @@ function fmtRun(ms) {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 }
 
-/** Lo que lleva el comando que corre en la mitad con el teclado. Al terminar
-    se esfuma con su último número, no se borra antes. */
-function paintRun() {
-  const el = page?.querySelector('.pr-term__run');
+/** Lo que lleva el comando que corre en esa mitad. Al terminar se esfuma con
+    su último número, no se borra antes. */
+function paintRun(p) {
+  const el = p.el?.querySelector('.pr-term__run');
   if (!el) return;
-  const p = current || panes[0];
-  const since = p?.runSince ?? null;
+  const since = p.runSince ?? null;
   const ms = since == null ? 0 : Date.now() - since;
   const shown = since != null && ms >= RUN_SHOW;
   if (shown) {
@@ -559,8 +565,8 @@ function setRun(p, running) {
   if (running === (p.runSince != null)) return;
   p.runSince = running ? Date.now() : null;
   clearInterval(p.runTimer);
-  p.runTimer = running ? setInterval(paintRun, 250) : 0;
-  paintRun();
+  p.runTimer = running ? setInterval(() => paintRun(p), 250) : 0;
+  paintRun(p);
 }
 
 const visible = () => !!page && page.isConnected && !page.classList.contains('is-parked');
@@ -568,20 +574,25 @@ const visible = () => !!page && page.isConnected && !page.classList.contains('is
 async function tickStats() {
   if (!visible()) return;
   try {
-    const s = await api.term.stats();
+    stats = await api.term.stats();
     for (const k of ['cpu', 'mem']) {
-      const el = page?.querySelector(`.pr-term__gauge[data-k="${k}"]`);
-      if (el) roll(el, s[k], (v) => { el.textContent = `${Math.round(v)}%`; }, { duration: 600 });
+      page?.querySelectorAll(`.pr-term__gauge[data-k="${k}"]`).forEach((el) => {
+        roll(el, stats[k], (v) => { el.textContent = pct(v); }, { duration: 600 });
+      });
     }
   } catch { /* la próxima */ }
 }
 
-function tickClock() {
-  const el = page?.querySelector('.pr-term__clock');
-  if (!el || !visible()) return;
+function clock() {
   const d = new Date();
   const p2 = (n) => String(n).padStart(2, '0');
-  el.textContent = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  return `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+}
+
+function tickClock() {
+  if (!visible()) return;
+  const text = clock();
+  page.querySelectorAll('.pr-term__clock').forEach((el) => { el.textContent = text; });
 }
 
 /* ── Montar y desmontar ───────────────────────────────────────────────────── */
@@ -615,7 +626,6 @@ export function attach(el) {
     if (me.gone) return;
     panes.forEach((p) => place(p));
     renumber();
-    paintFoot();
     /* Siempre se pide: si la shell corre, se engancha (y toma el tamaño
        nuevo); si se cerró con su pestaña, abre otra. */
     await Promise.all(panes.map(open));

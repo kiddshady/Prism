@@ -1676,10 +1676,10 @@ app.whenReady().then(async () => {
     /* La shell flota en su propia hoja: la de la página se apaga (sin luz, sin
        vidrio y sin recorte, o el vidrio de adentro no muestrearía la niebla). */
     ok('con la terminal a la vista, la hoja de la página se apaga', await until(() => js(`(() => { const p = getComputedStyle(document.querySelector('.pr-view[data-page="terminal"]').closest('.pr-pane')); return p.backgroundColor === 'rgba(255, 255, 255, 0)' && p.backdropFilter === 'none' && p.overflow === 'visible'; })()`), 3000));
-    ok('y la shell y los datos van en hojas de vidrio con aire alrededor', await js(`(() => { const T = '.pr-view[data-page="terminal"]'; const term = document.querySelector(T + ' .pr-term').getBoundingClientRect(); const pane = document.querySelector(T + ' .pr-term__pane'); const r = pane.getBoundingClientRect(); return [pane, document.querySelector(T + ' .pr-term__foot')].every((e) => getComputedStyle(e).backdropFilter.includes('blur')) && r.left - term.left >= 8 && r.top - term.top >= 8; })()`));
+    ok('y la shell va en una hoja de vidrio con aire alrededor, con su barra adentro', await js(`(() => { const T = '.pr-view[data-page="terminal"]'; const term = document.querySelector(T + ' .pr-term').getBoundingClientRect(); const pane = document.querySelector(T + ' .pr-term__pane'); const r = pane.getBoundingClientRect(); return getComputedStyle(pane).backdropFilter.includes('blur') && !!pane.querySelector('.pr-term__foot') && r.left - term.left >= 8 && r.top - term.top >= 8; })()`));
 
     /* Dividida en dos: cada mitad con su shell, lo de una no cae en la otra,
-       la barra de abajo sigue a la que tiene el teclado y un `exit` la junta. */
+       cada una con su barra de abajo y un `exit` la junta. */
     const T = `.pr-view[data-page="terminal"]`;
     const mitades = () => js(`document.querySelectorAll('${T} .pr-term__pane:not([data-state="closing"])').length`);
     const filas = (n) => `document.querySelectorAll('${T} .pr-term__pane')[${n}].querySelector('.xterm-rows').innerText`;
@@ -1695,14 +1695,17 @@ app.whenReady().then(async () => {
     ok('lo de la derecha corre en la derecha', await until(() => js(`${filas(1)}.includes('prism-mitad-b')`), 8000));
     ok('y no cae en la izquierda', !(await js(`${filas(0)}.includes('prism-mitad-b')`)));
     ctx.term.write(ctx, 'cd C:\\Windows\r', 'b');
-    ok('la barra de abajo sigue a la mitad con el teclado', await until(() => js(`document.querySelector('${T} .pr-term__cwd').dataset.tip === 'C:\\\\Windows'`), 8000));
+    const carpeta = (n) => js(`document.querySelectorAll('${T} .pr-term__pane')[${n}].querySelector('.pr-term__cwd').dataset.tip`);
+    ok('cada mitad tiene su barra de abajo, con su carpeta', await until(async () => (await carpeta(1)) === 'C:\\Windows' && (await carpeta(0)) !== 'C:\\Windows', 8000));
+    ok('cpu, mem y la hora van una sola vez, en la de la derecha', await until(() => js(`(() => { const [a, b] = [...document.querySelectorAll('${T} .pr-term__pane .pr-term__end')].map((e) => getComputedStyle(e)); return a.opacity === '0' && b.opacity === '1'; })()`), 3000));
     ctx.send('cmd', 'term:prev');
     ok('Alt+Mayús+Izq le pasa el teclado a la izquierda', await until(() => js(`document.querySelectorAll('${T} .pr-term__pane')[0].classList.contains('is-focus')`), 3000));
-    ok('y la barra de abajo pasa a su carpeta', await until(() => js(`document.querySelector('${T} .pr-term__cwd').dataset.tip !== 'C:\\\\Windows'`), 3000));
+    ok('y cada barra se queda con su carpeta', (await carpeta(0)) !== 'C:\\Windows' && (await carpeta(1)) === 'C:\\Windows');
     ctx.term.write(ctx, 'exit\r', 'b');
     ok('un exit en una mitad la cierra', await until(async () => (await mitades()) === 1 && ctx.term.panes().join() === 'a', 8000), ctx.term.panes().join());
     ok('y la otra se queda con toda la pestaña', await until(() => js(`(() => { const p = document.querySelector('${T} .pr-term__pane'); return document.querySelectorAll('${T} .pr-term__pane').length === 1 && Math.abs(p.getBoundingClientRect().width - p.parentElement.getBoundingClientRect().width) <= 1; })()`), 3000));
     ok('con su shell viva', ctx.term.alive && await js(`!document.querySelector('${T} .pr-term__pane').classList.contains('is-dead')`));
+    ok('y vuelve a mostrar cpu, mem y la hora', await until(() => js(`getComputedStyle(document.querySelector('${T} .pr-term__pane:not([data-state="closing"]) .pr-term__end')).opacity === '1'`), 3000));
     await js(`document.querySelector('${T} [data-act="split"]').click()`);
     ok('el botón de arriba también la divide', await until(() => ctx.term.panes().join() === 'a,b', 8000));
     ok('y con dos, el de cerrar está', await until(() => js(`document.querySelector('${T} .pr-term').classList.contains('is-split') && getComputedStyle(document.querySelectorAll('${T} [data-act="close"]')[1]).pointerEvents !== 'none'`), 3000));

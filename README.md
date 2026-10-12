@@ -125,14 +125,14 @@ npm run release # publica en GitHub (ver abajo)
   pestaña), con el `$PROFILE` de siempre (el core-profile y el prompt de
   NTX, en grises). Lo demás lleva los colores de siempre de una terminal
   (git, carpetas, avisos, errores, el resaltado de PSReadLine), con color
-  de verdad. Arriba, la pestaña de la shell con su carpeta; abajo, cpu,
-  memoria, branch, carpeta, lo que lleva el comando que corre (pasado el
-  primer segundo) y la hora. Se divide en dos (Alt+Mayús+D, el botón de
-  arriba a la derecha o el menú del click derecho): dos hojas lado a lado,
-  cada una con su shell y el anillo de la vista dividida en la del
-  teclado, y Alt+Mayús+flechas pasa el teclado de una a la otra. La barra
-  de abajo, en una hoja chica aparte, muestra lo de la mitad con el
-  teclado; la cruz de una mitad (o un `exit` en ella) la cierra. Las shells viven mientras viva
+  de verdad. Arriba, la pestaña de la shell con su carpeta; abajo, su
+  branch, su carpeta, lo que lleva el comando que corre (pasado el primer
+  segundo), y cpu, memoria y la hora. Se divide en dos (Alt+Mayús+D, el
+  botón de arriba a la derecha o el menú del click derecho): dos hojas
+  lado a lado, cada una con su shell, su barra de abajo y el anillo de la
+  vista dividida en la del teclado, y Alt+Mayús+flechas pasa el teclado de
+  una a la otra. Cpu, memoria y la hora van una sola vez, en la de la
+  derecha. La cruz de una mitad (o un `exit` en ella) la cierra. Las shells viven mientras viva
   su pestaña, siguen si la interfaz se recarga (vuelve dividida) y la
   pestaña entra en la vista dividida al lado de una página. Con ella enfocada, Ctrl+R, Ctrl+L, Ctrl+W y
   Alt+flechas son de la shell, y Ctrl++ / Ctrl+- cambian la letra.

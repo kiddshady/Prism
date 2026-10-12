@@ -3,14 +3,16 @@
    No va sobre la hoja de la página: en esta pestaña esa hoja se apaga
    (prism.css) y cada shell flota sobre la niebla en su propia hoja de vidrio,
    con aire alrededor. Dividida son dos hojas lado a lado, con el anillo de la
-   vista dividida web en la que tiene el teclado. Los datos van abajo en una
-   hoja chica aparte, compartida: sigue a la mitad con el teclado. Fran la
-   eligió en una maqueta (S:\mockups\prism\terminal-en-hojas.html, 12/10/2026).
+   vista dividida web en la que tiene el teclado. Cada hoja lleva su barra de
+   datos abajo. Fran eligió las hojas en una maqueta
+   (S:\mockups\prism\terminal-en-hojas.html, 12/10/2026); primero con una
+   barra compartida aparte y, el mismo día, una por hoja.
 
-   Adentro de cada hoja, una línea de luz separa la pestaña de la shell de la
-   pantalla. La luz no rellena, talla: el acento vive en esa línea, el
-   subrayado de la pestaña, su punto y el cursor. Todo lo demás es gris.
-   La línea es el límite del scroll: la salida corta limpio contra ella.
+   Adentro de cada hoja, dos líneas de luz enmarcan la pantalla: la pestaña
+   de la shell arriba y los datos abajo. La luz no rellena, talla: el acento
+   vive en esas líneas, el subrayado de la pestaña, su punto y el cursor.
+   Todo lo demás es gris. Las líneas son el límite del scroll: la salida
+   corta limpio contra ellas.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .pr-term {
@@ -26,9 +28,8 @@
 }
 
 /* La receta de una hoja que flota directo sobre la niebla: luz, vidrio y el
-   canto encendido (las sombras, en cada una). */
-.pr-term__pane,
-.pr-term__foot {
+   canto encendido (la sombra, abajo con el anillo). */
+.pr-term__pane {
   border-radius: var(--pr-page-r);
   background: rgb(255 255 255 / .035);
   backdrop-filter: var(--op-glass);
@@ -255,19 +256,19 @@
   color: inherit;
 }
 
-/* ── Abajo: los datos, en su hoja ────────────────────────────────────────── */
+/* ── Abajo: los datos de esta shell, sobre su línea ──────────────────────── */
 .pr-term__foot {
   flex: 0 0 auto;
-  height: 30px;
-  margin-top: var(--pr-term-air);
+  height: 28px;
   display: flex;
   align-items: center;
   padding: 0 14px;
-  box-shadow: var(--op-sheet), var(--op-e3);
+  box-shadow: inset 0 1px 0 var(--pr-term-line);
   font-size: var(--op-fs-11);
   color: var(--op-text-3);
   white-space: nowrap;
   min-width: 0;
+  overflow: hidden;
   user-select: none;
 }
 .pr-term__stat {
@@ -303,12 +304,26 @@
 /* Lo que lleva el comando que corre. Va último de la fila: su ancho cambia
    cada segundo y ahí atrás no corre a nadie. */
 .pr-term__run.is-on { max-width: 16ch; margin-right: 16px; opacity: 1; }
+/* Lo de la compu (cpu, memoria y la hora), a la derecha. Es lo mismo para
+   las dos shells: va una sola vez, en la de la derecha. La de la izquierda
+   lo pliega mientras tenga una viva al lado (ancho y opacidad, nunca
+   display), y lo despliega cuando esa se cierra. */
 .pr-term__end {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 32ch;
   padding-left: 12px;
+  overflow: hidden;
+  transition: max-width var(--op-t-3) var(--op-ease), padding-left var(--op-t-3) var(--op-ease),
+    opacity var(--op-t-2) var(--op-ease-soft);
+}
+.pr-term__end .pr-term__stat { margin-right: 4px; }
+.pr-term__pane:has(~ .pr-term__pane:not([data-state='closing'])) .pr-term__end {
+  max-width: 0;
+  padding-left: 0;
+  opacity: 0;
 }
 .pr-term__live {
   width: 5px;
