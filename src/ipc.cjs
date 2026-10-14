@@ -211,6 +211,7 @@ function register() {
   }));
   handle('history:remove', (ctx, ids) => { const n = ctx.library.removeVisits((ids || []).map(Number)); changed(); return n; });
   handle('history:clear', (ctx, since) => { const n = ctx.library.clearHistory(Number(since) || 0); changed(); return n; });
+  handle('history:days', (ctx) => ctx.library.visitDays());
   handle('history:top', (ctx, n) => ctx.library.topSites(Math.min(24, Number(n) || 8)));
 
   handle('bookmarks:list', (ctx) => ctx.library.listBookmarks());
@@ -384,7 +385,7 @@ function register() {
 
   handle('data:clear', async (ctx, what = {}) => {
     const done = [];
-    if (what.history) { ctx.library.clearHistory(Number(what.since) || 0); done.push('historial'); changed(); }
+    if (what.history) { ctx.library.clearHistory(Number(what.since) || 0, Number(what.until) || 0); done.push('historial'); changed(); }
     if (what.cookies) {
       await ctx.web.clearStorageData({ storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'filesystem', 'websql', 'shadercache'] });
       done.push('cookies y datos de sitios');

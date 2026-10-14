@@ -2612,6 +2612,34 @@ app.whenReady().then(async () => {
   })()`);
   ok('«Borrar datos» arranca en Cancelar, no en la X', borrar.foco === 'Cancelar' && borrar.cerrado, JSON.stringify(borrar));
 
+  /* Borrar un día elegido en el calendario (pedido de Fran, 14/10/2026). Que
+     borre SOLO ese día lo prueba library.test; acá, que el calendario se
+     despliegue, arranque en el último día con historial y que Borrar lo use. */
+  ctx.library.visit(`${BASE}/?un-dia`, 'Un día');
+  const pad = (n) => String(n).padStart(2, '0');
+  const hoy = new Date();
+  const hoyKey = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
+  const unDia = await js(`(async () => {
+    const { clearDataModal } = await import('./js/pages.js');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    clearDataModal();
+    await wait(400);
+    const wrap = document.getElementById('cd-cal');
+    const cerrado = { h: wrap.getBoundingClientRect().height, inert: wrap.inert };
+    document.querySelector('#cd-range [data-value="pick"]').click();
+    await wait(450);
+    const abierto = { h: wrap.getBoundingClientRect().height, inert: wrap.inert };
+    const sel = document.querySelector('.pr-cal__grid:not([data-state="closing"]) .is-sel')?.dataset.day;
+    const prendidos = document.querySelectorAll('.pr-cal__grid:not([data-state="closing"]) .pr-cal__day[data-day]').length;
+    const sum = document.querySelector('.pr-cal__sum').textContent;
+    [...document.querySelectorAll('.op-modal button')].find((b) => b.textContent.trim() === 'Borrar').click();
+    return { cerrado, abierto, sel, prendidos, sum };
+  })()`);
+  ok('«Un día» despliega el calendario', unDia.cerrado.h < 1 && unDia.cerrado.inert && unDia.abierto.h > 200 && !unDia.abierto.inert, JSON.stringify(unDia));
+  ok('arranca en el último día con historial', unDia.sel === hoyKey && unDia.prendidos >= 1 && /Se borran \d+ páginas? del /.test(unDia.sum), JSON.stringify(unDia));
+  ok('y Borrar se lleva ese día', await until(() => !ctx.library.visitDays()[hoyKey]), JSON.stringify(ctx.library.visitDays()));
+  await until(() => js(`!document.querySelector('.op-modal__anim:not([data-state="closing"])')`));
+
   const piezas = await js(`(() => {
     const box = document.createElement('div');
     box.id = 'piezas-de-prueba';

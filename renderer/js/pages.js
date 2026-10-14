@@ -16,7 +16,7 @@
 
 import { api, S, on, activeTab } from './state.js';
 import { Icons } from './icons.js';
-import { exit, scrollFade, bindSwitcher, raf2, reconcile, roll, swap, swapText, glideSize } from './motion.js';
+import { exit, scrollFade, bindSwitcher, raf2, reconcile, roll, swap, swapText, glideSize, dissolve, toggleReveal } from './motion.js';
 import { esc } from './ui.js';
 import { fmtBytes, fmtDur, fmtDate, relTime, plural, locale } from './format.js';
 import { menu, modal, confirm } from './layers.js';
@@ -1544,29 +1544,140 @@ export async function clearDataModal() {
       <div class="op-segmented" id="cd-range">
         <button class="op-segmented__opt" data-value="hour">La última hora</button>
         <button class="op-segmented__opt" data-value="day">Hoy</button>
+        <button class="op-segmented__opt" data-value="pick">Un día</button>
         <button class="op-segmented__opt is-active" data-value="all">Todo</button></div></div>
+    <div class="op-reveal pr-cal-reveal" id="cd-cal" inert><div>${calendarShell()}</div></div>
     ${opt('history', 'Historial', 'Las páginas que visitaste. Los favoritos no se tocan.', true)}
     ${opt('cookies', 'Cookies y datos de sitios', 'Te cierra la sesión en casi todos los sitios.', false)}
     ${opt('cache', 'Caché', 'Imágenes y archivos guardados para cargar más rápido.', true)}`;
   let range = 'all';
+  const cal = dayPicker(body.querySelector('.pr-cal'));
   body.addEventListener('click', (e) => {
     const row = e.target.closest('[data-k]');
     if (row) { e.preventDefault(); row.querySelector('.op-check').classList.toggle('is-on'); }
   });
-  raf2(() => bindSwitcher(body.querySelector('#cd-range'), (v) => { range = v; }));
+  raf2(() => bindSwitcher(body.querySelector('#cd-range'), (v) => {
+    range = v;
+    const wrap = body.querySelector('#cd-cal');
+    wrap.inert = !toggleReveal(wrap, v === 'pick');
+  }));
 
   const ok = await modal({
     title: 'Borrar datos de navegación',
     sub: 'Lo que borres no se puede recuperar.',
     body,
-    width: 500,
+    width: 560,
     actions: [{ label: 'Cancelar', value: false }, { label: 'Borrar', value: true, variant: 'danger-solid' }],
   });
   if (!ok) return;
   const pick = (k) => body.querySelector(`[data-k="${k}"] .op-check`).classList.contains('is-on');
-  const since = range === 'hour' ? Date.now() - 3_600_000 : range === 'day' ? new Date().setHours(0, 0, 0, 0) : 0;
-  const done = await api.data.clear({ history: pick('history'), since, cookies: pick('cookies'), cache: pick('cache') }).catch((err) => { say(`No se pudo borrar: ${err.message}`, { icon: 'alert', tone: 'error' }); return null; });
+  const day = range === 'pick' ? cal.selected() : null;
+  // «Un día» sin ningún día con historial: no hay historial que borrar (lo demás, sí).
+  const history = pick('history') && (range !== 'pick' || !!day);
+  const since = range === 'hour' ? Date.now() - 3_600_000 : range === 'day' ? new Date().setHours(0, 0, 0, 0) : day ? day.getTime() : 0;
+  const until = day ? new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime() : 0;
+  const done = await api.data.clear({ history, since, until, cookies: pick('cookies'), cache: pick('cache') }).catch((err) => { say(`No se pudo borrar: ${err.message}`, { icon: 'alert', tone: 'error' }); return null; });
+  if (day) { const i = done?.indexOf('historial') ?? -1; if (i > -1) done[i] = `historial del ${day.toLocaleDateString(locale.tag, { day: 'numeric', month: 'numeric' })}`; }
   if (done?.length) say(`Borrado: ${done.join(', ')}`, { icon: 'check' });
+}
+
+/* ── Elegir un día ───────────────────────────────────────────────────────────
+   Un mes por vez, lunes primero. Los días con historial se ven prendidos y son
+   los únicos que se eligen; los vacíos y los que no llegaron, apagados. Siempre
+   seis semanas, así el calendario no cambia de alto entre un mes y otro. */
+
+const MONTH = (d) => { const s = d.toLocaleDateString(locale.tag, { month: 'long', year: 'numeric' }); return s[0].toUpperCase() + s.slice(1); };
+const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+function calendarShell() {
+  const dow = ['lu', 'ma', 'mi', 'ju', 'vi', 'sá', 'do'].map((d) => `<span>${d}</span>`).join('');
+  return `<div class="pr-cal">
+    <div class="pr-cal__head">
+      <button class="op-iconbtn op-iconbtn--sm" data-m="-1" aria-label="Mes anterior">${Icons.svg('chevronLeft')}</button>
+      <span class="pr-cal__month"></span>
+      <button class="op-iconbtn op-iconbtn--sm" data-m="1" aria-label="Mes siguiente">${Icons.svg('chevronRight')}</button></div>
+    <div class="pr-cal__dow">${dow}</div>
+    <div class="pr-cal__stack"></div>
+    <div class="pr-cal__sum op-meta"></div></div>`;
+}
+
+function dayPicker(root) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  let counts = {};
+  let sel = null;
+  let shown = new Date(today.getFullYear(), today.getMonth(), 1);
+  let first = shown;
+  const stack = root.querySelector('.pr-cal__stack');
+  const month = root.querySelector('.pr-cal__month');
+  const sum = root.querySelector('.pr-cal__sum');
+
+  function gridHtml() {
+    const lead = (shown.getDay() + 6) % 7;
+    const cells = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(shown.getFullYear(), shown.getMonth(), i - lead + 1);
+      if (d.getMonth() !== shown.getMonth()) { cells.push('<span></span>'); continue; }
+      const k = dayKey(d);
+      const n = counts[k] || 0;
+      const cls = ['pr-cal__day', d.getTime() === today.getTime() && 'is-today', sel && k === dayKey(sel) && 'is-sel'].filter(Boolean).join(' ');
+      cells.push(n
+        ? `<button class="${cls}" data-day="${k}" data-tip="${plural(n, 'página')}">${d.getDate()}</button>`
+        : `<button class="${cls}" disabled>${d.getDate()}</button>`);
+    }
+    return `<div class="pr-cal__grid">${cells.join('')}</div>`;
+  }
+
+  function summary() {
+    if (!sel) return Object.keys(counts).length ? 'Elegí un día con historial.' : 'No hay historial guardado.';
+    // Armada a mano: el locale escribe «miércoles, 14 de octubre», con coma.
+    const weekday = sel.toLocaleDateString(locale.tag, { weekday: 'long' });
+    const date = sel.toLocaleDateString(locale.tag, { day: 'numeric', month: 'long', ...(sel.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) });
+    return `Se borran ${plural(counts[dayKey(sel)], 'página')} del ${weekday} ${date}.`;
+  }
+
+  /* El mes que cambia es una superficie: el viejo se funde encima del nuevo,
+     que ya está quieto debajo. */
+  function paint({ fade = false } = {}) {
+    const old = stack.querySelector('.pr-cal__grid:not([data-state="closing"])');
+    stack.insertAdjacentHTML('afterbegin', gridHtml());
+    if (old) { if (fade) dissolve(old); else old.remove(); }
+    swapText(month, MONTH(shown));
+    swapText(sum, summary());
+    root.querySelector('[data-m="-1"]').disabled = shown <= first;
+    root.querySelector('[data-m="1"]').disabled = shown.getMonth() === today.getMonth() && shown.getFullYear() === today.getFullYear();
+  }
+
+  root.addEventListener('click', (e) => {
+    const nav = e.target.closest('[data-m]');
+    if (nav && !nav.disabled) {
+      shown = new Date(shown.getFullYear(), shown.getMonth() + Number(nav.dataset.m), 1);
+      paint({ fade: true });
+      return;
+    }
+    const b = e.target.closest('.pr-cal__day[data-day]');
+    if (!b || b.classList.contains('is-sel')) return;
+    const [y, m, d] = b.dataset.day.split('-').map(Number);
+    sel = new Date(y, m - 1, d);
+    stack.querySelectorAll('.pr-cal__grid:not([data-state="closing"]) .is-sel').forEach((x) => x.classList.remove('is-sel'));
+    b.classList.add('is-sel');
+    swapText(sum, summary());
+  });
+
+  paint();
+  api.history.days().then((c) => {
+    counts = c || {};
+    const keys = Object.keys(counts).sort();
+    if (keys.length) {
+      const [y, m, d] = keys.at(-1).split('-').map(Number);
+      sel = new Date(y, m - 1, d);   // el último día con historial (casi siempre, hoy)
+      shown = new Date(y, m - 1, 1);
+      const [fy, fm] = keys[0].split('-').map(Number);
+      first = new Date(fy, fm - 1, 1);
+    }
+    paint();
+  }).catch(() => {});
+
+  return { selected: () => sel };
 }
 
 /* ══ Terminal ════════════════════════════════════════════════════════════════

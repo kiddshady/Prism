@@ -134,6 +134,7 @@ contextBridge.exposeInMainWorld('prism', {
     list: (opts) => call('history:list', opts),
     remove: (ids) => call('history:remove', ids),
     clear: (since) => call('history:clear', since),
+    days: () => call('history:days'),
     top: (n) => call('history:top', n),
   },
 

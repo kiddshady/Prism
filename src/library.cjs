@@ -216,10 +216,23 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
     return before - visits.length;
   }
 
-  /** Borra desde `since` (ms epoch) hasta ahora; sin `since`, todo. */
-  function clearHistory(since = 0) {
+  /** Cuántas visitas hay en cada día, en hora local: { 'aaaa-mm-dd': n }. Para el calendario de Borrar. */
+  function visitDays() {
+    const days = {};
+    const pad = (n) => String(n).padStart(2, '0');
+    for (const v of visits) {
+      const d = new Date(v.t);
+      const k = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      days[k] = (days[k] || 0) + 1;
+    }
+    return days;
+  }
+
+  /** Borra desde `since` (ms epoch) hasta `until` (sin incluirlo) o hasta ahora; sin ninguno, todo. */
+  function clearHistory(since = 0, until = 0) {
     const before = visits.length;
-    visits = since ? visits.filter((v) => v.t < since) : [];
+    if (since && until) visits = visits.filter((v) => v.t < since || v.t >= until);
+    else visits = since ? visits.filter((v) => v.t < since) : [];
     if (!since) favicons = {};
     rebuildIndex();
     schedule('history');
@@ -445,7 +458,7 @@ function createLibrary({ historyDoc, bookmarksDoc, now = () => Date.now(), saveD
     load, flushAll, flushAllSync,
     syncState, mergeSync,
     set onBookmarks(fn) { onBookmarks = fn; },
-    visit, setTitle, setFavicon, faviconFor, listVisits, removeVisits, clearHistory, topSites, suggest,
+    visit, setTitle, setFavicon, faviconFor, listVisits, removeVisits, clearHistory, visitDays, topSites, suggest,
     isBookmarked, listBookmarks, addBookmark, removeBookmark, updateBookmark, moveBookmark, toggleBookmark, importBookmarks,
     get visitCount() { return visits.length; },
   };

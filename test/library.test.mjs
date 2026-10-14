@@ -105,6 +105,23 @@ ok('borrar una visita la saca de las sugerencias', !lib.suggest('ibupro').items.
 const n = lib.clearHistory(clock - 10 * DAY);
 ok('borrar un rango deja lo viejo', n > 0 && lib.listVisits().some((v) => v.url.includes('reddit')), String(n));
 
+/* Borrar un día: tres días seguidos con visitas, se borra el del medio. */
+const reloj = clock;
+const t0 = new Date(clock + 3 * DAY).setHours(0, 0, 0, 0);
+const dayKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+for (const [k, h] of [[0, 23], [1, 0], [1, 9], [1, 23.9], [2, 0.1]]) {
+  clock = t0 + k * DAY + h * 3_600_000;
+  lib.visit(`https://dia${k}.com/${h}`, `Día ${k}`);
+}
+const days = lib.visitDays();
+ok('las visitas se cuentan por día local', days[dayKey(t0)] === 1 && days[dayKey(t0 + DAY)] === 3 && days[dayKey(t0 + 2 * DAY)] === 1, JSON.stringify(days));
+const nDia = lib.clearHistory(t0 + DAY, t0 + 2 * DAY);
+const quedan = lib.visitDays();
+ok('borrar un día saca solo ese día', nDia === 3 && !quedan[dayKey(t0 + DAY)] && quedan[dayKey(t0)] === 1 && quedan[dayKey(t0 + 2 * DAY)] === 1, `${nDia} ${JSON.stringify(quedan)}`);
+ok('y lo de antes sigue', lib.listVisits().some((v) => v.url.includes('reddit')));
+lib.removeVisits(lib.listVisits({ query: 'dia' }).map((v) => v.id));
+clock = reloj;
+
 console.log('\n7. Disco');
 await lib.flushAll();
 ok('se escribió el historial', Array.isArray(hist.data?.visits) && hist.data.visits.length > 0);
