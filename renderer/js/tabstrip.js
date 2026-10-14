@@ -110,12 +110,17 @@ function revealActive() {
 
 /* ── Contenido de una pestaña ──────────────────────────────────────────── */
 
+/* Los favicons que no cargaron (el de claude.ai, por ejemplo) quedan anotados:
+   si no, cada foto de estado volvía a pedir el favicon sobre el globo y el
+   ícono pestañeaba globo → hueco → globo con cada una (al navegar llegan varias). */
+const badFavicons = new Set();
+
 function iconKey(t) {
   if (t.loading && !t.internal) return 'loading';
   if (t.crashed) return 'crashed';
   if (t.error) return 'error';
   if (t.internal) return `internal:${t.internal}`;
-  if (t.favicon) return `fav:${t.favicon}`;
+  if (t.favicon && !badFavicons.has(t.favicon)) return `fav:${t.favicon}`;
   return 'globe';
 }
 
@@ -128,15 +133,26 @@ function paintIcon(slot, t, key) {
   else if (key === 'error') html = Icons.svg('alert');
   // En incógnito, la pestaña nueva lleva el fantasmita en vez del prisma.
   else if (key.startsWith('internal:')) html = Icons.svg(t.internal === 'nueva' && S.info?.private ? 'ghost' : INTERNAL_ICON[t.internal] || 'globe');
-  else if (key.startsWith('fav:')) html = `<img alt="" draggable="false" referrerpolicy="no-referrer" src="${esc(t.favicon)}">`;
+  else if (key.startsWith('fav:')) return paintFavicon(slot, t.favicon, key);
   else html = Icons.svg('globe');
-  const item = swap(slot, html);
-  // Un favicon que no carga no deja un hueco: vuelve al globo.
-  item?.querySelector('img')?.addEventListener('error', () => {
+  swap(slot, html);
+}
+
+/* El favicon entra recién cuando cargó: mientras tanto queda lo que estaba
+   (la ruedita, el globo). Uno que no carga nunca deja un hueco: va el globo. */
+function paintFavicon(slot, url, key) {
+  const probe = new Image();
+  probe.referrerPolicy = 'no-referrer';
+  probe.src = url;
+  probe.decode().then(() => {
+    if (slot.dataset.key !== key) return;
+    swap(slot, `<img alt="" draggable="false" referrerpolicy="no-referrer" src="${esc(url)}">`);
+  }, () => {
+    badFavicons.add(url);
     if (slot.dataset.key !== key) return;
     slot.dataset.key = 'globe';
     swap(slot, Icons.svg('globe'));
-  }, { once: true });
+  });
 }
 
 function create(t) {

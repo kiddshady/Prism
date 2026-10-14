@@ -356,6 +356,25 @@ app.whenReady().then(async () => {
   ok('vuelve', await until(() => ctx.tabs.active.title === 'Inicio de prueba'));
   ok('y adelante se habilita', await until(() => js(`!document.getElementById('btn-forward').disabled`)));
 
+  /* El video de Fran (14/10/2026): pestañas restauradas con el favicon de
+     claude.ai, que no carga. Cada foto de estado volvía a pedirlo sobre el
+     globo y, al ir atrás o adelante en OTRA pestaña, el globo pestañeaba. */
+  const rotoId = ctx.tabs.create({ url: `${BASE}/?roto`, active: false, dormant: true, title: 'Ícono roto', favicon: `${BASE}/icono-roto.ico` });
+  const slotRoto = `document.querySelector('.pr-tab[data-id="${rotoId}"] .pr-tab__icon')`;
+  ok('el favicon que no carga queda en el globo', await until(() => js(`${slotRoto}?.dataset.key === 'globe'`), 4000));
+  await sleep(500);
+  await js(`window.__relevosRoto = 0; new MutationObserver((ms) => { for (const m of ms) window.__relevosRoto += m.addedNodes.length; }).observe(${slotRoto}, { childList: true })`);
+  ctx.tabs.forward();
+  await until(() => ctx.tabs.active.title === 'Página dos');
+  ctx.tabs.back();
+  await until(() => ctx.tabs.active.title === 'Inicio de prueba');
+  await sleep(900);
+  const relevos = await js('window.__relevosRoto');
+  ok('ir atrás y adelante no vuelve a pedir el favicon roto de otra pestaña', relevos === 0, `(${relevos} relevos)`);
+  // Como nueva pestaña al cerrarse: así no queda para Ctrl+Mayús+T, que se prueba más abajo.
+  ctx.tabs.navigate(rotoId, 'prism://nueva');
+  ctx.tabs.close(rotoId);
+
   console.log('\n3b. Volver a la ventana devuelve el teclado a la página');
   /* Lo que pasa cuando otra app (Moji, Alt+Tab) se lleva la ventana y la
      devuelve: Chromium le da el foco al cromo. Se simula el ida y vuelta sin
