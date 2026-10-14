@@ -1697,6 +1697,32 @@ app.whenReady().then(async () => {
     ok('con la terminal a la vista, la hoja de la página se apaga', await until(() => js(`(() => { const p = getComputedStyle(document.querySelector('.pr-view[data-page="terminal"]').closest('.pr-pane')); return p.backgroundColor === 'rgba(255, 255, 255, 0)' && p.backdropFilter === 'none' && p.overflow === 'visible'; })()`), 3000));
     ok('y la shell va en una hoja de vidrio con aire alrededor, con su barra adentro', await js(`(() => { const T = '.pr-view[data-page="terminal"]'; const term = document.querySelector(T + ' .pr-term').getBoundingClientRect(); const pane = document.querySelector(T + ' .pr-term__pane'); const r = pane.getBoundingClientRect(); return getComputedStyle(pane).backdropFilter.includes('blur') && !!pane.querySelector('.pr-term__foot') && r.left - term.left >= 8 && r.top - term.top >= 8; })()`));
 
+    /* Un archivo soltado sobre la terminal: la ruta cae en el prompt (con
+       comillas, que tiene un espacio) y no se abre en una pestaña. El drag va
+       por el protocolo de DevTools, que es el único que lleva archivos de verdad. */
+    {
+      const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'prism-drop-'));
+      const file = require('path').join(dir, 'BIOTECNOLOGÍA fase5.txt');
+      require('fs').writeFileSync(file, 'x');
+      const pestañas = ctx.tabs.list.length;
+      const box = await js(`(() => { const r = document.querySelector('.pr-view[data-page="terminal"] .pr-term__pane').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+      const dbg = win.webContents.debugger;
+      dbg.attach('1.3');
+      const data = { items: [], files: [file], dragOperationsMask: 1 };
+      await dbg.sendCommand('Input.dispatchDragEvent', { type: 'dragEnter', ...box, data });
+      await dbg.sendCommand('Input.dispatchDragEvent', { type: 'dragOver', ...box, data });
+      ok('arrastrar un archivo encima marca la mitad', await until(() => js(`!!document.querySelector('.pr-view[data-page="terminal"] .pr-term__pane.is-dropping')`), 2000));
+      await dbg.sendCommand('Input.dispatchDragEvent', { type: 'drop', ...box, data });
+      dbg.detach();
+      ok('soltarlo escribe su ruta en el prompt, entre comillas', await until(() => js(`document.querySelector('.pr-view[data-page="terminal"] .xterm-rows').innerText.replace(/\\n/g, '').includes(${JSON.stringify(`'${file}'`)})`), 5000),
+        await js(`document.querySelector('.pr-view[data-page="terminal"] .xterm-rows').innerText.slice(-400)`));
+      ok('y no lo abre en una pestaña', ctx.tabs.list.length === pestañas && ctx.tabs.active?.internal === 'terminal');
+      ok('el anillo se va al soltar', await js(`!document.querySelector('.pr-view[data-page="terminal"] .pr-term__pane.is-dropping')`));
+      ctx.term.write(ctx, '\x03');   // la línea a medio escribir no queda para lo que sigue
+      await new Promise((r) => setTimeout(r, 300));
+      require('fs').rmSync(dir, { recursive: true, force: true });
+    }
+
     /* Dividida en dos: cada mitad con su shell, lo de una no cae en la otra,
        cada una con su barra de abajo y un `exit` la junta. */
     const T = `.pr-view[data-page="terminal"]`;

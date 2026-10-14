@@ -58,6 +58,11 @@
 .pr-term.is-split .pr-term__pane.is-focus {
   box-shadow: var(--op-sheet), var(--op-e4), 0 0 0 2px var(--op-bg), 0 0 0 4px rgb(var(--op-accent-rgb) / .62);
 }
+/* Un archivo arrastrado encima: el mismo anillo, para que se vea en qué
+   mitad va a caer la ruta (con una sola, también). */
+.pr-term .pr-term__pane.is-dropping {
+  box-shadow: var(--op-sheet), var(--op-e4), 0 0 0 2px var(--op-bg), 0 0 0 4px rgb(var(--op-accent-rgb) / .62);
+}
 /* La mitad nueva aparece; la que se cierra se esfuma antes de irse. */
 .pr-term__pane.is-entering { animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both; }
 .pr-term__pane[data-state='closing'] {

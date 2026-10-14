@@ -277,6 +277,18 @@ contextBridge.exposeInMainWorld('prism', {
     /** Las mitades con su shell viva. */
     panes: () => call('term:panes'),
     write: (pane, data) => send('term:write', data, pane),
+    /** Archivos soltados sobre una mitad: sus rutas caen en el prompt, entre
+        comillas de PowerShell si hacen falta, y con un espacio al final para
+        seguir tipeando. Como en files.open, la ruta no pasa por la interfaz. */
+    drop: (pane, files) => {
+      const text = Array.from(files || [])
+        .map((f) => { try { return webUtils.getPathForFile(f); } catch { return ''; } })
+        .filter(Boolean)
+        .map((p) => (/^[\w\-.:\\]+$/.test(p) ? p : `'${p.replace(/'/g, "''")}'`))
+        .join(' ');
+      if (text) send('term:write', `${text} `, pane);
+      return !!text;
+    },
     resize: (pane, cols, rows) => send('term:resize', cols, rows, pane),
     focused: (on) => send('term:focus', !!on),
     stats: () => call('term:stats'),

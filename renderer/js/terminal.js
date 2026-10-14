@@ -427,11 +427,47 @@ function place(p, { entering = false } = {}) {
   el.querySelector('[data-act="close"]').addEventListener('click', () => closePane(p));
   // La pestaña de arriba también lleva el teclado a su mitad.
   el.querySelector('.pr-term__tab').addEventListener('click', () => p.xterm.focus());
+  dropTarget(p, el);
   const body = el.querySelector('.pr-term__body');
   body.appendChild(p.screen);
   box.appendChild(el);
   mounted?.ro.observe(body);
   paintPlace(p);
+}
+
+/* Un archivo soltado sobre una mitad escribe su ruta en el prompt (como en
+   NTX), no se abre en una pestaña: la terminal lo ataja antes que el drop de
+   la ventana (app.js). Sobre una shell terminada no hace nada. */
+function dropTarget(p, el) {
+  let depth = 0;
+  const withFiles = (e) => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  const done = () => { depth = 0; el.classList.remove('is-dropping'); };
+  el.addEventListener('dragenter', (e) => {
+    if (!withFiles(e)) return;
+    depth += 1;
+    if (!p.dead) el.classList.add('is-dropping');
+  });
+  el.addEventListener('dragleave', (e) => {
+    if (!withFiles(e)) return;
+    depth = Math.max(0, depth - 1);
+    if (!depth) el.classList.remove('is-dropping');
+  });
+  el.addEventListener('dragover', (e) => {
+    if (!withFiles(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = p.dead ? 'none' : 'copy';
+  });
+  el.addEventListener('drop', (e) => {
+    if (!withFiles(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    done();
+    if (p.dead) return;
+    // Soltaste acá: esta mitad se lleva el teclado.
+    // Como array: un FileList no cruza el puente del preload, los File sí.
+    if (api.term.drop(p.id, [...e.dataTransfer.files])) p.xterm.focus();
+  });
 }
 
 /** Los números de las pestañas (01, 02) siguen el orden: si se va la de la
