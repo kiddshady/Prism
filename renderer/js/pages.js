@@ -450,15 +450,94 @@ function historyPage(t) {
       </div>
       <div class="pr-list" id="h-list"></div>
       <div id="h-more" style="height:1px"></div>
-    </div></div>`, 'historial');
+    </div></div>
+    <div class="pr-selbar" id="h-sel" inert>
+      <span class="pr-selbar__count" id="h-sel-n"></span>
+      <button class="op-btn op-btn--sm" id="h-sel-cancel">Cancelar</button>
+      <button class="op-btn op-btn--sm op-btn--secondary op-btn--danger" id="h-sel-del"><i data-icon="trash"></i> Borrar</button>
+    </div>`, 'historial');
 
   const list = el.querySelector('#h-list');
   const scroller = el.querySelector('#h-scroll');
   const q = el.querySelector('#h-q');
+  const bar = el.querySelector('#h-sel');
   let items = [];
   let done = false;
   let loading = false;
   let query = '';
+
+  /* Elegir varias, como en Chrome: un check por fila, Mayús+click elige
+     el tramo desde la última tocada, y mientras haya algo elegido flota
+     abajo una barra para borrarlas juntas (al pie y no en la cabecera, que
+     se va con el scroll). Lo elegido no va en el html de la fila: así
+     marcar una no la rehace, y el tilde se dibuja con su transición. */
+  const picked = new Set();
+  let anchor = null;   // la última fila tocada, de donde sale el tramo con Mayús
+  let shown = 0;
+
+  function syncBar() {
+    const n = picked.size;
+    if (n) {
+      const text = plural(n, 'página elegida', 'páginas elegidas');
+      const countEl = bar.querySelector('#h-sel-n');
+      if (!shown) countEl.textContent = text;   // la barra aparece ya con su número
+      else if (n !== shown) swap(countEl, esc(text), { dir: n > shown ? 1 : -1 });
+    }
+    // Al irse conserva el último número: se apaga con lo que decía.
+    bar.classList.toggle('is-on', n > 0);
+    bar.inert = n === 0;
+    shown = n;
+  }
+
+  function setPicked(row, on) {
+    const id = Number(row.dataset.id);
+    if (on) picked.add(id); else picked.delete(id);
+    row.classList.toggle('is-picked', on);
+    const box = row.querySelector('.op-check');
+    box.classList.toggle('is-on', on);
+    box.setAttribute('aria-checked', String(on));
+  }
+
+  function clearPicked() {
+    if (!picked.size) return;
+    picked.clear();
+    for (const row of list.querySelectorAll('.pr-row.is-picked')) setPicked(row, false);
+    anchor = null;
+    syncBar();
+  }
+
+  function togglePick(row, range) {
+    const id = Number(row.dataset.id);
+    const on = !picked.has(id);
+    const rows = [...list.querySelectorAll('.pr-row:not([data-state="closing"])')];
+    const a = range && anchor != null ? rows.findIndex((r) => Number(r.dataset.id) === anchor) : -1;
+    const b = rows.indexOf(row);
+    if (a > -1 && b > -1) {
+      // El tramo toma el estado de la que se tocó, como en Chrome.
+      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) setPicked(rows[i], on);
+    } else setPicked(row, on);
+    anchor = id;
+    syncBar();
+  }
+
+  async function removePicked() {
+    const ids = [...picked];
+    if (!ids.length) return;
+    const si = await confirm({
+      title: `¿Borrar ${plural(ids.length, 'página', 'páginas')} del historial?`,
+      sub: 'Las visitas elegidas se borran. Los favoritos no se tocan.',
+      confirmLabel: 'Borrar',
+      danger: true,
+    });
+    if (!si) return;
+    const gone = new Set(ids);
+    items = items.filter((v) => !gone.has(v.id));
+    picked.clear();
+    anchor = null;
+    syncBar();
+    paint();
+    await api.history.remove(ids).catch(() => null);
+  }
 
   /* Filas y títulos de día como piezas de reconcile() (motion.js): al buscar,
      lo que sigue coincidiendo se queda y se acomoda, lo demás se va y lo
@@ -470,6 +549,7 @@ function historyPage(t) {
       const day = dayLabel(v.t);
       if (day !== lastDay) { out.push({ key: `day:${day}`, html: `<div class="pr-day op-eyebrow">${esc(day)}</div>` }); lastDay = day; }
       out.push({ key: `v:${v.id}`, html: `<div class="pr-row" data-id="${v.id}" data-url="${esc(v.url)}">
+          <button class="op-check" role="checkbox" aria-checked="false" aria-label="Elegir">${Icons.svg('check')}</button>
           <span class="pr-row__time">${clock(v.t)}</span>
           <span class="pr-row__fav">${favIcon(v.url, v.favicon)}</span>
           <span class="pr-row__title">${esc(v.title || v.url)}</span>
@@ -482,7 +562,19 @@ function historyPage(t) {
           <div class="op-empty__text">${query ? `No visitaste nada que diga «${esc(query)}».` : 'Lo que visites va a aparecer acá, ordenado por día.'}</div></div>` }];
   }
 
-  const paint = () => reconcile(list, rowItems(), { created: wireFallbacks });
+  // Una fila que nace (bajando más, o rehecha) toma lo elegido.
+  const created = (row) => {
+    wireFallbacks(row);
+    if (picked.has(Number(row.dataset.id))) setPicked(row, true);
+  };
+  function paint() {
+    // Lo elegido que ya no está en la lista no se borra a ciegas.
+    const here = new Set(items.map((v) => v.id));
+    let lost = false;
+    for (const id of picked) if (!here.has(id)) { picked.delete(id); lost = true; }
+    if (lost) syncBar();
+    reconcile(list, rowItems(), { created });
+  }
 
   let seq = 0;
   async function load(reset = false, keepScroll = false) {
@@ -504,7 +596,8 @@ function historyPage(t) {
   let qTimer = null;
   q.addEventListener('input', () => {
     clearTimeout(qTimer);
-    qTimer = setTimeout(() => { query = q.value.trim(); load(true); }, 160);
+    // Otra búsqueda empieza sin nada elegido: no se borra lo que no se ve.
+    qTimer = setTimeout(() => { query = q.value.trim(); clearPicked(); load(true); }, 160);
   });
 
   // Carga más al acercarse al final.
@@ -524,6 +617,7 @@ function historyPage(t) {
   el.addEventListener('click', (e) => {
     const row = e.target.closest('.pr-row');
     if (!row) return;
+    if (e.target.closest('.op-check')) { togglePick(row, e.shiftKey); return; }
     const more = e.target.closest('[data-more]');
     if (more) {
       e.stopPropagation();
@@ -531,7 +625,7 @@ function historyPage(t) {
       menu(more, [
         { label: 'Abrir en una pestaña nueva', icon: 'external', onSelect: () => api.tabs.create(url, { active: false }) },
         { label: 'Copiar la dirección', icon: 'link', onSelect: () => copyUrl(url) },
-        { label: 'Más de este sitio', icon: 'filter', onSelect: () => { q.value = hostOf(url); query = q.value; load(true); } },
+        { label: 'Más de este sitio', icon: 'filter', onSelect: () => { q.value = hostOf(url); query = q.value; clearPicked(); load(true); } },
         { sep: true },
         { label: 'Borrar del historial', icon: 'trash', danger: true, onSelect: () => removeRow(row) },
       ], { align: 'end' });
@@ -542,9 +636,19 @@ function historyPage(t) {
   });
   el.addEventListener('auxclick', (e) => {
     const row = e.target.closest('.pr-row');
-    if (row && e.button === 1) api.tabs.create(row.dataset.url, { active: false });
+    if (row && e.button === 1 && !e.target.closest('.op-check')) api.tabs.create(row.dataset.url, { active: false });
   });
+  // Mayús+click en un check no extiende la selección de texto entre filas.
+  el.addEventListener('mousedown', (e) => { if (e.shiftKey && e.target.closest('.pr-row .op-check')) e.preventDefault(); });
   el.querySelector('#h-clear').addEventListener('click', () => clearDataModal());
+  el.querySelector('#h-sel-cancel').addEventListener('click', clearPicked);
+  el.querySelector('#h-sel-del').addEventListener('click', removePicked);
+  // Con algo elegido: Escape lo suelta y Supr pregunta para borrarlo (en el buscador, no).
+  el.addEventListener('keydown', (e) => {
+    if (!picked.size || e.target.closest('input')) return;
+    if (e.key === 'Escape') { e.preventDefault(); clearPicked(); }
+    else if (e.key === 'Delete') { e.preventDefault(); removePicked(); }
+  });
 
   load(true);
   // Un cambio de afuera (una visita nueva) no te saca de donde estabas leyendo.

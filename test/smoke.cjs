@@ -1549,7 +1549,39 @@ app.whenReady().then(async () => {
   for (const p of ['historial', 'favoritos', 'descargas', 'ajustes']) {
     ctx.tabs.openInternal(p);
     ok(`prism://${p} se dibuja`, await until(() => js(`!!document.querySelector('.pr-view[data-page="${p}"] .pr-head__title')`)));
-    if (p === 'historial') ok('el historial lista lo visitado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="historial"] .pr-row').length >= 2`)));
+    if (p === 'historial') {
+      ok('el historial lista lo visitado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="historial"] .pr-row').length >= 2`)));
+      /* Elegir varias y borrarlas juntas, como en Chrome. Se borran visitas
+         propias (las de arriba de todo), no las que usan otras pruebas. */
+      for (const n of [1, 2, 3, 4]) ctx.library.visit(`${BASE}/?elegir-${n}`, `Elegir ${n}`);
+      ctx.send('library:changed');
+      const H = `document.querySelector('.pr-view[data-page="historial"]:not([data-state="closing"])')`;
+      const fila = (n) => `[...${H}.querySelectorAll('.pr-row:not([data-state="closing"])')].find((r) => r.dataset.url.endsWith('?elegir-${n}'))`;
+      ok('las visitas nuevas aparecen, cada una con su check', await until(() => js(`[1,2,3,4].every((n) => { const r = [...${H}.querySelectorAll('.pr-row')].find((x) => x.dataset.url.endsWith('?elegir-' + n)); return r && r.querySelector('.op-check'); })`)));
+      const barOn = () => js(`${H}.querySelector('#h-sel').classList.contains('is-on')`);
+      const contar = () => js(`${H}.querySelector('#h-sel-n').textContent`);
+      const tab0 = ctx.tabs.active.id;
+      await js(`${fila(4)}.querySelector('.op-check').click()`);
+      ok('un check elige la fila sin abrirla, y aparece la barra', await until(barOn) && ctx.tabs.active.internal === 'historial' && ctx.tabs.active.id === tab0
+        && await js(`${fila(4)}.classList.contains('is-picked') && ${fila(4)}.querySelector('.op-check').getAttribute('aria-checked') === 'true'`));
+      ok('la barra dice cuántas', (await contar()).includes('1 página elegida'), await contar());
+      // Mayús+click elige el tramo desde la última tocada: 4 → 2 elige 4, 3 y 2.
+      await js(`${fila(2)}.querySelector('.op-check').dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }))`);
+      ok('Mayús+click elige el tramo entero', await js(`['2','3','4'].every((n) => [...${H}.querySelectorAll('.pr-row.is-picked')].some((r) => r.dataset.url.endsWith('?elegir-' + n))) && ${H}.querySelectorAll('.pr-row.is-picked').length === 3`));
+      ok('y el número de la barra se pone al día', await until(async () => (await contar()).endsWith('3 páginas elegidas')), await contar());
+      await js(`${H}.querySelector('#h-sel-cancel').click()`);
+      ok('Cancelar suelta todo y la barra se va', await until(async () => !(await barOn())) && await js(`${H}.querySelectorAll('.pr-row.is-picked, .pr-row .op-check.is-on').length === 0`));
+      await js(`${fila(1)}.querySelector('.op-check').click(); ${fila(3)}.querySelector('.op-check').click()`);
+      await until(async () => (await contar()).endsWith('2 páginas elegidas'));
+      await js(`${H}.querySelector('#h-sel-del').click()`);
+      ok('Borrar pregunta antes', await until(() => js(`!!document.querySelector('.op-modal__anim:not([data-state="closing"])')?.textContent.includes('¿Borrar 2 páginas del historial?')`)));
+      await js(`[...document.querySelectorAll('.op-modal__anim:not([data-state="closing"]) .op-modal__foot .op-btn')].find((b) => b.textContent.includes('Borrar')).click()`);
+      ok('y borra justo las elegidas', await until(() => {
+        const urls = ctx.library.listVisits({ limit: 500 }).map((v) => v.url);
+        return !urls.some((u) => u.endsWith('?elegir-1') || u.endsWith('?elegir-3')) && urls.some((u) => u.endsWith('?elegir-2')) && urls.some((u) => u.endsWith('?elegir-4'));
+      }));
+      ok('las filas se van de la lista y la barra también', await until(async () => !(await barOn()) && await js(`![1, 3].some((n) => [...${H}.querySelectorAll('.pr-row:not([data-state="closing"])')].some((r) => r.dataset.url.endsWith('?elegir-' + n)))`)));
+    }
     if (p === 'favoritos') {
       ok('los favoritos listan el guardado', await until(() => js(`document.querySelectorAll('.pr-view[data-page="favoritos"] .pr-row').length === 1`)));
       /* Exportar existe para pasarlos a otro Prism: prendido con favoritos, y

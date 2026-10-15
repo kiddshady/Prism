@@ -56,7 +56,9 @@ npm run release # publica en GitHub (ver abajo)
   bloquea en cada página y se apaga por sitio desde el escudo. Las listas se
   renuevan cada semana por detrás; sin red, sigue con las de antes y vuelve a
   probar sola.
-- **Historial** agrupado por día, con búsqueda. **Favoritos** con la estrella
+- **Historial** agrupado por día, con búsqueda, y un check por fila para
+  borrar varias juntas como en Chrome (Mayús+click elige el tramo; Escape
+  suelta, Supr borra). **Favoritos** con la estrella
   o Ctrl+D, e importados de Chrome, Edge o Brave (o de un HTML exportado).
   **Descargas** con progreso, pausa y reintento. Salir (o reiniciar para
   actualizar) con una bajando pregunta antes, y si se corta igual queda en la

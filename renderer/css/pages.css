@@ -219,7 +219,53 @@
 .pr-row__title { flex: 0 1 auto; min-width: 0; font-size: var(--op-fs-13); color: var(--op-text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pr-row__host { flex: 1 1 0; min-width: 60px; font-size: var(--op-fs-12); color: var(--op-text-3); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pr-row .op-rowactions { flex: 0 0 auto; }
+/* Elegida para borrar junto con otras: un velo apenas más fuerte que el hover. */
+.pr-row.is-picked { background: var(--op-wash-1); }
+.pr-row.is-picked:hover { background: var(--op-wash-2); }
+/* El check mide 15 px: el área que toma el click es más grande que el dibujo. */
+.pr-row > .op-check::before { content: ''; position: absolute; inset: -8px -6px; }
 .pr-row[data-state='closing'] { animation: pr-row-out 180ms var(--op-ease-in) both; }
+
+/* La barra de lo elegido flota al pie de la página, fuera del scroll: la
+   cabecera se va al bajar y la barra tiene que estar donde estés. Opaca y
+   sin blur, como todo lo que flota en Prism (--pr-float). Entra subiendo
+   un poco y se va en su lugar, más corta. La capa fija (will-change) es por
+   la sombra grande: sin ella, al terminar de entrar se repinta un tono
+   distinto y se ve achicarse. */
+.pr-selbar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--op-2);
+  padding: 6px 6px 6px var(--op-4);
+  border-radius: var(--op-r-lg);
+  background: var(--pr-float);
+  box-shadow: var(--op-sheet), var(--op-e3);
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 8px);
+  will-change: transform, opacity;
+  transition: opacity var(--op-t-out) var(--op-ease-both), transform var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out);
+}
+.pr-selbar.is-on {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease), visibility 0s;
+}
+.pr-selbar__count {
+  min-width: 132px;
+  margin-right: var(--op-2);
+  font-size: var(--op-fs-12);
+  line-height: 16px;
+  color: var(--op-text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pr-selbar__count .op-swap__item { will-change: opacity; }
 .pr-day[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
 @keyframes pr-row-out { to { opacity: 0; transform: translateX(8px); } }
 
