@@ -232,7 +232,8 @@ pasa por una pregunta y lo que no está en ninguna lista se niega
 (`src/web.cjs`). Lo que un sitio abre solo (un permiso, compartir pantalla)
 no toma clicks los primeros 600 ms. El user agent se presenta como el
 Chromium que es, sin "Electron/": el login de Google rechaza a los que se
-identifican así.
+identifican así. Y con la versión recortada como Chrome (`Chrome/152.0.0.0`):
+con el número de compilación entero, ScienceDirect bloquea sin captcha.
 
 La lista para completar contraseñas y tarjetas no está en la página: la
 dibuja Prism en una vista propia, encima (`src/fill.cjs`), así la página

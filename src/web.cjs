@@ -93,8 +93,16 @@ function createWeb(ctx, { partition = 'persist:prism', private: priv = false } =
   /* ── Identidad ─────────────────────────────────────────────────────────────
      El user agent por defecto dice "Electron/40…" y "Prism/0.1.0". Varios
      sitios (el login de Google, el primero) rechazan a los navegadores que se
-     identifican como Electron. Se presenta como el Chromium que es. */
-  const ua = web.getUserAgent().replace(/\s(Electron|prism|Prism)\/\S+/g, '');
+     identifican como Electron. Se presenta como el Chromium que es.
+     Y con la versión recortada, como la manda Chrome ("Chrome/152.0.0.0"):
+     el número de compilación entero ("152.0.7977.130") solo lo manda un
+     Chromium embebido, y ScienceDirect (Cloudflare) lo bloquea de una, sin
+     ofrecer el captcha. Probado contra un artículo suyo (oct 2026): con la
+     versión entera, "There was a problem providing the content" (CPE00001);
+     recortada, el mismo captcha que le muestra a Chrome. */
+  const ua = web.getUserAgent()
+    .replace(/\s(Electron|prism|Prism)\/\S+/g, '')
+    .replace(/Chrome\/(\d+)\.[\d.]+/, 'Chrome/$1.0.0.0');
   web.setUserAgent(ua);
 
   /* ── Entrar con Google ─────────────────────────────────────────────────────
