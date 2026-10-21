@@ -53,10 +53,23 @@ function sync() {
 
 let findOpen = false;
 
+/* La barra flota sobre la punta derecha de la omnibox (prism.css): queda
+   apoyada en su borde derecho, que depende de lo que haya a la derecha de la
+   omnibox. Se mide al abrir y con cada cambio de tamaño de la barra. */
+const ubicarFind = () => {
+  const omni = document.getElementById('omni');
+  const bar = document.getElementById('toolbar');
+  if (!omni || !bar) return;
+  find.style.setProperty('--pr-find-r', `${Math.round(bar.getBoundingClientRect().right - omni.getBoundingClientRect().right)}px`);
+};
+let findMedido = false;
+
 export function openFind() {
   if (!isWebActive()) return;
   findOpen = true;
   findDir = 0;
+  ubicarFind();
+  if (!findMedido) { findMedido = true; new ResizeObserver(() => { if (findOpen) ubicarFind(); }).observe(document.getElementById('toolbar')); }
   // Lo de la vez anterior se quedó para plegarse con la barra: ahora se va.
   if (!findInput.value) paintCount('');
   find.classList.add('is-open');
@@ -66,9 +79,9 @@ export function openFind() {
   if (findInput.value) api.page.find(findInput.value, { newSession: true });
 }
 
-/* La cuenta se releva en su lugar: al ir a la siguiente sube, a la anterior
-   baja, como un contador. Escribiendo, solo se cruza. Al cerrar no se borra:
-   la barra se pliega con lo último que decía. */
+/* La cuenta se releva en su lugar: al ir a la siguiente o a la anterior
+   destella (hasta oct 2026 subía o bajaba). Escribiendo, solo se cruza. Al
+   cerrar no se borra: la barra se apaga con lo último que decía. */
 let findDir = 0;
 const paintCount = (text) => swapText(findCount, text, { dir: findDir });
 

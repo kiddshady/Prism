@@ -155,7 +155,9 @@
 }
 
 /* Dividir (con una mitad) y cerrar esta mitad (con dos), a la derecha de la
-   pestaña. El que no va se pliega: ancho y opacidad, nunca display. */
+   pestaña. Los dos ocupan la MISMA casilla (cerrar se monta encima de
+   dividir) y se cruzan por opacidad (oct 2026). Antes uno se plegaba a lo
+   ancho mientras el otro se desplegaba, y el ícono se corría. */
 .pr-term__act {
   appearance: none;
   align-self: center;
@@ -175,21 +177,21 @@
   overflow: hidden;
   cursor: pointer;
   transition: color var(--op-t-1) var(--op-ease-soft), background-color var(--op-t-1) var(--op-ease-soft),
-    max-width var(--op-t-2) var(--op-ease), margin var(--op-t-2) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft);
+    opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s;
 }
 .pr-term__act:first-of-type { margin-left: auto; }
+.pr-term__act[data-act='close'] { margin-left: -22px; }
 .pr-term__act:hover { color: var(--op-text); background-color: rgb(255 255 255 / .06); }
 .pr-term__act:active { background-color: rgb(255 255 255 / .1); }
 .pr-term__act .op-icon { width: 14px; height: 14px; }
 .pr-term:not(.is-split) .pr-term__act[data-act='close'],
 .pr-term.is-split .pr-term__act[data-act='split'] {
-  max-width: 0;
-  margin-left: 0;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
+  transition: color var(--op-t-1) var(--op-ease-soft), background-color var(--op-t-1) var(--op-ease-soft),
+    opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out);
 }
-/* Plegado el de dividir, el de cerrar es el que empuja a la derecha. */
-.pr-term.is-split .pr-term__act[data-act='close'] { margin-left: auto; }
 
 /* ── La pantalla ─────────────────────────────────────────────────────────── */
 .pr-term__body {
@@ -296,19 +298,26 @@
   user-select: text;
   cursor: text;
 }
-/* El branch, la carpeta y el «run» entran y salen (no aparecen de golpe). */
+/* El branch, la carpeta y el «run» tienen cada uno su casilla, siempre, y se
+   prenden y se apagan en ella (oct 2026). Antes se desplegaban a lo ancho y
+   empujaban a los de al lado; Fran: «botones saltando».
+   · El branch: una casilla fija (se corta con puntos si es más largo).
+   · La carpeta: lo que sobra de la fila, cortada con puntos: cambiar de
+     carpeta no mueve lo que sigue.
+   · El «run»: lugar para siete cifras, así su cuenta no corre a nadie. */
 .pr-term__branch, .pr-term__cwd, .pr-term__run {
-  max-width: 0;
-  margin-right: 0;
   opacity: 0;
+  visibility: hidden;
   overflow: hidden;
-  transition: max-width var(--op-t-3) var(--op-ease), margin-right var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft);
+  transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out);
 }
-.pr-term__branch.is-on { max-width: 32ch; margin-right: 16px; opacity: 1; }
-.pr-term__cwd.is-on { max-width: 72ch; margin-right: 16px; opacity: 1; }
-/* Lo que lleva el comando que corre. Va último de la fila: su ancho cambia
-   cada segundo y ahí atrás no corre a nadie. */
-.pr-term__run.is-on { max-width: 16ch; margin-right: 16px; opacity: 1; }
+.pr-term__branch { flex: 0 0 auto; width: 18ch; }
+.pr-term__cwd { flex: 1 1 auto; }
+.pr-term__run { flex: 0 0 auto; }
+.pr-term__run .pr-term__val { min-width: 7ch; }
+.pr-term__branch.is-on,
+.pr-term__cwd.is-on,
+.pr-term__run.is-on { opacity: 1; visibility: visible; transition: opacity var(--op-t-2) var(--op-ease-soft), visibility 0s; }
 /* Lo de la compu (cpu, memoria y la hora), a la derecha. Es lo mismo para
    las dos shells: va una sola vez, en la de la derecha. La de la izquierda
    lo pliega mientras tenga una viva al lado (ancho y opacidad, nunca

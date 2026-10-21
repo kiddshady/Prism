@@ -224,6 +224,10 @@
   --op-r-xl:  16px;
   --op-r-pill: 999px;
 
+  /* El respiro de la scrollbar: el riel se acorta en las puntas y el thumb
+     topa un poco antes del borde real (base.css). */
+  --op-sb-aire: 6px;
+
   /* ── Elevación ─────────────────────────────────────────────────────────────
      Sombras largas y suaves: la profundidad la da la elevación, nunca un
      contorno duro. Una hoja de vidrio flota lejos de lo que tapa. */

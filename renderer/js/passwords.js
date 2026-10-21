@@ -28,7 +28,7 @@ import { esc } from './ui.js';
 import { plural } from './format.js';
 import { popover, popoverOpen, closePopover } from './layers.js';
 import { say } from './status.js';
-import { scrollFade, bindSwitcher, reconcile, swap, swapText, dissolve, toggleReveal } from './motion.js';
+import { scrollFade, bindSwitcher, reconcile, swap, swapText, dissolve, toggleReveal, celda } from './motion.js';
 
 let btn;
 
@@ -174,7 +174,7 @@ export async function openPanel() {
           <div class="pr-pass__list op-scroll op-scroll--line-bottom" id="pp-list" role="listbox"></div>
           <div class="pr-pass__foot">
             <span class="op-meta op-grow op-truncate" id="pp-count"></span>
-            <button class="op-btn op-btn--ghost op-btn--sm" id="pp-import"><span class="op-swap--row" id="pp-foot">${footHTML()}</span></button>
+            <button class="op-btn op-btn--ghost op-btn--sm" id="pp-import">${footHTML()}</button>
           </div>
         </aside>
         <section class="pr-pass__main" id="pp-main"></section>
@@ -375,7 +375,7 @@ function field(label, icon, value, { copy = null, mono = false, secret = null } 
       <span class="pr-pass__fieldicon">${Icons.svg(icon)}</span>
       <div class="pr-pass__fieldbody">
         <div class="pr-pass__label">${esc(label)}</div>
-        <div class="pr-pass__value${mono ? ' is-mono' : ''}${secret ? ' is-secret' : ''}"${secret ? ` id="pp-secret-${secret}"` : ''}>${value}</div>
+        <div class="pr-pass__value${mono ? ' is-mono' : ''}${secret ? ' is-secret op-swap--truncate' : ''}"${secret ? ` id="pp-secret-${secret}"` : ''}>${value}</div>
       </div>
       ${secret ? `<button class="op-iconbtn op-iconbtn--sm op-iconswap pr-pass__eye${shown ? ' is-on is-b' : ''}" data-a="reveal" data-f="${secret}" aria-label="Mostrar" data-tip="${shown ? 'Ocultar' : 'Mostrar'}">${Icons.svg('eye')}${Icons.svg('eyeOff')}</button>` : ''}
       ${copy ? `<button class="op-iconbtn op-iconbtn--sm op-iconswap pr-pass__copy" data-copy="${copy}" aria-label="Copiar" data-tip="Copiar">${Icons.svg('copy')}${Icons.svg('check')}</button>` : ''}
@@ -515,7 +515,9 @@ function startTicking() {
       if (!box.isConnected) return;    // se cambió de elemento mientras llegaba: el que pintó sigue
       if (!c.error) {
         box.dataset.counter = c.counter;
-        swap(box.querySelector('#pp-code'), esc(groupDigits(c.code)), { dir: 1 });
+        // En su lugar y sin destello: cambia solo, cada 30 s (hasta oct 2026
+        // el código nuevo entraba subiendo).
+        swap(box.querySelector('#pp-code'), esc(groupDigits(c.code)));
       }
       now = Date.now();
     }
@@ -801,7 +803,10 @@ const submitRestore = local(async (form) => {
     btn.disabled = false;
     const msg = form.querySelector('#pp-restore-msg');
     msg.classList.add('op-field__hint--error');
-    swapText(msg, err.message, { size: true });
+    // La pista guarda el alto de la explicación (la más larga): el error se
+    // releva en su lugar y el formulario no cambia de alto.
+    if (!msg.style.minHeight) msg.style.minHeight = `${msg.offsetHeight}px`;
+    swapText(msg, err.message);
     input.select();
   }
 });
@@ -899,10 +904,26 @@ function wire(el) {
     const it = selected();
     if (a === 'import') return doImport();
     if (a === 'qr-screen' || a === 'qr-clip' || a === 'qr-file') return readQr({ 'qr-screen': 'screen', 'qr-file': 'file', 'qr-clip': 'clipboard' }[a], b);
+    /* Más opciones: un cambio de forma, debajo de un fundido (oct 2026). La
+       vista se copia encima (opaca, con lo que había escrito), debajo se
+       abre o se cierra de una vez, y la copia se esfuma. Antes se desplegaba
+       y empujaba la nota y los botones. */
     if (a === 'more') {
-      P.more = toggleReveal(main.querySelector('.pr-pass__moreopts'));
+      const view = main.querySelector('.pr-pass__view:not([data-state="closing"])');
+      const calco = view?.cloneNode(true);
+      if (calco) {
+        calco.classList.add('is-quiet');
+        view.after(calco);
+        calco.scrollTop = view.scrollTop;
+      }
+      const opts = main.querySelector('.pr-pass__moreopts');
+      opts.style.transition = 'none';
+      P.more = toggleReveal(opts);
+      void opts.offsetHeight;
+      opts.style.transition = '';
       b.classList.toggle('is-open', P.more);
       b.setAttribute('aria-expanded', String(P.more));
+      if (calco) dissolve(calco);
       return null;
     }
     if (a === 'new') { P.mode = 'new'; return paintMain(); }
@@ -946,9 +967,10 @@ function wire(el) {
       else P.revealed.values[f] = await api.pass.reveal(it.id, f).catch(() => '');
       if (P.revealed?.id !== it.id) return null;    // se cambió de elemento mientras llegaba
       const shown = P.revealed.values[f] != null;
-      // Los puntos y lo escrito se relevan en su lugar, y el alto acompaña
-      // (una contraseña larga ocupa más de un renglón).
-      swap(main.querySelector(`#pp-secret-${f}`), secretHTML(it, f), { size: true });
+      // Los puntos y lo escrito se relevan en su lugar, en un renglón: una
+      // contraseña larga se corta con puntos (copiar se lleva la entera). Así
+      // los campos de abajo no se mueven (hasta oct 2026 el alto viajaba).
+      swap(main.querySelector(`#pp-secret-${f}`), secretHTML(it, f));
       b.classList.toggle('is-on', shown);
       b.classList.toggle('is-b', shown);   // el ojo ↔ el ojo tachado (.op-iconswap)
       b.dataset.tip = shown ? 'Ocultar' : 'Mostrar';
@@ -966,14 +988,19 @@ function wire(el) {
    aviso vive en el panel y no en la statusbar: un clic allá abajo cerraría
    el panel. */
 const UNDO_MS = 6000;
-const footHTML = () => (P.undo ? `${Icons.svg('undo')} Deshacer` : `${Icons.svg('download')} Importar`);
+/* Importar y Deshacer viven en la misma celda del botón (oct 2026): el botón
+   mide lo del más ancho y no cambia nunca; se cruzan en su lugar. Antes su
+   ancho viajaba y el pie de al lado se corría. */
+const footHTML = () => `<span class="op-celda op-celda--start" id="pp-foot">`
+  + `<span${P.undo ? ' hidden' : ''}>${Icons.svg('download')} Importar</span>`
+  + `<span${P.undo ? '' : ' hidden'}>${Icons.svg('undo')} Deshacer</span></span>`;
 
 function paintFoot() {
   if (!root) return;
   const b = root.querySelector('#pp-import');
   b.dataset.tip = P.undo ? `Traer de vuelta ${P.undo.title}` : '';
   if (!P.undo) delete b.dataset.tip;
-  swap(root.querySelector('#pp-foot'), footHTML(), { size: true });
+  celda(root.querySelector('#pp-foot'), P.undo ? 1 : 0);
 }
 
 function endUndo() {

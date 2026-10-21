@@ -11,7 +11,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  animation: op-rise-in var(--op-t-4) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-4) var(--op-ease) both;
 }
 /* La que llega después de otra espera a que la vieja casi no se vea. */
 .pr-view.is-after { animation-delay: 90ms; }
@@ -80,7 +80,8 @@
 .pr-ntp__mark .pr-mark__f { animation: pr-facet .7s var(--op-ease) both; }
 .pr-ntp__mark .pr-mark__f--b { animation-delay: .08s; }
 .pr-ntp__mark .pr-mark__f--c { animation-delay: .16s; }
-@keyframes pr-facet { from { opacity: 0; transform: translateY(4px) scale(.96); } to { opacity: 1; transform: none; } }
+/* Cada cara se enciende en su lugar (hasta oct 2026 subía y crecía). */
+@keyframes pr-facet { from { opacity: 0; } to { opacity: 1; } }
 .pr-ntp__mark .pr-mark__f { transform-origin: 8px 9px; }
 
 /* El buscador falso: parece un campo, pero es un botón que le pasa la posta
@@ -97,7 +98,7 @@
   cursor: text;
   box-shadow: inset 0 0 0 1px var(--op-line-2), var(--op-e2);
   transition: box-shadow var(--op-t-2) var(--op-ease-soft), background-color var(--op-t-2) var(--op-ease-soft);
-  animation: op-rise-in var(--op-t-4) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-4) var(--op-ease) both;
   animation-delay: 60ms;
 }
 .pr-fakebox:hover { background: var(--op-sunken-2); box-shadow: inset 0 0 0 1px var(--op-line-3), var(--op-e2); }
@@ -156,7 +157,7 @@
   font-size: var(--op-fs-12);
   cursor: default;
   transition: var(--tr-surface), color var(--op-t-1) var(--op-ease-soft);
-  animation: op-rise-in var(--op-t-4) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-4) var(--op-ease) both;
   animation-delay: calc(90ms + var(--i, 0) * 28ms);
 }
 .pr-tile:hover { background: var(--op-s2); color: var(--op-text); box-shadow: var(--op-sheet), var(--op-e2); transform: translateY(-2px); }
@@ -208,7 +209,7 @@
   padding: 0 var(--op-2) 0 var(--op-3);
   border-radius: var(--op-r-md);
   transition: var(--tr-color);
-  animation: op-rise-in var(--op-t-3) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-3) var(--op-ease) both;
   animation-delay: calc(var(--i, 0) * 12ms);
 }
 .pr-row:hover { background: var(--op-wash-1); }
@@ -246,15 +247,15 @@
   box-shadow: var(--op-sheet), var(--op-e3);
   opacity: 0;
   visibility: hidden;
-  transform: translate(-50%, 8px);
-  will-change: transform, opacity;
-  transition: opacity var(--op-t-out) var(--op-ease-both), transform var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out);
+  /* Aparece en su lugar (hasta oct 2026 subía 8 px). */
+  transform: translate(-50%, 0);
+  will-change: opacity;
+  transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out);
 }
 .pr-selbar.is-on {
   opacity: 1;
   visibility: visible;
-  transform: translate(-50%, 0);
-  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease), visibility 0s;
+  transition: opacity var(--op-t-2) var(--op-ease-soft), visibility 0s;
 }
 .pr-selbar__count {
   min-width: 132px;
@@ -267,7 +268,8 @@
 }
 .pr-selbar__count .op-swap__item { will-change: opacity; }
 .pr-day[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-both) both; }
-@keyframes pr-row-out { to { opacity: 0; transform: translateX(8px); } }
+/* Se apaga en su lugar (hasta oct 2026 además se corría 8 px). */
+@keyframes pr-row-out { to { opacity: 0; } }
 
 /* ── Ajustes ─────────────────────────────────────────────────────────────── */
 
@@ -277,7 +279,7 @@
   background: var(--op-s1);
   box-shadow: var(--op-sheet);
   overflow: hidden;
-  animation: op-rise-in var(--op-t-4) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-4) var(--op-ease) both;
   animation-delay: calc(var(--i, 0) * 34ms);
 }
 .pr-set__head { display: flex; align-items: center; gap: var(--op-2); padding: 14px 18px 4px; }
@@ -317,28 +319,42 @@
 .pr-opt__hint--error { color: var(--op-danger); }
 /* La hora de la última copia se releva adentro de la frase: en línea, o el
    relevo (una grilla) la bajaba a un renglón propio y partía la frase en tres. */
-.pr-opt .pr-bk__when.op-swap { display: inline-grid; vertical-align: bottom; }
-/* Lo que aparece según otro ajuste se despliega (0fr → 1fr) y se esfuma. */
+.pr-opt .pr-bk__when.op-swap { display: inline-grid; vertical-align: bottom; justify-items: start; min-width: 18ch; }   /* «todavía no» ↔ «21 oct 2026, 14:05» sin correr el resto de la frase */
+/* Lo que aparece según otro ajuste guarda su lugar y se enciende en él (oct
+   2026). Antes se desplegaba (0fr → 1fr) y empujaba a todas las secciones de
+   abajo; Fran: «botones saltando». */
+.pr-chipset.op-reveal,
+#s-certs-head.op-reveal,
+.pr-relaunch-note.op-reveal { grid-template-rows: 1fr; }
 .pr-chipset,
 #s-certs-head,
-.pr-relaunch-note { opacity: 0; transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft); }
+.pr-relaunch-note { opacity: 0; visibility: hidden; transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out); }
 .pr-chipset.is-open,
 #s-certs-head.is-open,
-.pr-relaunch-note.is-open { opacity: 1; }
+.pr-relaunch-note.is-open { opacity: 1; visibility: visible; transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s; }
+/* La pista de las actualizaciones guarda dos renglones: cambia de fase en su
+   lugar, sin que la fila cambie de alto (oct 2026). */
+.pr-upd__hint { min-height: 2lh; }
 .pr-relaunch-note b { color: var(--op-text-2); font-weight: 500; }
-/* El botón de reiniciar se abre a lo ancho, igual que el buscador de la página. */
+/* Lo que aparece según el estado y guarda su lugar (.pr-guarda sobre un
+   .op-reveal): no se despliega, se enciende en su hueco; apagado es inerte
+   (el JS). Oct 2026: antes se desplegaba y empujaba lo de abajo. */
+.pr-guarda.op-reveal { grid-template-rows: 1fr; }
+.pr-guarda { opacity: 0; visibility: hidden; transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out); }
+.pr-guarda.is-open { opacity: 1; visibility: visible; transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s; }
+
+/* El botón de reiniciar guarda su lugar y se prende en él (el «Restart now»
+   de NTX, oct 2026). Antes se abría a lo ancho y apretaba la pista de al lado. */
 .pr-hreveal {
   display: grid;
-  grid-template-columns: 0fr;
-  opacity: 0;
-  margin-right: calc(-1 * var(--op-2));
-  transition: grid-template-columns var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft), margin-right var(--op-t-3) var(--op-ease);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s;
 }
-.pr-hreveal > * { min-width: 0; overflow: hidden; }
-.pr-hreveal.is-open { grid-template-columns: 1fr; opacity: 1; margin-right: 0; }
-.pr-hreveal:not(.is-open) { pointer-events: none; }
-.pr-chip-x { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px 0 9px; border-radius: var(--op-r-pill); background: var(--op-wash-1); box-shadow: var(--op-hairline); font-family: var(--op-mono); font-size: 11px; color: var(--op-text-2); animation: op-pop-in var(--op-t-2) var(--op-ease) both; }
-.pr-chip-x[data-state='closing'] { animation: op-pop-out 120ms var(--op-ease-in) both; }
+.pr-hreveal > * { min-width: 0; }
+.pr-hreveal:not(.is-open) { opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out); }
+.pr-chip-x { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 4px 0 9px; border-radius: var(--op-r-pill); background: var(--op-wash-1); box-shadow: var(--op-hairline); font-family: var(--op-mono); font-size: 11px; color: var(--op-text-2); animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
+.pr-chip-x[data-state='closing'] { animation: op-fade-out 120ms var(--op-ease-in) both; }
 .pr-chip-x .op-iconbtn { width: 18px; height: 18px; border-radius: 50%; }
 .pr-chip-x .op-icon { width: 10px; height: 10px; }
 
@@ -348,7 +364,6 @@
 /* Sin estirar: cada fila mide lo suyo. Estirada, la nueva medía lo que la
    vieja y al achicarse la celda no sabía adónde ir: caía de golpe. */
 .pr-dflt { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; overflow: hidden; }
-.pr-dflt.is-resizing { transition: height var(--op-t-3) var(--op-ease); }
 .pr-dflt__state { grid-area: 1 / 1; animation: op-fade-in var(--op-t-2) var(--op-ease-soft) both; }
 /* Las dos juntas no son dos filas: sin la raya de .pr-opt + .pr-opt. */
 .pr-dflt__state + .pr-dflt__state { box-shadow: none; }
@@ -387,7 +402,7 @@
   align-items: flex-start;
   gap: 10px;
   max-width: 460px;
-  animation: op-rise-in var(--op-t-4) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-4) var(--op-ease) both;
 }
 .pr-notice__icon { width: 30px; height: 30px; color: var(--op-text-3); stroke-width: 1.2; margin-bottom: 6px; }
 .pr-notice__box.is-failed .pr-notice__icon { color: var(--op-danger); }
@@ -439,7 +454,7 @@
 
 .pr-row:hover .op-rowactions,
 .pr-row:focus-within .op-rowactions,
-.pr-row .op-rowactions:has(.is-open) { opacity: 1; transform: none; }
+.pr-row .op-rowactions:has(.is-open) { opacity: 1; }
 
 /* Las vistas se apilan para poder cruzarse: la vieja se desvanece mientras la
    nueva aflora, en vez de que una reemplace a la otra de golpe. */
@@ -453,7 +468,7 @@
 .pr-incog {
   width: min(560px, 100%);
   margin-top: var(--op-5);
-  animation: op-rise-in var(--op-t-3) var(--op-ease) .06s both;
+  animation: op-fade-in var(--op-t-3) var(--op-ease) .06s both;
 }
 .pr-incog__title { font-size: 17px; font-weight: var(--op-w-semi); letter-spacing: var(--op-track-tight); text-align: center; color: var(--op-text); }
 .pr-incog__text { margin-top: var(--op-2); font-size: var(--op-fs-13); line-height: var(--op-lh); color: var(--op-text-3); text-align: center; text-wrap: balance; user-select: text; }
@@ -537,14 +552,13 @@
 .pr-found + .op-reveal > div > .op-input { margin-top: 6px; }
 
 /* ── Borrar datos: elegir un día ─────────────────────────────────────────────
-   El calendario se despliega debajo del segmentado al elegir «Un día». Cerrado
-   se come el gap de la columna, así no deja un hueco de 12 px. */
-.pr-cal-reveal {
-  margin-top: -12px;
-  opacity: 0;
-  transition: grid-template-rows var(--op-t-3) var(--op-ease), margin-top var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft);
-}
-.pr-cal-reveal.is-open { margin-top: 0; opacity: 1; }
+   El calendario guarda su lugar debajo del segmentado y se enciende al elegir
+   «Un día» (oct 2026): el modal nace con su alto y no crece. Antes se
+   desplegaba, empujaba los checks y agrandaba el modal. Apagado es inerte
+   (pages.js). */
+.pr-cal-reveal.op-reveal { grid-template-rows: 1fr; }
+.pr-cal-reveal { opacity: 0; visibility: hidden; transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out); }
+.pr-cal-reveal.is-open { opacity: 1; visibility: visible; transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s; }
 .pr-cal {
   display: grid;
   justify-items: center;

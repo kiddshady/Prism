@@ -26,13 +26,11 @@ body { overflow: hidden; }
   background: linear-gradient(var(--op-s3), var(--op-s3)), rgb(12 12 14 / .97);
   box-shadow: var(--op-sheet), 0 2px 6px rgb(0 0 0 / .35), 0 8px 20px rgb(0 0 0 / .5);
   overflow: hidden;
-  animation: op-slide-in-r var(--op-t-3) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-3) var(--op-ease) both;
 }
 /* Asentada, sin animación retenida (ver motion-timing §3): la de salida gana. */
 .pr-card.is-settled { animation: none; }
-.pr-card[data-state='closing'] { animation: op-slide-out-r 160ms var(--op-ease-in) both; }
-/* De un alto al otro cuando cambia el contenido (card.js, resize). */
-.pr-card.is-resizing { transition: height var(--op-t-3) var(--op-ease); }
+.pr-card[data-state='closing'] { animation: op-fade-out 160ms var(--op-ease-in) both; }
 
 /* Relevo: el contenido viejo y el nuevo ocupan la misma celda. */
 .pr-card__stage { display: grid; grid-template-columns: minmax(0, 1fr); }
@@ -89,7 +87,14 @@ body { overflow: hidden; }
   color: var(--op-text-3);
   user-select: text;
   overflow-wrap: anywhere;
+  /* Dos renglones, siempre: la tarjeta mide lo mismo en todas las fases. */
+  min-height: 2lh;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
+.pr-card__hueco { visibility: hidden; }
 .pr-card__actions { display: flex; gap: var(--op-1); margin: var(--op-2) 0 0 calc(var(--op-2) * -1); }
 
 .pr-card__close { position: absolute; top: var(--op-2); right: var(--op-2); color: var(--op-text-3); }

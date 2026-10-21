@@ -20,8 +20,13 @@
   grid-template-rows: var(--op-titlebar) var(--pr-toolbar) var(--pr-bmbar) 1fr var(--op-statusbar);
 }
 .pr-app.has-bmbar { --pr-bmbar: 30px; }
-/* Solo mientras la barra aparece o se va: la pantalla completa no se anima. */
-.pr-app.is-bmbar-moving { transition: grid-template-rows var(--op-t-3) var(--op-ease); }
+/* Solo mientras la barra aparece o se va: la pantalla completa no se anima.
+   Al irse, primero se apagan los favoritos y recién después se cierra la
+   pista: espera 100 ms y va in-out, así no llegan visibles al borde (oct
+   2026, el mismo arreglo del panel de Opal). Al aparecer abre rápido y los
+   favoritos entran después. */
+.pr-app.is-bmbar-moving { transition: grid-template-rows var(--op-t-3) var(--op-ease-both) 100ms; }
+.pr-app.is-bmbar-moving.has-bmbar { transition: grid-template-rows var(--op-t-3) var(--op-ease); }
 
 /* El marco no lleva hojas: niebla directa. */
 .pr-app > .op-titlebar,
@@ -226,22 +231,23 @@
 .pr-tab__btn .op-icon { width: 12px; height: 12px; }
 .pr-tab__close {
   opacity: 0;
-  transform: scale(.85);
-  transition: var(--tr-color), opacity var(--op-t-1) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease),
-    width var(--op-t-3) var(--op-ease), margin-left var(--op-t-3) var(--op-ease);
+  transition: var(--tr-color), opacity var(--op-t-1) var(--op-ease-soft);
 }
 .pr-tab:hover .pr-tab__close,
-.pr-tab.is-active .pr-tab__close { opacity: 1; transform: none; }
+.pr-tab.is-active .pr-tab__close { opacity: 1; }
 
 /* Angosta: el título se va antes que el ícono, y la cruz solo en la activa.
-   Nada con display:none: se pliegan a lo ancho y se esfuman, así cambiar de
-   pestaña con muchas abiertas no hace aparecer y desaparecer la cruz de golpe. */
+   La cruz se apaga EN SU LUGAR (oct 2026): antes se plegaba a lo ancho, y al
+   activar una pestaña angosta su cruz crecía y apretaba el título. */
 .pr-tab.is-narrow .pr-tab__body { padding: 0 4px 0 7px; gap: 4px; }
-.pr-tab.is-narrow:not(.is-active) .pr-tab__close { opacity: 0; width: 0; margin-left: -4px; pointer-events: none; }
-.pr-tab.is-tiny .pr-tab__body { justify-content: center; padding: 0; gap: 0; }
+.pr-tab.is-narrow:not(.is-active) .pr-tab__close { opacity: 0; pointer-events: none; }
+/* Diminuta: el ícono y la cruz comparten una celda en el centro y se cruzan
+   por opacidad (antes el ícono se plegaba a 0 y la cruz se corría al medio). */
+.pr-tab.is-tiny .pr-tab__body { display: grid; place-items: center; padding: 0; gap: 0; }
+.pr-tab.is-tiny .pr-tab__body > * { grid-area: 1 / 1; }
 .pr-tab.is-tiny .pr-tab__title { max-width: 0; opacity: 0; }
 .pr-tab.is-tiny:not(.is-active) .pr-tab__close { margin-left: 0; }
-.pr-tab.is-tiny.is-active .pr-tab__icon { opacity: 0; width: 0; }
+.pr-tab.is-tiny.is-active .pr-tab__icon { opacity: 0; }
 
 /* Fijada: solo el ícono, centrado en sus 36 px de cuerpo. El título y la
    cruz no se cortan: se desvanecen mientras la pestaña se angosta, y vuelven
@@ -283,7 +289,7 @@
   transition: var(--tr-color), transform var(--op-t-3) var(--op-ease);
   -webkit-app-region: no-drag;
 }
-.pr-newtab:active { transform: translateX(var(--x, 0px)) scale(.92); }
+.pr-newtab:active { background: var(--op-wash-2); }   /* sin escala (hasta oct 2026, .92) */
 
 /* ══ Barra de herramientas ════════════════════════════════════════════════ */
 
@@ -301,8 +307,8 @@
 .pr-tool { width: 32px; height: 32px; }
 .pr-tool.is-open { background: var(--op-wash-2); color: var(--op-text); }
 
-/* Recargar ↔ detener (.op-iconswap): se cruzan girando. */
-.pr-reload { --swap-out: rotate(90deg) scale(.7); --swap-in: rotate(-90deg) scale(.7); }
+/* Recargar ↔ detener (.op-iconswap): se cruzan en su lugar, por opacidad
+   (hasta oct 2026 se cruzaban girando). */
 
 /* ── La omnibox ──────────────────────────────────────────────────────────────
    Un pozo, como todo campo de Opal. Con foco se hunde más y el canto se
@@ -403,6 +409,10 @@
 /* El zoom solo aparece si no es 100 %. */
 .pr-omni__chip {
   height: 22px;
+  /* El % corre (roll): con lugar para «100 %», el chip no cambia de ancho
+     mientras cuenta y el borde del campo no tiembla. */
+  min-width: calc(5ch + 14px);
+  text-align: center;
   padding: 0 7px;
   border: 0;
   border-radius: var(--op-r-sm);
@@ -414,45 +424,61 @@
 }
 .pr-omni__chip:hover { background: var(--op-wash-2); color: var(--op-text); }
 
-/* La estrella (.op-iconswap): la llena llega latiendo, la vacía solo se apaga. */
-.pr-omni__star { --swap-out: none; --swap-in: scale(.4) rotate(-40deg); }
+/* La estrella (.op-iconswap): la llena y la vacía se cruzan en su lugar
+   (hasta oct 2026 la llena llegaba latiendo). */
 .pr-omni__star > .op-icon:last-of-type { color: var(--op-text); }
 
-/* El chip del zoom y la estrella entran y se van, no aparecen de golpe:
-   `hidden` es display:none, y con `allow-discrete` el display espera a que
-   termine la salida. La entrada arranca del estado de @starting-style. La
-   salida es más corta y en ease-in: lo que se va no hace esperar. */
+/* El chip del zoom y la estrella entran y se van por opacidad, en su lugar
+   (hasta oct 2026 además crecían desde .8).
+   · La estrella guarda su lugar apagada (una página interna no se marca):
+     así el chip de al lado no se corre al ir y volver de una página interna.
+   · El chip sí se va (`hidden` es display:none, y con `allow-discrete` el
+     display espera a que termine la salida): está contra la estrella y solo
+     corre el borde del campo, no a otro botón. */
 .pr-omni__chip,
 .pr-omni__star {
   transition: var(--tr-color),
               opacity var(--op-t-2) var(--op-ease-soft),
-              transform var(--op-t-2) var(--op-ease),
+              visibility 0s,
               display var(--op-t-2) allow-discrete;
 }
-.pr-omni__chip[hidden],
-.pr-omni__star[hidden] {
+.pr-omni__chip[hidden] {
   display: none;
   opacity: 0;
-  transform: scale(.8);
   transition: opacity var(--op-t-1) var(--op-ease-in),
-              transform var(--op-t-1) var(--op-ease-in),
               display var(--op-t-1) allow-discrete;
 }
+.pr-omni__star[hidden] {
+  display: inline-grid;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--op-t-1) var(--op-ease-in), visibility 0s linear var(--op-t-1);
+}
 @starting-style {
-  .pr-omni__chip,
-  .pr-omni__star { opacity: 0; transform: scale(.8); }
+  .pr-omni__chip { opacity: 0; }
 }
 
 /* ── Buscar en la página ─────────────────────────────────────────────────────
-   Entra por el grid 0fr → 1fr sobre el ancho: sin conocer el ancho de
-   antemano y sin animar `width`. Mientras está cerrado no ocupa nada. */
+   Flota sobre la punta derecha de la omnibox y se prende en su lugar (oct
+   2026). Antes se abría a lo ancho (grid 0fr → 1fr) y apretaba la omnibox:
+   la estrella y el chip del zoom se corrían unos 300 px. Dónde cae lo pone
+   toolbar.js (--pr-find-r: lo que hay del borde de la omnibox al de la
+   barra). Su fondo es opaco: tapa lo que hay debajo de la omnibox. */
 .pr-find {
-  display: grid;
-  grid-template-columns: 0fr;
-  flex: 0 0 auto;
-  transition: grid-template-columns var(--op-t-3) var(--op-ease);
+  position: absolute;
+  top: 0;
+  bottom: 4px;   /* el aire de abajo de la barra */
+  right: var(--pr-find-r, var(--op-3));
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out);
 }
-.pr-find.is-open { grid-template-columns: 1fr; }
+.pr-find.is-open { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity var(--op-t-2) var(--op-ease-soft), visibility 0s; }
 .pr-find__inner {
   min-width: 0;
   overflow: hidden;
@@ -462,12 +488,10 @@
   height: 34px;
   padding: 0 4px 0 10px;
   border-radius: var(--op-r-lg);
-  background: var(--op-sunken);
-  box-shadow: inset 0 0 0 1px var(--op-line-2);
-  opacity: 0;
-  transition: opacity var(--op-t-2) var(--op-ease-soft), box-shadow var(--op-t-2) var(--op-ease-soft);
+  background: linear-gradient(var(--op-sunken), var(--op-sunken)), var(--op-bg);
+  box-shadow: inset 0 0 0 1px var(--op-line-2), var(--op-e1);
+  transition: box-shadow var(--op-t-2) var(--op-ease-soft);
 }
-.pr-find.is-open .pr-find__inner { opacity: 1; }
 .pr-find__inner > .op-icon { width: 13px; height: 13px; color: var(--op-text-4); flex: 0 0 auto; }
 .pr-find__input {
   width: 180px;
@@ -483,7 +507,7 @@
 }
 .pr-find__input::placeholder { color: var(--op-text-4); }
 .pr-find__count {
-  min-width: 42px;
+  min-width: 8ch;   /* «123/4567» sin agrandar la barra */
   justify-items: end;
   transition: color var(--op-t-1) var(--op-ease-soft);
   font-size: var(--op-fs-11);
@@ -509,10 +533,9 @@
   background: var(--op-accent);
   box-shadow: 0 0 0 2px var(--op-bg), 0 0 8px rgb(var(--op-accent-rgb) / .6);
   opacity: 0;
-  transform: scale(.4);
-  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease);
+  transition: opacity var(--op-t-2) var(--op-ease-soft);   /* se prende en su lugar (antes crecía desde .4) */
 }
-#btn-menu.has-update::after { opacity: 1; transform: none; }
+#btn-menu.has-update::after { opacity: 1; }
 
 /* ── Escudo y descargas ──────────────────────────────────────────────────── */
 .pr-shield,
@@ -533,12 +556,12 @@
   font-weight: var(--op-w-semi);
   line-height: 13px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
   opacity: 0;
-  transform: scale(.6);
-  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-3) var(--op-ease);
+  transition: opacity var(--op-t-2) var(--op-ease-soft);   /* en su lugar (antes crecía desde .6) */
   pointer-events: none;
 }
-.pr-badge.is-on { opacity: 1; transform: none; }
+.pr-badge.is-on { opacity: 1; }
 
 /* El anillo de la descarga: pista apagada + arco de acento. Solo existe
    mientras hay algo bajando; cuando termina, el arco se completa y se va. */
@@ -566,12 +589,9 @@
 /* Una descarga nueva: el arco toma su valor sin viajar desde el de la anterior. */
 .pr-dl.is-fresh .pr-dl__arc { transition: none; }
 .pr-dl.is-indeterminate .pr-dl__arc { stroke-dashoffset: 72; animation: op-spin 1.2s linear infinite; transform-origin: center; }
-.pr-dl.is-done > .op-icon { animation: pr-drop 520ms var(--op-ease) both; }
-@keyframes pr-drop {
-  0%   { transform: translateY(-5px); opacity: .3 }
-  60%  { transform: translateY(1.5px); opacity: 1 }
-  100% { transform: none }
-}
+/* Terminó: la flecha destella en el acento, en su lugar (hasta oct 2026
+   caía 5 px y rebotaba). */
+.pr-dl.is-done > .op-icon { animation: op-tick 700ms var(--op-ease-soft); }
 
 /* ── La barra de carga ───────────────────────────────────────────────────────
    Una línea de luz en el borde de abajo de la barra. Indeterminada: Chromium
@@ -703,10 +723,11 @@
   border-radius: 2px;
   background: rgb(255 255 255 / .34);
   opacity: 0;
-  transition: opacity var(--op-t-2) var(--op-ease-soft), height var(--op-t-2) var(--op-ease), margin var(--op-t-2) var(--op-ease);
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
 }
+/* Se enciende sin crecer (hasta oct 2026 se estiraba de 32 a 48 px). */
 .pr-divider:hover::after,
-.pr-divider.is-dragging::after { opacity: 1; height: 48px; margin-top: -24px; }
+.pr-divider.is-dragging::after { opacity: 1; }
 
 .pr-internal {
   position: absolute;
@@ -767,9 +788,9 @@
   min-width: 0;
   overflow: hidden;
   opacity: 0;
-  transition: opacity var(--op-t-2) var(--op-ease-soft);
+  transition: opacity var(--op-t-out) var(--op-ease-both);
 }
-.pr-app.has-bmbar .pr-bmbar { opacity: 1; }
+.pr-app.has-bmbar .pr-bmbar { opacity: 1; transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms; }
 .pr-bmbar__items {
   position: relative;
   display: flex;
@@ -835,11 +856,12 @@
   flex: 0 0 auto;
   margin-top: 2px;
   color: var(--op-text-3);
-  transition: var(--tr-color), transform var(--op-t-2) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft),
+  transition: var(--tr-color), opacity var(--op-t-2) var(--op-ease-soft),
     width var(--op-t-3) var(--op-ease), margin-left var(--op-t-3) var(--op-ease);
 }
-/* Cerrada se pliega a lo ancho (y se come el gap) en vez de display:none. */
-.pr-bmbar__more:not(.is-on) { width: 0; margin-left: calc(-1 * var(--op-1)); opacity: 0; transform: scale(.8); pointer-events: none; }
+/* Cerrada se pliega a lo ancho (y se come el gap) en vez de display:none: está
+   al final de la barra y no corre a nadie. Ya no se achica (hasta oct 2026, .8). */
+.pr-bmbar__more:not(.is-on) { width: 0; margin-left: calc(-1 * var(--op-1)); opacity: 0; pointer-events: none; }
 .pr-bm__label > .op-swap__item { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* El anillo va por dentro: la barra mide 30 px y recorta lo que se pasa, y
    por fuera (3,5 px) el del «más» perdía el canto de arriba. Con Tab la barra
@@ -958,6 +980,9 @@
 .pr-status__item .op-icon { width: 12px; height: 12px; }
 /* El porcentaje aparece cuando se sabe cuánto falta, y se apaga si deja de saberse. */
 .pr-status__pct { display: inline-flex; gap: 4px; opacity: 0; transition: opacity var(--op-t-2) var(--op-ease-soft); }
+/* El % corre (roll): con lugar para «100 %», no empuja a lo de al lado. */
+.pr-status__pct > span { display: inline-block; min-width: 5ch; text-align: right; }
+.pr-status__n { display: inline-block; min-width: 1ch; text-align: right; }
 .pr-status__pct.is-on { opacity: 1; }
 
 /* ══ Overlays propios ═════════════════════════════════════════════════════ */
@@ -969,7 +994,7 @@
    y el texto chico se leía mal. Era el estilo que ya tenía el gestor de
    contraseñas.
    Y sin backdrop-filter por una segunda razón: mientras la hoja entra
-   (op-pop-in la agranda y la baja), Chromium recalcula el blur en cada frame
+   (hasta oct 2026 entraba agrandándose y bajando), Chromium recalcula el blur en cada frame
    y contra la foto blanca de la página el canto de arriba salía como una línea
    blanca, hasta que la hoja se quedaba quieta. Sin blur, no hay línea.
    El velo del modal (.op-scrim) sigue esmerilando: no se mueve, solo cambia de
@@ -990,11 +1015,11 @@
   border-radius: var(--op-r-lg);
   background: var(--pr-float);
   box-shadow: var(--op-sheet), var(--op-e4);
-  animation: op-pop-in var(--op-t-2) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-2) var(--op-ease) both;
   transform-origin: top center;
   overflow: hidden;
 }
-.pr-suggest[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+.pr-suggest[data-state='closing'] { animation: op-fade-out 110ms var(--op-ease-in) both; }
 .pr-sugg {
   display: flex;
   align-items: center;
@@ -1048,11 +1073,11 @@
   border-radius: var(--op-r-xl);
   background: var(--pr-float);
   box-shadow: var(--op-sheet), var(--op-e4);
-  animation: op-pop-in var(--op-t-2) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-2) var(--op-ease) both;
   transform-origin: top right;
   overflow: hidden;
 }
-.pr-pop[data-state='closing'] { animation: op-pop-out 110ms var(--op-ease-in) both; }
+.pr-pop[data-state='closing'] { animation: op-fade-out 110ms var(--op-ease-in) both; }
 /* El calco de lo que mostraba un panel que se rehízo: opaco y encima, se esfuma.
    Recortado un píxel: el canto de la hoja (una sombra inset, debajo de los
    hijos) queda a la vista, o se apaga y vuelve con cada fundido. */
@@ -1089,7 +1114,7 @@
   padding: var(--op-2) var(--op-2);
   border-radius: var(--op-r-md);
   transition: var(--tr-color);
-  animation: op-rise-in var(--op-t-3) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-3) var(--op-ease) both;
 }
 .pr-dlrow:hover { background: var(--op-wash-1); }
 .pr-dlrow__icon {
@@ -1115,12 +1140,22 @@
 .pr-dlrow__name > .op-swap__item { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pr-dlrow.is-failed .pr-dlrow__meta { color: var(--op-danger); }
 .pr-dlrow__icon { transition: color var(--op-t-2) var(--op-ease-soft); }
-/* La barra se despliega mientras baja y se pliega cuando termina (0fr → 1fr). */
-.pr-dlrow__bar { margin-top: -3px; opacity: 0; transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft), margin-top var(--op-t-3) var(--op-ease); }
-.pr-dlrow__bar.is-open { margin-top: 0; opacity: 1; }
+/* La barra guarda su lugar siempre y se prende mientras baja (oct 2026, el
+   arreglo de NTX): la fila no cambia de alto al empezar ni al terminar una
+   descarga. Antes se desplegaba (0fr → 1fr) y empujaba a las de abajo. */
+.pr-dlrow__bar.op-reveal,
+.pr-dlrow__bar.op-reveal.is-open { grid-template-rows: 1fr; }
+.pr-dlrow__bar { opacity: 0; transition: opacity var(--op-t-out) var(--op-ease-both); }
+.pr-dlrow__bar.is-open { opacity: 1; transition: opacity var(--op-t-2) var(--op-ease-soft); }
 .pr-dlrow .op-meter { margin-top: 2px; }
 .pr-dlrow__actions.op-swap { justify-items: end; }
 .pr-dlrow__actions { display: flex; gap: 2px; flex: 0 0 auto; }
+/* Las acciones cambian según el estado (Pausar y Cancelar, Abrir y la
+   carpeta, Reintentar…): la casilla guarda el ancho de las más anchas y se
+   relevan en su lugar, así el nombre y el dato no se corren (oct 2026). En el
+   panel de la barra son dos íconos. */
+.pr-view .pr-dlrow__actions { min-width: 156px; justify-content: flex-end; }
+.pr-dlpop__list .pr-dlrow__actions { min-width: 46px; justify-content: flex-end; }
 /* El panel se despliega con overflow: hidden (glideSize) y la barra de
    scroll aparecía recién al terminar: las acciones se corrían 10 px a la
    izquierda. El lugar de la barra queda reservado desde el primer cuadro;
@@ -1226,7 +1261,7 @@
   min-height: 0;
   padding-left: var(--op-5);
   padding-right: var(--op-5);
-  animation: pr-pass-in var(--op-t-2) var(--op-ease) both;
+  animation: pr-pass-in var(--op-t-2) var(--op-ease) both;   /* en su lugar (hasta oct 2026 subía 4 px) */
 }
 /* Debajo de un calco no se mueve: entrando, temblaría lo que las dos comparten. */
 .pr-pass__view.is-quiet { animation: none; }
@@ -1241,7 +1276,7 @@
    esto, una vista que nació quieta no se esfumaba al irse: quedaba entera
    encima de la nueva hasta el plazo de red y se cortaba de un cuadro al otro. */
 .pr-pass__view[data-state='closing'] { animation: op-dissolve var(--op-t-2) var(--op-ease-both) both; }
-@keyframes pr-pass-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pr-pass-in { from { opacity: 0; } to { opacity: 1; } }
 
 .pr-pass__head { display: flex; align-items: center; gap: var(--op-3); padding: var(--op-1) 0 var(--op-4); }
 .pr-pass__headtext { flex: 1 1 auto; min-width: 0; }
@@ -1331,7 +1366,7 @@
   border-radius: var(--op-r-lg);
   background: var(--op-wash-2);
   box-shadow: inset 0 0 0 1px var(--op-line-2);
-  animation: op-rise-in var(--op-t-3) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-3) var(--op-ease) both;
 }
 .pr-pass__bannerhead { display: flex; align-items: center; gap: var(--op-2); font-size: var(--op-fs-13); font-weight: var(--op-w-medium); }
 .pr-pass__bannerhead .op-icon { width: 14px; height: 14px; }
@@ -1469,8 +1504,9 @@
   transition: var(--tr-color);
 }
 .pr-pass__more:hover { color: var(--op-text-2); background: var(--op-wash-1); }
-.pr-pass__more .op-icon { width: 12px; height: 12px; transform: rotate(-90deg); transition: transform var(--op-t-2) var(--op-ease); }
-.pr-pass__more.is-open .op-icon { transform: none; }
+/* La flecha no gira (hasta oct 2026, de → a ↓): se enciende al abrir. */
+.pr-pass__more .op-icon { width: 12px; height: 12px; transition: color var(--op-t-1) var(--op-ease-soft); }
+.pr-pass__more.is-open .op-icon { color: var(--op-text); }
 /* El revelado recorta lo de adentro: 4 px de aire alrededor para que el
    anillo de foco de los campos no se corte contra el borde. */
 .pr-pass__moreopts { margin: -4px -4px 0; opacity: 0; transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft); }

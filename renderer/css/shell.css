@@ -213,10 +213,11 @@
   height: 16px;
   border-radius: var(--op-r-pill);
   background: var(--op-accent);
-  transform: translateY(-50%) scaleY(0);
-  transition: transform var(--op-t-3) var(--op-ease);
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);   /* se enciende en su lugar (antes crecía desde el centro) */
 }
-.op-navitem.is-active::before { transform: translateY(-50%) scaleY(1); }
+.op-navitem.is-active::before { opacity: 1; }
 
 /* Contador a la derecha del item (corridas activas, borradores…) */
 .op-navitem__count {
@@ -352,9 +353,15 @@
   transition: width var(--op-t-4) var(--op-ease);
 }
 /* El contenido conserva su ancho mientras el panel se cierra: sin esto el
-   texto se reacomoda durante la transición y el colapso se ve como un temblor. */
-.op-inspector > * { min-width: var(--op-inspector); }
-.op-inspector.is-collapsed { width: 0; }
+   texto se reacomoda durante la transición y el colapso se ve como un temblor.
+   Y se apaga ANTES de que el panel se cierre (de Opal, oct 2026): si no,
+   llegaba visible al borde y se cortaba ahí. */
+.op-inspector > * {
+  min-width: var(--op-inspector);
+  transition: opacity var(--op-t-2) var(--op-ease-soft) 120ms;
+}
+.op-inspector.is-collapsed { width: 0; transition: width var(--op-t-4) var(--op-ease-both) 100ms; }
+.op-inspector.is-collapsed > * { opacity: 0; transition: opacity var(--op-t-out) var(--op-ease-both); }
 .op-inspector__head {
   display: flex;
   align-items: center;

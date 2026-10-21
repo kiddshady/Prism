@@ -227,7 +227,7 @@
   color: inherit;
   cursor: default;
   overflow: hidden;
-  transition: var(--tr-color), transform var(--op-t-1) var(--op-ease-soft);
+  transition: var(--tr-color);
 }
 .op-listitem:hover { background: var(--op-wash-1); }
 .op-listitem.is-selected { background: var(--op-wash-2); }
@@ -256,18 +256,18 @@
 }
 .op-listitem__aside { display: flex; align-items: center; gap: var(--op-3); flex: 0 0 auto; }
 
-/* Las acciones de fila se materializan con el hover, no ocupan sitio siempre. */
+/* Las acciones de fila se materializan con el hover, en su lugar (hasta oct
+   2026 entraban deslizándose 4 px desde la derecha). */
 .op-rowactions {
   display: flex;
   align-items: center;
   gap: 2px;
   opacity: 0;
-  transform: translateX(4px);
-  transition: opacity var(--op-t-2) var(--op-ease-soft), transform var(--op-t-2) var(--op-ease);
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
 }
 .op-listitem:hover .op-rowactions,
 .op-listitem:focus-within .op-rowactions,
-.op-tr:hover .op-rowactions { opacity: 1; transform: none; }
+.op-tr:hover .op-rowactions { opacity: 1; }
 
 /* ── Tabla ────────────────────────────────────────────────────────────────── */
 .op-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--op-fs-12); }
@@ -324,20 +324,23 @@
   gap: var(--op-1);
   box-shadow: inset 0 -1px 0 var(--op-line);
 }
-.op-tabs::after {
+/* El subrayado es de cada tab: el elegido prende el suyo y el anterior lo
+   apaga, en su lugar (de Opal, oct 2026; antes uno solo viajaba). */
+.op-tab::after {
   content: '';
   position: absolute;
-  bottom: -1px;
   left: 0;
+  right: 0;
+  bottom: 0;
   height: 2px;
-  width: var(--tab-w, 0px);
   border-radius: var(--op-r-pill);
   background: var(--op-accent);
-  transform: translateX(var(--tab-x, 0px));
-  transition: transform var(--op-t-3) var(--op-ease), width var(--op-t-3) var(--op-ease);
+  opacity: 0;
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
 }
-.op-tabs[data-placing]::after { transition: none; }
+.op-tab.is-active::after { opacity: 1; }
 .op-tab {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--op-2);
@@ -446,7 +449,7 @@
   gap: var(--op-3);
   padding: var(--op-10) var(--op-6);
   text-align: center;
-  animation: op-rise-in var(--op-t-4) var(--op-ease) both;
+  animation: op-fade-in var(--op-t-4) var(--op-ease) both;
 }
 .op-empty .op-icon { width: 34px; height: 34px; color: var(--op-text-4); stroke-width: 1; }
 .op-empty__title { font-size: var(--op-fs-15); font-weight: var(--op-w-medium); color: var(--op-text-2); }

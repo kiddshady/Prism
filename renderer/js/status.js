@@ -11,7 +11,7 @@
 
 import { api, S, on } from './state.js';
 import { Icons } from './icons.js';
-import { exit, reconcile, roll, swapText } from './motion.js';
+import { exit, reconcile, roll, tick, celda } from './motion.js';
 import { esc } from './ui.js';
 import { plural } from './format.js';
 import { openInbox } from './devices.js';
@@ -73,17 +73,25 @@ function paintRight() {
     const label = inbox.length === 1 ? `${inbox[0].fromName} te mandó una página` : `${plural(inbox.length, 'página', 'páginas')} de ${from.join(' y ')}`;
     parts.push({ key: `inbox:${label}`, html: `<button class="pr-status__item pr-status__inbox" data-inbox-open data-tip="${inbox.length === 1 ? esc(inbox[0].title || inbox[0].url) : 'Ver en Tus equipos'}">${Icons.svg('send')}<span>${esc(label)}</span></button>` });
   }
+  /* La cuenta: el número cambia en su lugar y «descarga» / «descargas» viven
+     en la misma celda (oct 2026). Antes la frase entera se relevaba y, al
+     cambiar de ancho, corría a lo que tenía a la izquierda. */
   if (live.length) {
+    const uno = live.length === 1;
     parts.push({
       key: 'downloads',
-      count: plural(live.length, 'descarga', 'descargas'),
+      n: live.length,
       pct,
-      html: `<span class="pr-status__item">${Icons.svg('download')}<span class="pr-status__count">${plural(live.length, 'descarga', 'descargas')}</span><span class="pr-status__pct op-num${pct != null ? ' is-on' : ''}">· <span>${pct != null ? Math.round(pct) : 0} %</span></span></span>`,
+      html: `<span class="pr-status__item">${Icons.svg('download')}<span class="pr-status__count"><span class="pr-status__n op-num">${live.length}</span> `
+        + `<span class="op-celda op-celda--start"><span${uno ? '' : ' hidden'}>descarga</span><span${uno ? ' hidden' : ''}>descargas</span></span></span>`
+        + `<span class="pr-status__pct op-num${pct != null ? ' is-on' : ''}">· <span>${pct != null ? Math.round(pct) : 0} %</span></span></span>`,
     });
   }
   reconcile(right, parts, {
     update: (el, it) => {
-      swapText(el.querySelector('.pr-status__count'), it.count);
+      const n = el.querySelector('.pr-status__n');
+      if (n && n.textContent !== String(it.n)) { n.textContent = String(it.n); tick(n); }
+      celda(el.querySelector('.pr-status__count .op-celda'), it.n === 1 ? 0 : 1);
       const p = el.querySelector('.pr-status__pct');
       p.classList.toggle('is-on', it.pct != null);
       if (it.pct != null) { const n = p.lastElementChild; roll(n, it.pct, (v) => { n.textContent = `${Math.round(v)} %`; }, { from: parseFloat(n.textContent) }); }

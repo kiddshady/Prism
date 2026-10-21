@@ -18,7 +18,7 @@ import { api, S } from './state.js';
 import { Icons } from './icons.js';
 import { Menu, Modal } from './overlays.js';
 import { modal } from './layers.js';
-import { bindSwitcher, bindStepper, scrollFade, swapText, dissolve } from './motion.js';
+import { bindSwitcher, bindStepper, scrollFade, swapText, dissolve, celda } from './motion.js';
 
 const PAPERS = [['A4', 'A4'], ['Letter', 'Carta'], ['Legal', 'Oficio']];
 /** Cuánto se espera, después del último cambio, para rehacer la vista previa. */
@@ -113,7 +113,7 @@ async function show(t) {
     <div class="pr-print__opts op-scroll">
       ${field('Destino', `<button class="op-select" id="pp-dest"><span class="op-select__value"><span class="op-select__placeholder">Buscando impresoras…</span></span>${Icons.svg('chevronDown')}</button>`)}
       ${field('Páginas', `${seg('pp-pages', [['all', 'Todas'], ['custom', 'Elegir']], 'all')}
-        <div class="op-reveal" id="pp-range-wrap"><div><div class="pr-print__range">
+        <div class="op-reveal" id="pp-range-wrap" inert><div><div class="pr-print__range">
           <input class="op-input op-input--mono" id="pp-range" spellcheck="false" autocomplete="off" placeholder="Ej.: 1-3, 5">
           <div class="op-field__hint" id="pp-range-hint">&nbsp;</div></div></div></div>`)}
       ${onlyPrinter(field('Copias', stepper('pp-copies', { min: 1, max: 99, step: 1, value: 1 })))}
@@ -148,7 +148,7 @@ async function show(t) {
     swapText($('#pp-dest .op-select__value'), destLabel());
     const pdf = d === 'pdf';
     body.classList.toggle('is-pdf', pdf);
-    body.querySelectorAll('.pr-print__only').forEach((el) => el.classList.toggle('is-open', !pdf));
+    body.querySelectorAll('.pr-print__only').forEach((el) => { el.classList.toggle('is-open', !pdf); el.inert = pdf; });
     body.classList.toggle('is-gray', !pdf && !o.color);
     sync();
   }
@@ -184,6 +184,7 @@ async function show(t) {
   bindSwitcher($('#pp-pages'), (v) => {
     o.pages = v;
     $('#pp-range-wrap').classList.toggle('is-open', v === 'custom');
+    $('#pp-range-wrap').inert = v !== 'custom';
     if (v === 'custom') setTimeout(() => $('#pp-range').focus(), 60);
     sync();
   });
@@ -234,10 +235,11 @@ async function show(t) {
     const pages = custom ? ranges.reduce((n, [a, b]) => n + b - a + 1, 0) : count;
     const pdf = o.dest === 'pdf';
     const sheets = pdf ? pages : Math.ceil(pages / (o.duplex ? 2 : 1)) * o.copies;
-    // La cuenta y el rótulo del botón se relevan; el botón va de un ancho al otro.
+    // La cuenta se releva; el rótulo del botón (Imprimir ↔ Guardar) se cruza
+    // en su celda, sin cambiar de ancho.
     if (summary) swapText(summary, !count || (custom && r.error) ? '' : pdf ? `${pages} ${pages === 1 ? 'página' : 'páginas'}` : `${sheets} ${sheets === 1 ? 'hoja' : 'hojas'} de papel`);
     if (primary) {
-      swapText(primary, pdf ? 'Guardar' : 'Imprimir', { size: true });
+      celda(primary, pdf ? 1 : 0);
       primary.disabled = !o.dest || (custom && (!count || !!r.error));
     }
   }
@@ -355,6 +357,9 @@ async function show(t) {
     mo.disconnect();
     m.classList.add('op-modal--print');
     primary = m.querySelector('.op-modal__foot .op-btn--primary');
+    /* Imprimir y Guardar en la misma celda (oct 2026): el botón mide lo del
+       más ancho desde que nace y «Cancelar», al lado, no se corre. */
+    primary.innerHTML = '<span class="op-celda"><span>Imprimir</span><span hidden>Guardar</span></span>';
     const foot = m.querySelector('.op-modal__foot');
     summary = document.createElement('span');
     summary.className = 'pr-print__summary op-meta op-num';

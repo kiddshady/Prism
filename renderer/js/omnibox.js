@@ -172,7 +172,15 @@ async function onGo(value, { newTab }) {
    a la página. */
 function onEscape() {
   const url = fullText(activeTab());
-  if (edited && input.value !== url) { edited = false; input.value = url; input.select(); paintSite(activeTab()); return; }
+  if (edited && input.value !== url) {
+    edited = false;
+    input.value = url;
+    input.select();
+    // La dirección vuelve fundiéndose, no de un cuadro al otro (oct 2026).
+    input.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: 'cubic-bezier(.33, 1, .68, 1)' });
+    paintSite(activeTab());
+    return;
+  }
   input.blur();
   api.page.focus();
 }

@@ -6,7 +6,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import { Icons } from './icons.js';
-import { exit, scrollFade, collapse } from './motion.js';
+import { exit, scrollFade } from './motion.js';
 
 const GAP = 8;      // separación entre el overlay y su ancla
 const EDGE = 10;    // margen mínimo contra el borde de la ventana
@@ -198,11 +198,11 @@ const Toast = (() => {
      · si dice lo MISMO (título, texto y tono), no se dispara: el que está
        vuelve a empezar su cuenta y su barra. Pasaba en Nexus al tocar dos
        veces «Buscar ahora»: dos «Estás al día» encimados;
-     · si dice otra cosa, lo RELEVA: el viejo sale y el nuevo entra en su lugar
-       cuando el viejo ya va por la mitad de su salida (no se descarta: podría
-       ser un error que hay que ver). */
+     · si dice otra cosa, lo RELEVA: el viejo se apaga y el nuevo se prende en
+       el MISMO lugar (los dos en la celda de .op-toasts) cuando el viejo ya va
+       por la mitad (no se descarta: podría ser un error que hay que ver). La
+       espera la pone el CSS (.is-after): el nuevo entra al DOM en el acto. */
   let actual = null;   // { el, clave, close, renovar }
-  const RELEVO = 120;  // ms: el nuevo espera a que el viejo vaya por la mitad
 
   function ensure() {
     if (host && host.isConnected) return host;
@@ -224,12 +224,13 @@ ${text}`;
     let relevo = false;
     if (actual && actual.el.dataset.state !== 'closing') {
       if (actual.clave === clave) { actual.renovar(); return { close: actual.close }; }
+      actual.el.classList.add('is-relayed');
       actual.close();
       relevo = true;
     }
 
     const el = document.createElement('div');
-    el.className = `op-toast${tone === 'error' ? ' op-toast--error' : ''}`;
+    el.className = `op-toast${tone === 'error' ? ' op-toast--error' : ''}${relevo ? ' is-after' : ''}`;
     el.style.setProperty('--life', `${duration}ms`);
 
     const glyph = icon || (tone === 'error' ? 'alert' : 'info');
@@ -247,25 +248,19 @@ ${text}`;
     if (text) el.querySelector('.op-toast__text').textContent = text;
 
     let timer = 0;
-    /* Sale deslizándose y después se pliega: lo de alrededor acompaña en vez
-       de saltar cuando el que se fue sale del DOM. */
+    /* Se apaga en su lugar y recién ahí sale del DOM. No hay nada que plegar:
+       en la celda, irse no le mueve el lugar a nadie (hasta oct 2026 salía
+       deslizándose y después se plegaba). */
     const close = () => {
       if (el.dataset.state === 'closing') return;
       el.dataset.state = 'closing';
       clearTimeout(timer);
       if (actual?.el === el) actual = null;
-      if (!el.isConnected) return;          // lo cerraron antes de entrar (relevo)
-      let folded = false;
-      const fold = () => {
-        if (folded) return;
-        folded = true;
-        el.removeAttribute('data-state');   // collapse() la marca de nuevo
-        el.style.opacity = '0';
-        el.style.animation = 'none';        // ya terminó de salir: que no vuelva a entrar
-        collapse(el, { duration: 180 });
-      };
-      el.addEventListener('animationend', (e) => { if (e.target === el) fold(); });
-      setTimeout(fold, 260);
+      if (!el.isConnected) return;
+      let ido = false;
+      const fuera = () => { if (!ido) { ido = true; el.remove(); } };
+      el.addEventListener('animationend', (e) => { if (e.target === el) fuera(); });
+      setTimeout(fuera, 320);
     };
     el.querySelector('[data-close]').addEventListener('click', close);
 
@@ -310,13 +305,8 @@ ${text}`;
     };
 
     actual = { el, clave, close, renovar };
-    const montar = () => {
-      if (el.dataset.state === 'closing') return;
-      ensure().appendChild(el);
-      if (duration) correr(left);
-    };
-    if (relevo) setTimeout(montar, RELEVO);
-    else montar();
+    ensure().appendChild(el);
+    if (duration) correr(left);
 
     return { close };
   }

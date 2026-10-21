@@ -78,7 +78,7 @@ function meHTML(s) {
     <div class="pr-opt"><div class="pr-opt__text"><div class="pr-opt__label">Conectar con tus otros equipos</div>
       <div class="pr-opt__hint">${esc(HINT_ON)}</div></div>
       <div class="pr-opt__ctl"><button class="op-switch${on ? ' is-on' : ''}" data-act="toggle" aria-label="Conectar con tus otros equipos"></button></div></div>
-    <div class="op-reveal${on ? ' is-open' : ''}" data-part="named"><div>
+    <div class="op-reveal pr-guarda${on ? ' is-open' : ''}" data-part="named"${on ? '' : ' inert'}><div>
       <div class="pr-opt pr-opt--item"><div class="pr-opt__text"><div class="pr-opt__label" data-part="name">${esc(s.me?.name || '')}</div>
         <div class="pr-opt__hint${s.error ? ' op-field__hint--error' : ''}" data-part="where">${esc(where)}</div></div>
         <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" data-act="rename"><i data-icon="edit"></i> Renombrar</button></div></div>
@@ -89,7 +89,9 @@ function meHTML(s) {
 function updateMe(el, s) {
   const on = !!s.enabled;
   el.querySelector('[data-act="toggle"]').classList.toggle('is-on', on);
-  el.querySelector('[data-part="named"]').classList.toggle('is-open', on);
+  const named = el.querySelector('[data-part="named"]');
+  named.classList.toggle('is-open', on);
+  named.inert = !on;
   const name = el.querySelector('[data-part="name"]');
   if (name.textContent !== s.me?.name) swapText(name, s.me?.name || '');
   const where = el.querySelector('[data-part="where"]');
@@ -150,7 +152,7 @@ function peerHTML(p) {
     <div class="pr-set__head">${mark(p.online ? 'running' : 'idle')}<span class="pr-set__title" data-part="name">${esc(p.name)}</span>
       <span class="pr-set__state" data-part="state">${esc(peerState(p))}</span>
       <button class="op-iconbtn op-iconbtn--sm pr-set__end" data-act="peer-more" aria-label="Más">${Icons.svg('more')}</button></div>
-    <div class="op-reveal${p.pending ? ' is-open' : ''}" data-part="pending"><div><div class="pr-dev__note">${esc(pendingText(p))}</div></div></div>
+    <div class="op-reveal pr-guarda${p.pending ? ' is-open' : ''}" data-part="pending"><div><div class="pr-dev__note">${esc(pendingText(p)) || '&nbsp;'}</div></div></div>
     <div class="pr-list pr-dev__list"></div>
   </section>`;
 }
@@ -339,6 +341,7 @@ async function showPinModal() {
   const pinEl = body.querySelector('#d-pin');
   const fillEl = body.querySelector('#d-pin-fill');
   const msg = body.querySelector('#d-pin-msg');
+  msg.style.minHeight = '2lh';   // el mensaje cambia en su lugar: el modal no cambia de alto
   const ctl = new AbortController();
   let pinned = null;
   let done = false;
@@ -363,7 +366,7 @@ async function showPinModal() {
     if (pinEl.textContent) swapText(pinEl, text); else pinEl.textContent = text;
     body.classList.remove('is-expired');
     const where = S.link?.addresses?.length ? ` (${S.link.addresses[0]})` : '';
-    swapText(msg, `En el otro equipo elegí ${S.link?.me?.name || 'este equipo'}${where} y escribí este PIN. Vence a los 2 minutos.`, { size: true });
+    swapText(msg, `En el otro equipo elegí ${S.link?.me?.name || 'este equipo'}${where} y escribí este PIN. Vence a los 2 minutos.`);
     drain(pinned.until);
   }
 
@@ -379,7 +382,7 @@ async function showPinModal() {
     // Venció, o se gastaron los intentos: se ofrece otro.
     if (pinned && !s?.pairing && !body.classList.contains('is-expired')) {
       body.classList.add('is-expired');
-      swapText(msg, 'El PIN venció (o se equivocaron cinco veces). Pedí otro para seguir.', { size: true });
+      swapText(msg, 'El PIN venció (o se equivocaron cinco veces). Pedí otro para seguir.');
     }
   };
 
@@ -409,10 +412,10 @@ async function enterPinModal() {
     <div class="op-field"><div class="op-row pr-found__head"><label class="op-field__label op-grow">Equipo</label>
         <button class="op-btn op-btn--ghost op-btn--sm" id="d-seek"><i data-icon="reload"></i> Buscar de nuevo</button></div>
       <div class="pr-found" id="d-found"></div>
-      <div class="op-reveal" id="d-other"><div><input class="op-input op-input--mono" id="d-addr" placeholder="192.168.1.20 o 100.64.0.5" spellcheck="false"></div></div></div>
+      <div class="op-reveal pr-guarda" id="d-other"><div><input class="op-input op-input--mono" id="d-addr" placeholder="192.168.1.20 o 100.64.0.5" spellcheck="false"></div></div></div>
     <div class="op-field"><label class="op-field__label">PIN</label>
       <input class="op-input op-input--mono pr-pin__input" id="d-code" inputmode="numeric" maxlength="7" placeholder="000 000" spellcheck="false" autocomplete="off">
-      <div class="op-field__hint" id="d-msg">El que muestra el otro equipo en «Mostrar un PIN en este equipo».</div></div>`;
+      <div class="op-field__hint" id="d-msg" style="min-height:2lh">El que muestra el otro equipo en «Mostrar un PIN en este equipo».</div></div>`;
   const list = body.querySelector('#d-found');
   const other = body.querySelector('#d-other');
   const addr = body.querySelector('#d-addr');
@@ -423,7 +426,9 @@ async function enterPinModal() {
   let chosen = 'other';
   let searching = false;
 
-  const say2 = (t, error) => { msg.classList.toggle('op-field__hint--error', !!error); swapText(msg, t, { size: true }); };
+  // El renglón guarda dos líneas (min-height): el mensaje se releva en su
+  // lugar y el modal no cambia de alto (hasta oct 2026 el alto viajaba).
+  const say2 = (t, error) => { msg.classList.toggle('op-field__hint--error', !!error); swapText(msg, t); };
 
   function paintFound() {
     const opts = found.map((f) => ({ key: f.id, html: `
@@ -435,6 +440,7 @@ async function enterPinModal() {
         ${Icons.svg('edit')}<span class="pr-found__name">${searching && !found.length ? 'Buscando en tu red…' : found.length ? 'Otra dirección' : 'Ninguno a la vista: el otro tiene que estar mostrando su PIN, o escribí su dirección'}</span></button>` });
     reconcile(list, opts, { height: true });
     other.classList.toggle('is-open', chosen === 'other');
+    other.inert = chosen !== 'other';
   }
 
   async function seek() {

@@ -87,25 +87,13 @@ export function initScrollFades(root = document) {
   root.querySelectorAll('.op-scroll').forEach(scrollFade);
 }
 
-/* ── Indicadores que viajan ─────────────────────────────────────────────────
-   La cápsula del segmentado y el subrayado de los tabs se DESLIZAN entre
-   opciones. Que viajen en vez de saltar es lo que los hace sentir físicos. */
-
-export function syncSegmented(seg) {
-  const opts = [...seg.querySelectorAll('.op-segmented__opt')];
-  if (!opts.length) return;
-  const active = Math.max(0, opts.findIndex((o) => o.classList.contains('is-active')));
-  const w = (seg.clientWidth - 4) / opts.length;
-  seg.style.setProperty('--seg-w', `${w}px`);
-  seg.style.setProperty('--seg', String(active));
-}
-
-export function syncTabs(tabs) {
-  const active = tabs.querySelector('.op-tab.is-active');
-  if (!active) return;
-  tabs.style.setProperty('--tab-x', `${active.offsetLeft}px`);
-  tabs.style.setProperty('--tab-w', `${active.offsetWidth}px`);
-}
+/* ── Segmentados y tabs ─────────────────────────────────────────────────────
+   Cada opción lleva su propia cápsula (o su subrayado) y se prende en su
+   lugar con `.is-active`: no hay nada que medir (de Opal, oct 2026). Hasta
+   entonces un solo indicador viajaba de una opción a la otra, y estas dos
+   funciones le medían el lugar; quedan para no romper a quien las llama. */
+export function syncSegmented() {}
+export function syncTabs() {}
 
 /**
  * Cablea un grupo (segmentado o tabs) para que se comporte solo.
@@ -114,7 +102,7 @@ export function syncTabs(tabs) {
 export function bindSwitcher(root, onChange) {
   const isSeg = root.classList.contains('op-segmented');
   const optSel = isSeg ? '.op-segmented__opt' : '.op-tab';
-  const sync = () => (isSeg ? syncSegmented(root) : syncTabs(root));
+  const sync = () => {};
 
   root.addEventListener('click', (e) => {
     const opt = e.target.closest(optSel);
@@ -125,17 +113,6 @@ export function bindSwitcher(root, onChange) {
     onChange?.(opt.dataset.value, opt);
   });
 
-  new ResizeObserver(sync).observe(root);
-  /* El indicador NACE en su lugar: sin esto viaja desde la izquierda cada vez
-     que se repinta el grupo (en Ajustes, cualquier ajuste cambiado repinta la
-     página y los segmentados se animaban solos). Solo viaja al elegir. */
-  root.dataset.placing = '';
-  sync();
-  raf2(() => {
-    sync();   // las fuentes pueden cambiar el ancho después del primer layout
-    getComputedStyle(root, isSeg ? '::before' : '::after').transform;   // asienta el lugar sin transición
-    delete root.dataset.placing;
-  });
   return sync;
 }
 
@@ -358,7 +335,11 @@ export function glideSize(el, from, { ignore = [], width = true, height = true }
      dir   1 sube, -1 baja: un contador que avanza o retrocede.
      size  la caja va de su tamaño al nuevo en vez de saltar cuando el viejo
            termina de irse (un botón que cambia de rótulo).
-   La primera vez adopta lo que el elemento ya tenía, sin animarlo. */
+   La primera vez adopta lo que el elemento ya tenía, sin animarlo.
+   Desde oct 2026 `dir` ya no sube ni baja (5 px): el relevo es en su lugar y
+   el contenedor destella. Y para un botón que cambia de rótulo, en vez de
+   `size` va una celda (celda(), abajo): `size` queda para algo anclado a un
+   borde, que puede crecer sin empujar a nadie. */
 export function swap(el, html, { dir = 0, size = false } = {}) {
   if (!el) return null;
   let items = [...el.children].filter((c) => c.classList.contains('op-swap__item'));
@@ -375,15 +356,11 @@ export function swap(el, html, { dir = 0, size = false } = {}) {
   el.__swap = html;
   const live = items.filter((c) => c.dataset.state !== 'closing');
   const from = size ? { w: el.offsetWidth, h: el.offsetHeight } : null;
-  const d = dir > 0 ? 'up' : dir < 0 ? 'down' : '';
   const next = document.createElement('span');
   next.className = 'op-swap__item';
   next.innerHTML = html;
-  if (d) next.dataset.dir = d;
-  live.forEach((o) => {
-    if (d) o.dataset.dir = d; else delete o.dataset.dir;
-    exit(o, { fallback: 220 });
-  });
+  live.forEach((o) => exit(o, { fallback: 220 }));
+  if (dir) tick(el);
   // Si no había nada a la vista (un vacío), lo nuevo entra sin esperar.
   if (live.some((o) => o.textContent.trim() || o.querySelector('svg, img, [class]'))) next.classList.add('is-after');
   el.appendChild(next);
@@ -394,6 +371,72 @@ export function swap(el, html, { dir = 0, size = false } = {}) {
 
 /** El texto de un elemento, con relevo si cambió. */
 export const swapText = (el, text, opts) => swap(el, esc(text), opts);
+
+/**
+ * Fundido de un bloque que cambia de forma (oct 2026): una copia opaca de
+ * cómo estaba queda encima, en su lugar; debajo `cambio()` lo deja como va a
+ * quedar, de una vez y sin transiciones; y la copia se esfuma. Así lo de
+ * abajo no se ve correrse ni crecer: es para cuando el lugar de verdad cambia
+ * (una fila de Ajustes que pasa a tener otro alto). El fondo de la copia es
+ * lo que hay detrás del bloque, apilado hasta el primer color opaco.
+ */
+export function fundir(box, cambio) {
+  const host = box?.parentElement;
+  if (!box?.isConnected || !host || !box.getClientRects().length) { cambio(); return; }
+  if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+  const calco = box.cloneNode(true);
+  calco.removeAttribute('id');
+  calco.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'));
+  calco.inert = true;
+  calco.classList.add('op-quieto', 'op-calco');
+  Object.assign(calco.style, {
+    position: 'absolute', left: `${box.offsetLeft}px`, top: `${box.offsetTop}px`,
+    width: `${box.offsetWidth}px`, height: `${box.offsetHeight}px`, margin: '0',
+    zIndex: '3', pointerEvents: 'none', background: fondoDetras(host),
+  });
+  host.appendChild(calco);
+  box.classList.add('op-quieto');
+  cambio();
+  void box.offsetHeight;
+  requestAnimationFrame(() => box.classList.remove('op-quieto'));
+  const a = calco.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: EASE_BOTH, fill: 'forwards' });
+  const fuera = () => calco.remove();
+  a.finished.then(fuera, fuera);
+  setTimeout(fuera, 400);
+}
+
+/* Lo que hay detrás de un elemento: sus rellenos translúcidos apilados hasta
+   el primer color opaco (de Opal). */
+function fondoDetras(el) {
+  const capas = [];
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    const c = getComputedStyle(n).backgroundColor;
+    const m = c.match(/rgba?\(([^)]+)\)/);
+    const partes = m ? m[1].split(/[\s,/]+/).filter(Boolean) : [];
+    const alfa = c === 'transparent' ? 0 : partes.length > 3 ? parseFloat(partes[3]) : 1;
+    if (alfa >= 1) return [...capas, c].join(', ');
+    if (alfa > 0) capas.push(`linear-gradient(${c}, ${c})`);
+  }
+  return [...capas, 'var(--op-bg)'].join(', ');
+}
+
+/**
+ * Prende el estado `i` de una celda (.op-celda, motion.css) y apaga los
+ * demás. Todos los estados están siempre en la misma celda de la grilla, así
+ * que la caja mide lo del más grande desde que nace y no cambia nunca: no
+ * empuja a nadie, ni se corre, ni se achica de golpe. `el` es la celda o algo
+ * que la tiene adentro (un botón). De Opal (oct 2026). Devuelve la celda.
+ */
+export function celda(el, i) {
+  const c = el?.classList.contains('op-celda') ? el : el?.querySelector('.op-celda');
+  if (!c) return null;
+  [...c.children].forEach((h, j) => {
+    const on = j === i;
+    h.hidden = !on;
+    if (on) h.removeAttribute('aria-hidden'); else h.setAttribute('aria-hidden', 'true');
+  });
+  return c;
+}
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ── Listas que se ponen al día ─────────────────────────────────────────────

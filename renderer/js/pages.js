@@ -16,7 +16,7 @@
 
 import { api, S, on, activeTab } from './state.js';
 import { Icons } from './icons.js';
-import { exit, scrollFade, bindSwitcher, raf2, reconcile, roll, swap, swapText, glideSize, dissolve, toggleReveal } from './motion.js';
+import { exit, scrollFade, bindSwitcher, raf2, reconcile, roll, swap, swapText, dissolve, toggleReveal, celda, fundir } from './motion.js';
 import { esc } from './ui.js';
 import { fmtBytes, fmtDur, fmtDate, relTime, plural, locale } from './format.js';
 import { menu, modal, confirm } from './layers.js';
@@ -444,8 +444,8 @@ function historyPage(t) {
         <div class="pr-head__text"><div class="pr-head__title">Historial</div>
           <div class="pr-head__sub">Lo que visitaste, del más nuevo al más viejo</div></div>
         <div class="pr-head__actions">
-          <div class="op-inputwrap pr-search">${Icons.svg('search')}<input class="op-input" id="h-q" placeholder="Buscar en el historial" spellcheck="false"></div>
           <button class="op-btn op-btn--secondary op-flashable" id="h-clear"><i data-icon="trash"></i> Borrar…</button>
+          <div class="op-inputwrap pr-search">${Icons.svg('search')}<input class="op-input" id="h-q" placeholder="Buscar en el historial" spellcheck="false"></div>
         </div>
       </div>
       <div class="pr-list" id="h-list"></div>
@@ -481,7 +481,7 @@ function historyPage(t) {
       const text = plural(n, 'página elegida', 'páginas elegidas');
       const countEl = bar.querySelector('#h-sel-n');
       if (!shown) countEl.textContent = text;   // la barra aparece ya con su número
-      else if (n !== shown) swap(countEl, esc(text), { dir: n > shown ? 1 : -1 });
+      else if (n !== shown) swap(countEl, esc(text), { dir: 1 });   // en su lugar, con destello (oct 2026)
     }
     // Al irse conserva el último número: se apaga con lo que decía.
     bar.classList.toggle('is-on', n > 0);
@@ -714,9 +714,9 @@ function bookmarksPage(t) {
       <div class="pr-head">
         <div class="pr-head__text"><div class="pr-head__title">Favoritos</div><div class="pr-head__sub" id="b-sub"></div></div>
         <div class="pr-head__actions">
-          <div class="op-inputwrap pr-search">${Icons.svg('search')}<input class="op-input" id="b-q" placeholder="Buscar en favoritos" spellcheck="false"></div>
           <button class="op-btn op-btn--secondary op-flashable" id="b-export"><i data-icon="upload"></i> Exportar…</button>
           <button class="op-btn op-btn--secondary op-flashable" id="b-import"><i data-icon="download"></i> Importar…</button>
+          <div class="op-inputwrap pr-search">${Icons.svg('search')}<input class="op-input" id="b-q" placeholder="Buscar en favoritos" spellcheck="false"></div>
         </div>
       </div>
       <div class="pr-list" id="b-list"></div>
@@ -883,7 +883,7 @@ export function dlUpdate(el, { d, compact }) {
     el.querySelector('.op-meter').classList.toggle('op-meter--indeterminate', !d.total);
     el.querySelector('.op-meter__fill').style.setProperty('--op-pct', `${dlPct(d)}%`);
   }
-  swap(el.querySelector('.pr-dlrow__actions'), dlActionsHTML(d, compact), { size: true });
+  swap(el.querySelector('.pr-dlrow__actions'), dlActionsHTML(d, compact));
 }
 
 /* Lo que dice el texto al nacer es de donde arranca a correr el próximo dato. */
@@ -1190,7 +1190,7 @@ function settingsPage() {
     const hint = perms.length ? 'Lo que ya contestaste. Olvidarlo hace que el sitio vuelva a preguntar.' : 'Ningún sitio pidió permisos todavía. Cuando uno pida la cámara, el micrófono o tu ubicación, Prism te pregunta.';
     const hintEl = col.querySelector('#s-perms-hint');
     if (first) hintEl.textContent = hint;
-    else swapText(hintEl, hint, { size: true });
+    else if (hintEl.textContent !== hint) fundir(col, () => { hintEl.textContent = hint; });
     reconcile(col.querySelector('#s-perms'), perms.map(([origin, map]) => ({ key: origin, html: permRowHTML(origin, map) })), { enter, height: enter });
     reconcile(col.querySelector('#s-cmds'), (s.commands || []).map((c) => ({ key: `${c.word} ${c.url}`, html: commandRowHTML(c) })), { enter, height: enter });
     const certs = s.certAllow || [];
@@ -1201,7 +1201,7 @@ function settingsPage() {
     const auto = col.querySelector('.pr-auto');
     if (auto.dataset.key !== autostartKey()) {
       auto.dataset.key = autostartKey();
-      swap(auto, autostartHTML(), { size: true });
+      fundir(col, () => { auto.innerHTML = autostartHTML(); Icons.mount(auto); });
     } else {
       auto.querySelectorAll('[data-autostart]').forEach((b) => b.classList.toggle('is-on', !!S.autostart?.on));
     }
@@ -1355,35 +1355,15 @@ function relayDefault(stage) {
   const key = defaultKey();
   const cur = stage.querySelector('.pr-dflt__state:not([data-state="closing"])');
   if (cur?.dataset.key === key) return;
-  const from = stage.offsetHeight;
   const tmp = document.createElement('div');
-  tmp.innerHTML = defaultStateHTML(cur ? ' is-after' : '');
+  tmp.innerHTML = defaultStateHTML(cur ? '' : ' is-first');
   const next = tmp.firstElementChild;
   Icons.mount(next);
-  if (cur) exit(cur, { fallback: 220 });
-  stage.appendChild(next);
-  setTimeout(() => next.classList.add('is-settled'), 420);
-  if (cur) resizeStage(stage, from, next);
-}
-
-/* De un alto al otro: con las dos filas en la celda, el alto es el de la más
-   alta, y al irse la vieja saltaría al de la nueva. */
-function resizeStage(stage, from, next) {
-  const to = next.offsetHeight;
-  if (Math.abs(to - from) < 2) return;
-  stage.style.height = `${from}px`;
-  void stage.offsetHeight;
-  stage.classList.add('is-resizing');
-  stage.style.height = `${to}px`;
-  const done = () => {
-    clearTimeout(timer);
-    stage.removeEventListener('transitionend', onEnd);
-    stage.classList.remove('is-resizing');
-    stage.style.height = '';
-  };
-  const onEnd = (e) => { if (e.target === stage && e.propertyName === 'height') done(); };
-  const timer = setTimeout(done, 500);
-  stage.addEventListener('transitionend', onEnd);
+  /* Las filas tienen otro alto según el estado: el cambio va debajo de un
+     fundido de la columna (oct 2026), así las de abajo no se corren. Antes el
+     alto de la celda viajaba de una a la otra. */
+  if (!cur) { stage.appendChild(next); return; }
+  fundir(stage.closest('.pr-view__col') || stage, () => { cur.remove(); next.classList.add('is-settled'); stage.appendChild(next); });
 }
 
 const relayAllDefault = () => document.querySelectorAll('.pr-dflt').forEach(relayDefault);
@@ -1482,7 +1462,9 @@ function relayBackup(row) {
   if (!row) return;
   if (row.dataset.key !== backupKey()) {
     row.dataset.key = backupKey();
-    swap(row, backupHTML(), { size: true });
+    // Cambia de forma (prendido, apagado, con error): debajo de un fundido de
+    // la columna, así las secciones de abajo no se corren (oct 2026).
+    fundir(row.closest('.pr-view__col') || row, () => { row.innerHTML = backupHTML(); Icons.mount(row); });
     return;
   }
   const all = row.querySelectorAll('.pr-bk__when');
@@ -1518,7 +1500,13 @@ async function backupSetupModal() {
   const showDir = (first) => (first ? (dirEl.textContent = dir || 'Ninguna todavía') : swapText(dirEl, dir || 'Ninguna todavía'));
   showDir(true);
   msg.textContent = NOTA;
-  const avisar = (texto, error) => { msg.classList.toggle('op-field__hint--error', !!error); swapText(msg, texto, { size: true }); };
+  // La pista guarda el alto de la nota (la más larga): los avisos se relevan
+  // en su lugar y el modal no cambia de alto (oct 2026).
+  const avisar = (texto, error) => {
+    if (!msg.style.minHeight) msg.style.minHeight = `${msg.offsetHeight}px`;
+    msg.classList.toggle('op-field__hint--error', !!error);
+    swapText(msg, texto);
+  };
   // Apenas se corrige algo, el error se va: no queda acusando lo que ya se arregló.
   const calmar = () => { if (msg.classList.contains('op-field__hint--error')) avisar(NOTA, false); };
   body.addEventListener('input', calmar);
@@ -1599,12 +1587,12 @@ function updateHint(u) {
   return { key: u.phase === 'downloading' ? `downloading:${u.version}` : `${u.phase}:${html}`, html };
 }
 
-function updateBtn(u) {
-  return {
-    available: `${Icons.svg('download')} Descargar`,
-    ready: `${Icons.svg('reload')} Reiniciar y actualizar`,
-  }[u.phase] || `${Icons.svg('reload')} Buscar`;
-}
+/* Los tres rótulos del botón viven en la misma celda (oct 2026): el botón
+   mide lo de «Reiniciar y actualizar» desde que nace y no cambia de ancho;
+   antes viajaba y apretaba la pista de al lado. */
+const UPD_BTN = [`${Icons.svg('reload')} Buscar`, `${Icons.svg('download')} Descargar`, `${Icons.svg('reload')} Reiniciar y actualizar`];
+const updateBtnIndex = (u) => ({ available: 1, ready: 2 }[u.phase] ?? 0);
+const updateBtnCelda = (u) => `<span class="op-celda pr-upd__btn">${UPD_BTN.map((h, i) => `<span${i === updateBtnIndex(u) ? '' : ' hidden'}>${h}</span>`).join('')}</span>`;
 
 const updateLocked = (u) => ['unsupported', 'checking', 'downloading'].includes(u.phase);
 
@@ -1613,7 +1601,7 @@ function updateRow() {
   const hint = updateHint(u);
   return `<div class="pr-opt pr-upd" data-key="${esc(hint.key)}"><div class="pr-opt__text"><div class="pr-opt__label">Actualizaciones</div>
       <div class="pr-opt__hint pr-upd__hint">${hint.html}</div></div>
-      <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-update" ${updateLocked(u) ? 'disabled' : ''}><span class="pr-upd__btn op-swap--row">${updateBtn(u)}</span></button></div></div>`;
+      <div class="pr-opt__ctl"><button class="op-btn op-btn--secondary op-btn--sm" id="s-update" ${updateLocked(u) ? 'disabled' : ''}>${updateBtnCelda(u)}</button></div></div>`;
 }
 
 function relayUpdate(row) {
@@ -1622,14 +1610,14 @@ function relayUpdate(row) {
   const box = row.querySelector('.pr-upd__hint');
   if (row.dataset.key !== hint.key) {
     row.dataset.key = hint.key;
-    swap(box, hint.html, { size: true });
+    swap(box, hint.html);   // en su lugar: la pista guarda dos renglones (prism.css)
   } else if (u.phase === 'downloading') {
     const all = box.querySelectorAll('.pr-upd__pct');
     const n = all[all.length - 1];
     if (n) roll(n, updatePct(u), (v) => { n.textContent = `${Math.round(v)} %`; }, { from: parseFloat(n.textContent) });
   }
   row.querySelector('#s-update').disabled = updateLocked(u);
-  swap(row.querySelector('.pr-upd__btn'), updateBtn(u), { size: true });
+  celda(row.querySelector('.pr-upd__btn'), updateBtnIndex(u));
 }
 
 const relayAllUpdate = () => document.querySelectorAll('.pr-upd').forEach(relayUpdate);

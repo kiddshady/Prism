@@ -14,14 +14,11 @@ const MARGIN = 28;
 const slot = document.getElementById('slot');
 let card = null;
 let life = { timer: null, left: 0, since: 0 };
-/** Mientras la tarjeta cambia de alto, la vista ya tiene el alto final: crece
-    adentro de su lugar y ningún cuadro sale recortado. */
-let reserve = 0;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* El alto que ocupa, con el aire de la sombra: la vista se ajusta a eso. */
-const report = () => window.card.size(Math.max(slot.offsetHeight, reserve) + MARGIN * 2);
+const report = () => window.card.size(slot.offsetHeight + MARGIN * 2);
 new ResizeObserver(report).observe(slot);
 
 function contentHTML(d) {
@@ -30,11 +27,16 @@ function contentHTML(d) {
     : `<span class="pr-card__well">${d.kind === 'busy' ? Icons.spinner() : Icons.svg(d.kind === 'error' ? 'alert' : d.icon || 'capture')}</span>`;
   const buttons = (d.buttons || []).map((b) =>
     `<button class="op-btn op-btn--ghost op-btn--sm" data-act="${esc(b.id)}">${b.icon ? Icons.svg(b.icon) : ''}${esc(b.label)}</button>`).join('');
+  /* La misma estructura en todas las fases (oct 2026): el texto guarda dos
+     renglones y la fila de botones está siempre (vacía, un hueco invisible),
+     así capturando → lista no cambia el alto de la tarjeta. Antes el alto
+     viajaba de uno al otro. */
+  const hueco = '<button class="op-btn op-btn--ghost op-btn--sm pr-card__hueco" tabindex="-1" aria-hidden="true">&nbsp;</button>';
   return `${lead}
     <div class="pr-card__main">
       <div class="pr-card__title">${esc(d.title)}</div>
-      ${d.text ? `<div class="pr-card__text">${esc(d.text)}</div>` : ''}
-      ${buttons ? `<div class="pr-card__actions">${buttons}</div>` : ''}
+      <div class="pr-card__text">${esc(d.text || '')}</div>
+      <div class="pr-card__actions">${buttons || hueco}</div>
     </div>`;
 }
 
@@ -104,49 +106,16 @@ function show(d) {
     card = build(d);
     slot.appendChild(card);
   }
-  // Se rearma la clase sin perder lo que está en curso (asentada, cambiando de alto).
-  card.className = `pr-card pr-card--${d.kind || 'done'}${['is-settled', 'is-resizing'].filter((c) => card.classList.contains(c)).map((c) => ` ${c}`).join('')}`;
+  // Se rearma la clase sin perder lo que está en curso (asentada).
+  card.className = `pr-card pr-card--${d.kind || 'done'}${card.classList.contains('is-settled') ? ' is-settled' : ''}`;
   const stage = card.querySelector('.pr-card__stage');
   const old = stage.querySelectorAll('.pr-card__content:not([data-state="closing"])');
   const c = document.createElement('div');
   c.className = `pr-card__content${fresh ? ' is-first' : old.length ? ' is-after' : ''}`;
   c.innerHTML = contentHTML(d);
-  const from = fresh ? 0 : card.offsetHeight;
   old.forEach((o) => exit(o, { fallback: 220 }));
   stage.appendChild(c);
-  if (!fresh) resize(from, c);
   startLife(d.life || 0);
-}
-
-/* Capturando → lista: el contenido nuevo es más alto (o más bajo). La tarjeta
-   no salta: va de su alto de antes al del contenido nuevo, con la base fija. */
-function resize(from, content) {
-  const el = card;
-  // Si venía cambiando de alto, el viaje sigue desde donde iba: el de antes no lo corta.
-  const inFlight = !!el.__resizeStop;
-  el.__resizeStop?.();
-  const pad = parseFloat(getComputedStyle(el).paddingTop) + parseFloat(getComputedStyle(el).paddingBottom);
-  const to = Math.ceil(content.offsetHeight + pad);
-  if (!inFlight && Math.abs(to - from) < 2) return;
-  reserve = Math.max(from, to);
-  report();
-  el.style.height = `${from}px`;
-  void el.offsetHeight;
-  el.classList.add('is-resizing');
-  el.style.height = `${to}px`;
-  const done = () => {
-    clearTimeout(timer);
-    el.removeEventListener('transitionend', onEnd);
-    el.__resizeStop = null;
-    el.classList.remove('is-resizing');
-    el.style.height = '';
-    reserve = 0;
-    report();
-  };
-  const onEnd = (e) => { if (e.target === el && e.propertyName === 'height') done(); };
-  const timer = setTimeout(done, 500);
-  el.addEventListener('transitionend', onEnd);
-  el.__resizeStop = () => { clearTimeout(timer); el.removeEventListener('transitionend', onEnd); el.__resizeStop = null; };
 }
 
 window.card.onShow(show);

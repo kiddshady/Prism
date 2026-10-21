@@ -3,10 +3,15 @@
    Nada aparece ni desaparece de golpe. El movimiento es lo que comunica causa
    y efecto; sin él la app se siente barata y sobresalta.
 
-   La firma de Opal es AFLORAR: lo que aparece sube hacia la superficie del
-   vidrio (eje Y, apenas) y se materializa. Donde Onyx avanza sobre el eje del
-   flujo, Opal emerge — como algo que se acerca desde detrás de la hoja. El
-   glide sobre X queda disponible para lo que sí es secuencia.
+   La firma de Opal es MATERIALIZARSE EN SU LUGAR: lo que aparece se enciende
+   donde va a quedar, sin subir ni deslizarse, y lo que se va se apaga donde
+   estaba (Fran, oct 2026: «botones saltando»; de Opal 75b5240). Hasta
+   entonces afloraba (subía 8 px), los toasts entraban de costado y el modal
+   subía con peso. Lo que de verdad cambia de forma no viaja: o se reserva el
+   lugar (.op-celda, celda() en motion.js) o se acomoda debajo de un fundido
+   (dissolve()). Lo que sí viaja, a propósito: las listas que se reacomodan
+   (reconcile, las pestañas, la barra de favoritos), lo que se arrastra, y el
+   tooltip, que crece desde su punta.
 
    Regla de oro de las salidas: un nodo que se va del DOM tiene que TERMINAR su
    animación antes de irse. Eso lo maneja exit() en motion.js, que le pone
@@ -22,25 +27,10 @@
 @keyframes op-fade-in    { from { opacity: 0 } to { opacity: 1 } }
 @keyframes op-fade-out   { from { opacity: 1 } to { opacity: 0 } }
 
-/* La firma: sube y se materializa. */
-@keyframes op-rise-in    { from { opacity: 0; transform: translateY(8px)  } to { opacity: 1; transform: none } }
-@keyframes op-rise-out   { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(4px) } }
-
-/* Entrada sobre el eje del flujo, para lo que sí es secuencia. */
-@keyframes op-glide-in   { from { opacity: 0; transform: translateX(-10px) } to { opacity: 1; transform: none } }
-@keyframes op-glide-out  { from { opacity: 1; transform: none } to { opacity: 0; transform: translateX(6px) } }
-
-/* Overlays: crecen desde su origen, apenas. */
+/* El tooltip crece apenas desde su punta: es lo único que entra moviéndose,
+   y queda así a propósito (Fran lo prefiere). */
 @keyframes op-pop-in     { from { opacity: 0; transform: scale(.965) translateY(-4px) } to { opacity: 1; transform: none } }
 @keyframes op-pop-out    { from { opacity: 1; transform: none } to { opacity: 0; transform: scale(.98) translateY(-2px) } }
-
-/* Modal: entra desde abajo con peso. */
-@keyframes op-lift-in    { from { opacity: 0; transform: translateY(14px) scale(.985) } to { opacity: 1; transform: none } }
-@keyframes op-lift-out   { from { opacity: 1; transform: none } to { opacity: 0; transform: translateY(6px) scale(.99) } }
-
-/* Toast: entra desde el borde derecho. */
-@keyframes op-slide-in-r { from { opacity: 0; transform: translateX(24px) } to { opacity: 1; transform: none } }
-@keyframes op-slide-out-r{ from { opacity: 1; transform: none } to { opacity: 0; transform: translateX(16px) } }
 
 /* "Corriendo": lo único que respira en toda la pantalla. */
 @keyframes op-breathe {
@@ -75,22 +65,21 @@
   100% { color: inherit }
 }
 
-/* Fallo: un temblor corto y seco. Se usa UNA vez, cuando algo se rompe. */
+/* Fallo: un aro rojo que se enciende alrededor y se apaga, en su lugar. Se
+   usa UNA vez, cuando algo se rompe. Antes temblaba. Es un outline y no una
+   sombra: no le pisa la suya a un campo o a un botón. */
 @keyframes op-shake {
-  0%, 100% { transform: translateX(0) }
-  20%      { transform: translateX(-4px) }
-  40%      { transform: translateX(3px) }
-  60%      { transform: translateX(-2px) }
-  80%      { transform: translateX(1px) }
+  0%   { outline: 2px solid rgb(var(--op-danger-rgb) / 0);   outline-offset: 2px }
+  25%  { outline: 2px solid rgb(var(--op-danger-rgb) / .55); outline-offset: 2px }
+  100% { outline: 2px solid rgb(var(--op-danger-rgb) / 0);   outline-offset: 2px }
 }
 
 /* ── Clases de entrada ───────────────────────────────────────────────────────
    Se aplican al montar. `--i` escalona (stagger) los hijos de una lista:
-   style="--i:3" → arranca 3 × 26 ms después. */
-.op-in-fade  { animation: op-fade-in  var(--op-t-3) var(--op-ease) both; }
-.op-in-rise  { animation: op-rise-in  var(--op-t-3) var(--op-ease) both; }
-.op-in-glide { animation: op-glide-in var(--op-t-3) var(--op-ease) both; }
-.op-in-pop   { animation: op-pop-in   var(--op-t-2) var(--op-ease) both; }
+   style="--i:3" → arranca 3 × 26 ms después. Las cuatro son un fundido en su
+   lugar; rise, glide y pop quedan como nombres. */
+.op-in-fade, .op-in-rise, .op-in-glide { animation: op-fade-in var(--op-t-3) var(--op-ease) both; }
+.op-in-pop   { animation: op-fade-in var(--op-t-2) var(--op-ease) both; }
 
 .op-in-fade, .op-in-rise, .op-in-glide, .op-in-pop {
   animation-delay: calc(var(--i, 0) * 26ms);
@@ -99,10 +88,7 @@
 /* ── Salidas ─────────────────────────────────────────────────────────────────
    exit() pone data-state="closing" y espera. Las salidas van más rápido
    que las entradas: irse debe sentirse decidido, llegar debe sentirse suave. */
-[data-state='closing'].op-in-fade  { animation: op-fade-out  var(--op-t-1) var(--op-ease-in) both; }
-[data-state='closing'].op-in-rise  { animation: op-rise-out  var(--op-t-1) var(--op-ease-in) both; }
-[data-state='closing'].op-in-glide { animation: op-glide-out var(--op-t-1) var(--op-ease-in) both; }
-[data-state='closing'].op-in-pop   { animation: op-pop-out   var(--op-t-1) var(--op-ease-in) both; }
+[data-state='closing']:is(.op-in-fade, .op-in-rise, .op-in-glide, .op-in-pop) { animation: op-fade-out var(--op-t-1) var(--op-ease-in) both; }
 
 /* ── Click-flash ─────────────────────────────────────────────────────────────
    Un velo de luz que nace en el press y decae. No es un ripple de Material:
@@ -133,7 +119,7 @@
 .op-breathing { animation: op-breathe 2.2s var(--op-ease-both) infinite; }
 .op-spinning  { animation: op-spin 900ms linear infinite; }
 .op-ticked    { animation: op-tick 700ms var(--op-ease-soft); }
-.op-shaking   { animation: op-shake 380ms var(--op-ease-both); }
+.op-shaking   { animation: op-shake 700ms var(--op-ease-soft); }
 
 /* ── Skeleton ────────────────────────────────────────────────────────────── */
 .op-skeleton {
@@ -178,21 +164,51 @@
    fila con ese espacio, o el rótulo se correría al relevarse por primera vez. */
 .op-btn > .op-swap--row { gap: inherit; }
 .op-btn > .op-swap--row:not(.op-swap) { display: inline-flex; align-items: center; }
-.op-swap > .op-swap__item[data-dir='up']   { animation-name: op-swap-up-in; }
-.op-swap > .op-swap__item[data-dir='down'] { animation-name: op-swap-down-in; }
 .op-swap > .op-swap__item.is-after { animation-delay: 60ms; }
 .op-swap > .op-swap__item.is-settled { animation: none; }
 /* Después de is-settled, con la misma especificidad: salir siempre gana. */
 .op-swap > .op-swap__item[data-state='closing'] { animation: op-swap-out var(--op-t-out) var(--op-ease-both) both; }
-.op-swap > .op-swap__item[data-dir='up'][data-state='closing']   { animation-name: op-swap-up-out; }
-.op-swap > .op-swap__item[data-dir='down'][data-state='closing'] { animation-name: op-swap-down-out; }
 
 /* Las salidas sin `from`: parten de donde estén, aunque las agarre entrando. */
 @keyframes op-swap-out      { to { opacity: 0 } }
-@keyframes op-swap-up-in    { from { opacity: 0; transform: translateY(5px) } to { opacity: 1; transform: none } }
-@keyframes op-swap-up-out   { to { opacity: 0; transform: translateY(-5px) } }
-@keyframes op-swap-down-in  { from { opacity: 0; transform: translateY(-5px) } to { opacity: 1; transform: none } }
-@keyframes op-swap-down-out { to { opacity: 0; transform: translateY(5px) } }
+
+/* ── Celda: los estados de algo, en el mismo lugar (de Opal, oct 2026) ──────
+   Un botón que cambia de rótulo (Imprimir ↔ Guardar, Pausar ↔ Seguir), un
+   pie que es botones o una barra: todos sus estados viven en la misma celda
+   de una grilla, así que la caja mide lo del más grande desde que nace y no
+   cambia nunca. Se cruzan solo por opacidad: el que se prende espera a que
+   el que se apaga vaya por la mitad. Es el arreglo del botón de reiniciar de
+   NTX, hecho pieza.
+
+     <span class="op-celda"><span>Imprimir</span><span hidden>Guardar</span></span>
+     celda(el, 1)   // motion.js: prende el segundo, apaga los demás
+
+   Los estados se apagan con `hidden`, que acá no saca nada del flujo: cada
+   uno sigue midiendo. Centrados de fábrica; --start y --end los alinean a un
+   borde, --mid los centra en alto. */
+.op-celda { display: inline-grid; justify-items: center; }
+.op-celda--start { justify-items: start; }
+.op-celda--end { justify-items: end; }
+.op-celda--mid { align-items: center; }
+.op-celda > * {
+  grid-area: 1 / 1;
+  transition: opacity var(--op-t-2) var(--op-ease-soft) 80ms, visibility 0s;
+}
+.op-celda > span { display: inline-flex; align-items: center; gap: var(--op-2); }
+.op-celda > [hidden] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out);
+}
+/* El `hidden` del navegador sacaría al estado del flujo: con especificidad
+   cero, lo que declara su display (una fila de botones) se queda con el suyo. */
+:where(.op-celda > [hidden]) { display: block; }
+.op-btn > .op-celda { gap: inherit; }
+
+/* fundir() (motion.js): mientras el bloque cambia debajo de su copia, nada
+   anima, y la copia no vuelve a entrar. */
+.op-quieto, .op-quieto * { animation: none !important; transition: none !important; }
 
 /* ── Fundido (dissolve() en motion.js) ───────────────────────────────────────
    El calco de lo que se va, encima de lo nuevo. Cada superficie le pone su
@@ -202,6 +218,5 @@
 @keyframes op-dissolve { to { opacity: 0 } }
 
 /* ── Transición de vista ─────────────────────────────────────────────────────
-   Al cambiar de sección la vista AFLORA: sube apenas y se materializa. Es la
-   firma de Opal — lo nuevo emerge hacia la superficie del vidrio. */
-.op-view { animation: op-rise-in var(--op-t-4) var(--op-ease) both; }
+   La vista se materializa en su lugar (hasta oct 2026 subía 8 px). */
+.op-view { animation: op-fade-in var(--op-t-4) var(--op-ease) both; }

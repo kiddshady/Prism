@@ -407,8 +407,17 @@ app.whenReady().then(async () => {
   ok('y la foto se va', await until(() => js(`!document.getElementById('freeze').classList.contains('is-on')`)));
 
   console.log('\n5. Buscar en la página');
+  const omniAntes = await js(`(() => { const r = document.getElementById('omni').getBoundingClientRect(); return { l: r.left, r: r.right }; })()`);
   ctx.command('find:open');
   ok('la barra de búsqueda entra', await until(() => js(`document.getElementById('find').classList.contains('is-open')`)));
+  /* Oct 2026: flota sobre la punta derecha de la omnibox y no la aprieta (antes
+     se abría a lo ancho y la estrella y el chip se corrían ~300 px). */
+  await sleep(350);
+  const sobre = await js(`(() => { const o = document.getElementById('omni').getBoundingClientRect(), f = document.querySelector('#find .pr-find__inner').getBoundingClientRect();
+    return { oL: o.left, oR: o.right, fL: f.left, fR: f.right, fT: f.top, fB: f.bottom, oT: o.top, oB: o.bottom, op: +getComputedStyle(document.getElementById('find')).opacity }; })()`);
+  ok('la omnibox no cambia de ancho al abrirla', Math.abs(sobre.oL - omniAntes.l) < 0.5 && Math.abs(sobre.oR - omniAntes.r) < 0.5, JSON.stringify({ omniAntes, sobre }));
+  ok('y la barra cae adentro de la omnibox, contra su borde derecho', sobre.op === 1 && Math.abs(sobre.fR - sobre.oR) < 1 && sobre.fL > sobre.oL
+    && sobre.fT >= sobre.oT - 1 && sobre.fB <= sobre.oB + 1, JSON.stringify(sobre));
   await js(`(() => { const i = document.getElementById('find-input'); i.value = 'fiebre'; i.dispatchEvent(new Event('input')); })()`);
   ok('cuenta las coincidencias', await until(() => js(`document.getElementById('find-count').textContent.endsWith('/3')`)), await js(`document.getElementById('find-count').textContent`));
   await js(`document.getElementById('find-next').click()`);
@@ -554,10 +563,13 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('pp-dest').click()`);
   await until(() => js(`!!document.querySelector('.op-menu .op-menuitem')`));
   await js(`[...document.querySelectorAll('.op-menu .op-menuitem')].find((b) => b.textContent.includes('Guardar como PDF')).click()`);
-  ok('con "Guardar como PDF" el botón dice Guardar', await until(() => js(`document.querySelector('.op-modal__foot .op-btn--primary').textContent === 'Guardar'`)));
+  // Imprimir y Guardar viven en la misma celda del botón (oct 2026): se lee el que está prendido.
+  ok('con "Guardar como PDF" el botón dice Guardar', await until(() => js(`document.querySelector('.op-modal__foot .op-btn--primary .op-celda > :not([hidden])')?.textContent.trim() === 'Guardar'`)));
+  const anchoGuardar = await js(`document.querySelector('.op-modal__foot .op-btn--primary').getBoundingClientRect().width`);
   await js(`document.querySelector('#pp-pages [data-value="custom"]').click()`);
   await js(`(() => { const i = document.getElementById('pp-range'); i.value = '1-2'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  ok('elegir páginas pliega las otras', await until(() => js(`document.querySelectorAll('.pr-print__sheets:not([data-state="closing"]) .pr-sheet:not(.is-out)').length === 2`)));
+  ok('el botón no cambió de ancho al pasar de Imprimir a Guardar', anchoGuardar > 0 && await js(`Math.abs(document.querySelector('.op-modal__foot .op-btn--primary').getBoundingClientRect().width - ${anchoGuardar}) < 0.5`));
+  ok('elegir páginas apaga las otras', await until(() => js(`document.querySelectorAll('.pr-print__sheets:not([data-state="closing"]) .pr-sheet:not(.is-out)').length === 2`)));
   await js(`(() => { const i = document.getElementById('pp-range'); i.value = '1-'; i.dispatchEvent(new Event('input', { bubbles: true })); i.value = '1-x'; i.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   ok('un rango a medio escribir no vacía la vista previa', await js(`document.querySelectorAll('.pr-print__sheets:not([data-state="closing"]) .pr-sheet:not(.is-out)').length > 0`));
   ok('y no deja imprimir', await js(`document.querySelector('.op-modal__foot .op-btn--primary').disabled`));
@@ -1320,10 +1332,12 @@ app.whenReady().then(async () => {
   await sleep(400);
   const alBorrar = await js('window.__borrar');
   ok('y pasa al siguiente con un solo fundido, sin pintar el vacío en el medio', alBorrar.calcos === 1 && !alBorrar.vacio, JSON.stringify(alBorrar));
-  ok('y el pie ofrece deshacer', await until(() => js(`document.getElementById('pp-count').textContent.includes('eliminado') && document.getElementById('pp-import').textContent.includes('Deshacer')`)));
+  // Importar y Deshacer, en la misma celda del botón (oct 2026): se lee el prendido.
+  const pieVisible = `[...document.querySelectorAll('#pp-foot > :not([hidden])')].map((s) => s.textContent.trim()).join('')`;
+  ok('y el pie ofrece deshacer', await until(() => js(`document.getElementById('pp-count').textContent.includes('eliminado') && ${pieVisible}.includes('Deshacer')`)));
   await js(`document.getElementById('pp-import').click()`);
   ok('deshacer lo trae de vuelta, con su clave, y a la vista', await until(() => V.get(borrado)?.secret?.length > 0 && js(`document.querySelector('.pr-otp')?.dataset.id === ${JSON.stringify(borrado)}`)));
-  ok('y el pie vuelve a Importar', await until(() => js(`(() => { const t = document.getElementById('pp-import').textContent; return t.includes('Importar') && !t.includes('Deshacer') && !document.getElementById('pp-count').textContent.includes('eliminado'); })()`)));
+  ok('y el pie vuelve a Importar', await until(() => js(`(() => { const t = ${pieVisible}; return t.includes('Importar') && !t.includes('Deshacer') && !document.getElementById('pp-count').textContent.includes('eliminado'); })()`)));
   // De vuelta a las contraseñas: lo que sigue abre el panel y espera verlas.
   await js(`document.querySelector('#pp-kind [data-value=login]').click()`);
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
@@ -2279,7 +2293,7 @@ app.whenReady().then(async () => {
      el espacio del botón: quedaban pegados (0 px). */
   const aire = () => js(`(() => {
     const b = [...document.querySelectorAll('#s-update')].find((x) => x.getClientRects().length);
-    const item = b && [...b.querySelectorAll('.op-swap__item')].find((x) => x.dataset.state !== 'closing');
+    const item = b && b.querySelector('.op-celda > :not([hidden])');
     const svg = item?.querySelector('svg');
     const t = svg?.nextSibling;
     if (!t || t.nodeType !== 3) return null;
@@ -2683,17 +2697,20 @@ app.whenReady().then(async () => {
     clearDataModal();
     await wait(400);
     const wrap = document.getElementById('cd-cal');
-    const cerrado = { h: wrap.getBoundingClientRect().height, inert: wrap.inert };
+    const cerrado = { h: wrap.getBoundingClientRect().height, inert: wrap.inert, op: +getComputedStyle(wrap).opacity };
     document.querySelector('#cd-range [data-value="pick"]').click();
     await wait(450);
-    const abierto = { h: wrap.getBoundingClientRect().height, inert: wrap.inert };
+    const abierto = { h: wrap.getBoundingClientRect().height, inert: wrap.inert, op: +getComputedStyle(wrap).opacity };
     const sel = document.querySelector('.pr-cal__grid:not([data-state="closing"]) .is-sel')?.dataset.day;
     const prendidos = document.querySelectorAll('.pr-cal__grid:not([data-state="closing"]) .pr-cal__day[data-day]').length;
     const sum = document.querySelector('.pr-cal__sum').textContent;
     [...document.querySelectorAll('.op-modal button')].find((b) => b.textContent.trim() === 'Borrar').click();
     return { cerrado, abierto, sel, prendidos, sum };
   })()`);
-  ok('«Un día» despliega el calendario', unDia.cerrado.h < 1 && unDia.cerrado.inert && unDia.abierto.h > 200 && !unDia.abierto.inert, JSON.stringify(unDia));
+  // Desde oct 2026 el calendario guarda su lugar (el modal nace con su alto y
+  // no crece): «Un día» lo enciende en él.
+  ok('«Un día» enciende el calendario en su lugar, sin cambiar de alto', unDia.cerrado.inert && !unDia.abierto.inert && unDia.abierto.h > 200
+    && Math.abs(unDia.abierto.h - unDia.cerrado.h) < 0.5 && unDia.cerrado.op === 0 && unDia.abierto.op === 1, JSON.stringify(unDia));
   ok('arranca en el último día con historial', unDia.sel === hoyKey && unDia.prendidos >= 1 && /Se borran \d+ páginas? del /.test(unDia.sum), JSON.stringify(unDia));
   ok('y Borrar se lleva ese día', await until(() => !ctx.library.visitDays()[hoyKey]), JSON.stringify(ctx.library.visitDays()));
   await until(() => js(`!document.querySelector('.op-modal__anim:not([data-state="closing"])')`));
@@ -2769,6 +2786,63 @@ app.whenReady().then(async () => {
   }
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
   await until(() => js(`!document.querySelector('.pr-pass')`));
+
+  /* ── 13d2. Nada cambia de lugar para entrar o salir (oct 2026) ──────────
+     La auditoría de movimiento con Fran («botones saltando»): lo que aparece
+     se enciende en su lugar, lo que cambia de estado se cruza en una celda, y
+     lo único que viaja a propósito son las listas que se reacomodan (las
+     pestañas, la barra de favoritos), lo que gira o barre, y el tooltip. */
+  console.log('\n13d2. Nada cambia de lugar para entrar o salir');
+  const nadaSeMueve = await js(`(async () => {
+    const m = await import('./js/motion.js');
+    const { Toast } = await import('./js/overlays.js');
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const r = { mueven: [], activoMueve: [] };
+    const permitidos = new Set(['op-spin', 'op-breathe', 'op-meter-sweep', 'op-toast-life', 'op-pop-in', 'op-pop-out',
+      'pr-tab-in', 'pr-tab-out', 'pr-bm-in', 'pr-bm-out', 'pr-sweep']);
+    for (const sh of document.styleSheets) {
+      let reglas; try { reglas = sh.cssRules; } catch { continue; }
+      for (const k of reglas) {
+        if (k.type === CSSRule.KEYFRAMES_RULE && !permitidos.has(k.name) && /transform|translate/.test(k.cssText)) r.mueven.push(k.name);
+        // Los botones. Las tarjetas y las baldosas suben y se achican a propósito
+        // (Fran las quiso así) y la perilla del slider crece al agarrarla.
+        if (k.type === CSSRule.STYLE_RULE && /:active/.test(k.selectorText) && /btn|newtab|pr-tool|segmented|op-tab|navitem|wincontrol/.test(k.selectorText)
+          && k.style.transform && !k.style.transform.includes('var(--x')) r.activoMueve.push(k.selectorText);
+      }
+    }
+    // Una celda: el botón no cambia de ancho en ningún cuadro.
+    const caja = document.createElement('div');
+    caja.style.cssText = 'position:fixed;left:20px;top:200px;display:flex;gap:8px;z-index:9999';
+    caja.innerHTML = '<span id="q-vecino">vecino</span><button class="op-btn op-btn--secondary" id="q-btn"><span class="op-celda"><span>Imprimir</span><span hidden>Guardar como archivo</span></span></button>';
+    document.body.append(caja);
+    const btn = caja.querySelector('#q-btn'), vec = caja.querySelector('#q-vecino');
+    const w0 = btn.getBoundingClientRect().width, x0 = vec.getBoundingClientRect().left;
+    m.celda(btn, 1);
+    const anchos = [];
+    for (let i = 0; i < 10; i++) { await wait(30); anchos.push(btn.getBoundingClientRect().width); }
+    r.celdaQuieta = anchos.every((w) => Math.abs(w - w0) < 0.01) && vec.getBoundingClientRect().left === x0;
+    caja.remove();
+    // Un toast que releva a otro aparece en el mismo lugar, y ninguno se desplaza.
+    Toast.show({ title: 'Uno', text: 'el primero' });
+    await wait(350);
+    const abajo0 = document.querySelector('.op-toast').getBoundingClientRect().bottom;
+    Toast.show({ title: 'Otro', text: 'el que lo releva' });
+    const muestras = [];
+    for (let i = 0; i < 12; i++) {
+      await wait(30);
+      for (const t of document.querySelectorAll('.op-toast')) muestras.push({ b: Math.round(t.getBoundingClientRect().bottom), tr: getComputedStyle(t).transform });
+    }
+    r.toastsJuntos = muestras.length > 12;
+    r.toastMismoLugar = muestras.every((s) => Math.abs(s.b - Math.round(abajo0)) <= 1);
+    r.toastQuieto = muestras.every((s) => s.tr === 'none');
+    document.querySelector('.op-toast [data-close]')?.click();
+    await wait(400);
+    return r;
+  })()`);
+  ok('ningún @keyframes mueve nada salvo listas, giros, barridos y el tooltip', nadaSeMueve.mueven.length === 0, JSON.stringify(nadaSeMueve.mueven));
+  ok('presionar no achica ni corre ningún botón', nadaSeMueve.activoMueve.length === 0, JSON.stringify(nadaSeMueve.activoMueve));
+  ok('celda: el botón no cambia de ancho al cambiar de rótulo', nadaSeMueve.celdaQuieta, JSON.stringify(nadaSeMueve));
+  ok('toast: el que releva aparece en el mismo lugar y ninguno se desplaza', nadaSeMueve.toastsJuntos && nadaSeMueve.toastMismoLugar && nadaSeMueve.toastQuieto, JSON.stringify(nadaSeMueve));
 
   console.log('\n13e. Si se cae el cromo, vuelve solo');
   /* Va al final: recarga el cromo. Las pestañas viven en sus procesos y su

@@ -78,6 +78,11 @@ p, code, pre,
    Nunca la gris de Windows. */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
+/* Respiro en las puntas (de Opal, oct 2026): el riel se acorta --op-sb-aire
+   de cada lado, así el thumb no llega al tope real. Un scroller con esquinas
+   grandes lo pisa con su radio. */
+::-webkit-scrollbar-track:vertical   { margin-block: var(--op-sb-aire); }
+::-webkit-scrollbar-track:horizontal { margin-inline: var(--op-sb-aire); }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: transparent;

@@ -121,14 +121,26 @@
   pointer-events: none;
 }
 
-/* Una hoja que no se va a imprimir se pliega (0fr) en vez de irse de golpe. */
+/* Una hoja que no se va a imprimir se apaga en su lugar y queda tenue (oct
+   2026): se ve cuáles salen y cuáles no, y las de abajo no se mueven. Antes
+   se plegaba (0fr) y las siguientes subían. */
 .pr-sheet {
   display: grid;
   grid-template-rows: 1fr;
   width: 100%;
-  transition: grid-template-rows var(--op-t-3) var(--op-ease), opacity var(--op-t-2) var(--op-ease-soft);
+  transition: opacity var(--op-t-2) var(--op-ease-soft);
 }
-.pr-sheet.is-out { grid-template-rows: 0fr; opacity: 0; }
+.pr-sheet.is-out { opacity: .18; }
+
+/* Lo que es solo de una impresora (copias, color, doble faz) y el campo de
+   las páginas guardan su lugar y se apagan en él: elegir PDF o «Todas» no
+   hace subir lo de abajo (oct 2026). Apagados son inertes (print.js). */
+.pr-print__only.op-reveal,
+#pp-range-wrap.op-reveal { grid-template-rows: 1fr; }
+.pr-print__only,
+#pp-range-wrap { opacity: 0; visibility: hidden; transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out); }
+.pr-print__only.is-open,
+#pp-range-wrap.is-open { opacity: 1; visibility: visible; transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s; }
 /* El padding va un nivel más adentro: una fila en 0fr no achica el padding
    de su propio hijo, y la hoja plegada dejaba un hueco. */
 .pr-sheet__in { min-height: 0; overflow: hidden; }
