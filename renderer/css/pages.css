@@ -320,18 +320,31 @@
 /* La hora de la última copia se releva adentro de la frase: en línea, o el
    relevo (una grilla) la bajaba a un renglón propio y partía la frase en tres. */
 .pr-opt .pr-bk__when.op-swap { display: inline-grid; vertical-align: bottom; justify-items: start; min-width: 18ch; }   /* «todavía no» ↔ «21 oct 2026, 14:05» sin correr el resto de la frase */
-/* Lo que aparece según otro ajuste guarda su lugar y se enciende en él (oct
-   2026). Antes se desplegaba (0fr → 1fr) y empujaba a todas las secciones de
+/* Un renglón que aparece según otro ajuste guarda su lugar y se enciende en
+   él (oct 2026): antes se desplegaba y empujaba a todas las secciones de
    abajo; Fran: «botones saltando». */
-.pr-chipset.op-reveal,
-#s-certs-head.op-reveal,
 .pr-relaunch-note.op-reveal { grid-template-rows: 1fr; }
-.pr-chipset,
-#s-certs-head,
 .pr-relaunch-note { opacity: 0; visibility: hidden; transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out); }
-.pr-chipset.is-open,
-#s-certs-head.is-open,
 .pr-relaunch-note.is-open { opacity: 1; visibility: visible; transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s; }
+/* Un bloque que casi siempre falta (las listas de sitios, los certificados)
+   no guarda su lugar: el hueco vacío se veía peor que el crecer (Fran, con
+   el calendario de Borrar datos). Se despliega como los paneles de Opal: al
+   abrir crece y se enciende un poco después; al cerrar se apaga primero y
+   recién ahí se pliega, así nunca se ve cortado por el borde. */
+.pr-chipset,
+#s-certs-head {
+  opacity: 0;
+  transition:
+    grid-template-rows var(--op-t-3) var(--op-ease-both) 100ms,
+    opacity var(--op-t-out) var(--op-ease-both);
+}
+.pr-chipset.is-open,
+#s-certs-head.is-open {
+  opacity: 1;
+  transition:
+    grid-template-rows var(--op-t-3) var(--op-ease),
+    opacity var(--op-t-2) var(--op-ease-soft) 60ms;
+}
 /* La pista de las actualizaciones guarda dos renglones: cambia de fase en su
    lugar, sin que la fila cambie de alto (oct 2026). */
 .pr-upd__hint { min-height: 2lh; }
@@ -552,13 +565,29 @@
 .pr-found + .op-reveal > div > .op-input { margin-top: 6px; }
 
 /* ── Borrar datos: elegir un día ─────────────────────────────────────────────
-   El calendario guarda su lugar debajo del segmentado y se enciende al elegir
-   «Un día» (oct 2026): el modal nace con su alto y no crece. Antes se
-   desplegaba, empujaba los checks y agrandaba el modal. Apagado es inerte
-   (pages.js). */
-.pr-cal-reveal.op-reveal { grid-template-rows: 1fr; }
-.pr-cal-reveal { opacity: 0; visibility: hidden; transition: opacity var(--op-t-out) var(--op-ease-both), visibility 0s linear var(--op-t-out); }
-.pr-cal-reveal.is-open { opacity: 1; visibility: visible; transition: opacity var(--op-t-2) var(--op-ease-soft) 60ms, visibility 0s; }
+   El calendario se despliega debajo del segmentado al elegir «Un día» y el
+   modal crece. Guardarle el lugar dejaba ~250 px vacíos en las otras tres
+   opciones, y Fran prefirió que crezca (oct 2026). Con el mismo tiempo que
+   los paneles de Opal: al abrir se despliega y el calendario se enciende un
+   poco después; al cerrar se apaga primero y recién ahí se pliega, así nunca
+   se ve cortado por el borde. Cerrado se come el gap de la columna, así no
+   deja un hueco de 12 px, y es inerte (pages.js). */
+.pr-cal-reveal {
+  margin-top: -12px;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--op-t-3) var(--op-ease-both) 100ms,
+    margin-top var(--op-t-3) var(--op-ease-both) 100ms,
+    opacity var(--op-t-out) var(--op-ease-both);
+}
+.pr-cal-reveal.is-open {
+  margin-top: 0;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--op-t-3) var(--op-ease),
+    margin-top var(--op-t-3) var(--op-ease),
+    opacity var(--op-t-2) var(--op-ease-soft) 60ms;
+}
 .pr-cal {
   display: grid;
   justify-items: center;

@@ -2707,10 +2707,10 @@ app.whenReady().then(async () => {
     [...document.querySelectorAll('.op-modal button')].find((b) => b.textContent.trim() === 'Borrar').click();
     return { cerrado, abierto, sel, prendidos, sum };
   })()`);
-  // Desde oct 2026 el calendario guarda su lugar (el modal nace con su alto y
-  // no crece): «Un día» lo enciende en él.
-  ok('«Un día» enciende el calendario en su lugar, sin cambiar de alto', unDia.cerrado.inert && !unDia.abierto.inert && unDia.abierto.h > 200
-    && Math.abs(unDia.abierto.h - unDia.cerrado.h) < 0.5 && unDia.cerrado.op === 0 && unDia.abierto.op === 1, JSON.stringify(unDia));
+  // El calendario no guarda su lugar (dejaba un hueco en las otras opciones):
+  // «Un día» lo despliega y el modal crece.
+  ok('«Un día» despliega el calendario', unDia.cerrado.h < 1 && unDia.cerrado.inert && unDia.cerrado.op === 0
+    && unDia.abierto.h > 200 && !unDia.abierto.inert && unDia.abierto.op === 1, JSON.stringify(unDia));
   ok('arranca en el último día con historial', unDia.sel === hoyKey && unDia.prendidos >= 1 && /Se borran \d+ páginas? del /.test(unDia.sum), JSON.stringify(unDia));
   ok('y Borrar se lleva ese día', await until(() => !ctx.library.visitDays()[hoyKey]), JSON.stringify(ctx.library.visitDays()));
   await until(() => js(`!document.querySelector('.op-modal__anim:not([data-state="closing"])')`));
