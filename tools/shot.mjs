@@ -33,7 +33,7 @@ b = info['bounds']
 if b:
     v = Image.open(tmp + '/view.png').convert('RGBA').resize((b['width'], b['height']))
     m = Image.new('L', v.size, 0)
-    ImageDraw.Draw(m).rounded_rectangle([0, 0, v.size[0]-1, v.size[1]-1], radius=10, fill=255)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, v.size[0]-1, v.size[1]-1], radius=8, fill=255)
     base.paste(v, (b['x'], b['y']), m)
 base.convert('RGB').save(out)
 print(out)

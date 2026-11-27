@@ -15,7 +15,7 @@
   --pr-toolbar: 46px;
   --pr-bmbar: 0px;
   --pr-gutter: 8px;
-  --pr-page-r: 10px;
+  --pr-page-r: 8px;
   --pr-tab-h: 32px;
   grid-template-rows: var(--op-titlebar) var(--pr-toolbar) var(--pr-bmbar) 1fr var(--op-statusbar);
 }
@@ -642,7 +642,7 @@
 }
 
 /* La hoja. Una pestaña web apoya su vista nativa EXACTAMENTE acá (mismo
-   rectángulo, mismo radio: la vista lleva setBorderRadius(10)). Una pestaña
+   rectángulo, mismo radio: la vista lleva setBorderRadius(8)). Una pestaña
    propia se dibuja adentro, sobre vidrio. Con vista dividida, split.js las
    pone en píxeles con la misma cuenta que hace el proceso principal. */
 .pr-pane {

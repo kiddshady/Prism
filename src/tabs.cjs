@@ -48,7 +48,7 @@ const omni = require('./omni.cjs');
 const textlink = require('./textlink.cjs');
 
 const BG = '#0a0a0a';
-const RADIUS = 10;
+const RADIUS = 8;
 const ZOOMS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
 const MAX_CLOSED = 25;
 const SLEEP_CHECK = 60 * 1000;
